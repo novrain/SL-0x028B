@@ -1,0 +1,29 @@
+{
+    "version": "2.0.0",
+    "tasks": [{
+        "type": "shell",
+        "label": "Unit Test",
+        "command": "D:/Install/msys64/mingw64/bin/g++.exe",
+        "args": [
+            "-I",
+            "${workspaceFolder}/include",
+            "-L",
+            "D:/Install/msys64/mingw64/bin",
+            "-L",
+            "${workspaceFolder}/lib",
+            "-g",
+            "${file}",
+            "-o",
+            "${fileDirname}\\${fileBasenameNoExtension}.exe",
+            "-lgtest",
+            "-lpthread"
+        ],
+        "options": {
+            "cwd": "D:/Install/msys64/mingw64/bin"
+        },
+        "problemMatcher": [
+            "$gcc"
+        ],
+        "group": "build"
+    }]
+}
