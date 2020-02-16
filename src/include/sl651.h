@@ -1,6 +1,10 @@
 #ifndef H_SL651
 #define H_SL651
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 /**
  *  报文帧控制字符定义 
  */
@@ -28,82 +32,86 @@
 
 // Package Struct
 #pragma pack(1) //便于内存拷贝，但降低效率
-/**
+    /**
  * 遥测站地址
  */
-typedef struct
-{
-    unsigned char A5;
-    unsigned char A4;
-    unsigned char A3;
-    unsigned char A2;
-    unsigned char A1;
-    unsigned char A0;
-} RemoteStationAddr;
+    typedef struct
+    {
+        unsigned char A5;
+        unsigned char A4;
+        unsigned char A3;
+        unsigned char A2;
+        unsigned char A1;
+        unsigned char A0;
+    } RemoteStationAddr;
 
-/**
+    /**
  * 中心站地址/遥测站地址组合
  */
-typedef struct
-{
-    unsigned char centerAddr;
-    RemoteStationAddr stationAddr;
-} UpAddr;
+    typedef struct
+    {
+        unsigned char centerAddr;
+        RemoteStationAddr stationAddr;
+    } UpAddr;
 
-typedef struct
-{
-    unsigned char centerAddr;
-    RemoteStationAddr stationAddr;
-} DownAddr;
+    typedef struct
+    {
+        unsigned char centerAddr;
+        RemoteStationAddr stationAddr;
+    } DownAddr;
 
-typedef union {
-    UpAddr upAddr;
-    DownAddr downAddr;
-} AddrPair;
+    typedef union {
+        UpAddr upAddr;
+        DownAddr downAddr;
+    } AddrPair;
 
-typedef enum
-{
-    Up,
-    Down
-} Direction;
+    typedef enum
+    {
+        Up,
+        Down
+    } Direction;
 
-typedef struct
-{
-    unsigned short int count;
-    unsigned char seq;
-} Sequence;
+    typedef struct
+    {
+        unsigned short int count;
+        unsigned char seq;
+    } Sequence;
 
-/**
+    /**
  * Head
  */
-typedef struct
-{
-    Direction direction;
-    unsigned short int soh;
-    AddrPair addrPair;
-    unsigned short int pwd;
-    unsigned char funcCode;
-    unsigned short int len;
-    unsigned char stxFlag;
-    // if stxFlag == SNY
-    Sequence seq;
-} PkgHead;
+    typedef struct
+    {
+        Direction direction;
+        unsigned short int soh;
+        AddrPair addrPair;
+        unsigned short int pwd;
+        unsigned char funcCode;
+        unsigned short int len;
+        unsigned char stxFlag;
+        // if stxFlag == SNY
+        Sequence seq;
+    } PkgHead;
 
 #define PACKAGE_HEAD_STX_LEN 14
 #define PACKAGE_HEAD_SNY_LEN 17
 
-typedef struct
-{
-    unsigned char etxFlag;
-    unsigned short int crc;
-} PkgTail;
+    typedef struct
+    {
+        unsigned char etxFlag;
+        unsigned short int crc;
+    } PkgTail;
 
-typedef struct
-{
-    unsigned short int len;
-    PkgHead head;
-    char *data;
-    PkgTail tail;
-} Package;
+    typedef struct
+    {
+        unsigned short int len;
+        PkgHead head;
+        char *data;
+        PkgTail tail;
+    } Package;
 #pragma pack()
+
+#ifdef __cplusplus
+}
+#endif
 #endif
