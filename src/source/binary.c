@@ -2,24 +2,24 @@
 
 ByteOrder hostEndian()
 {
-    return *(char *)&ENDIAN_MAGIC == ENDIAN_MAGIC_HIGH_BYTE ? BigEndian : LittleEndian;
+    return *(int8_t *)&ENDIAN_MAGIC == ENDIAN_MAGIC_HIGH_BYTE ? BigEndian : LittleEndian;
 }
 
 // LittleEndian
 
 // read
-unsigned short toLeUInt16(unsigned char *pBytes)
+uint16_t toLeUInt16(uint8_t *pBytes)
 {
-    unsigned short v;
+    uint16_t v;
 
     v = pBytes[0];
     v |= pBytes[1] << 8;
     return v;
 }
 
-unsigned long toLeUInt32(unsigned char *pBytes)
+uint32_t toLeUInt32(uint8_t *pBytes)
 {
-    unsigned long v;
+    uint32_t v;
 
     v = pBytes[0];
     v |= pBytes[1] << 8;
@@ -28,35 +28,35 @@ unsigned long toLeUInt32(unsigned char *pBytes)
     return v;
 }
 
-unsigned long long toLeUInt64(unsigned char *pBytes)
+uint64_t toLeUInt64(uint8_t *pBytes)
 {
-    unsigned long long v;
-    v = (unsigned long long)pBytes[0];
-    v |= (unsigned long long)pBytes[1] << 8;
-    v |= (unsigned long long)pBytes[2] << 16;
-    v |= (unsigned long long)pBytes[3] << 24;
-    v |= (unsigned long long)pBytes[4] << 32;
-    v |= (unsigned long long)pBytes[5] << 40;
-    v |= (unsigned long long)pBytes[6] << 48;
-    v |= (unsigned long long)pBytes[7] << 56;
+    uint64_t v;
+    v = (uint64_t)pBytes[0];
+    v |= (uint64_t)pBytes[1] << 8;
+    v |= (uint64_t)pBytes[2] << 16;
+    v |= (uint64_t)pBytes[3] << 24;
+    v |= (uint64_t)pBytes[4] << 32;
+    v |= (uint64_t)pBytes[5] << 40;
+    v |= (uint64_t)pBytes[6] << 48;
+    v |= (uint64_t)pBytes[7] << 56;
     return v;
 }
 
 // write
-void putLeUInt16(unsigned char *pBytes, unsigned short v)
+void putLeUInt16(uint8_t *pBytes, uint16_t v)
 {
     pBytes[0] = v;
     pBytes[1] = v >> 8;
     pBytes[2] = v >> 16;
 }
-void putLeUInt32(unsigned char *pBytes, unsigned long v)
+void putLeUInt32(uint8_t *pBytes, uint32_t v)
 {
     pBytes[0] = v;
     pBytes[1] = v >> 8;
     pBytes[2] = v >> 16;
     pBytes[3] = v >> 24;
 }
-void putLeUInt64(unsigned char *pBytes, unsigned long long v)
+void putLeUInt64(uint8_t *pBytes, uint64_t v)
 {
     pBytes[0] = v;
     pBytes[1] = v >> 8;
@@ -71,17 +71,17 @@ void putLeUInt64(unsigned char *pBytes, unsigned long long v)
 // BigEndian
 
 // read
-unsigned short toBeUInt16(unsigned char *pBytes)
+uint16_t toBeUInt16(uint8_t *pBytes)
 {
-    unsigned short v;
+    uint16_t v;
 
     v = pBytes[0] << 8;
     v |= pBytes[1];
     return v;
 }
-unsigned long toBeUInt32(unsigned char *pBytes)
+uint32_t toBeUInt32(uint8_t *pBytes)
 {
-    unsigned long v;
+    uint32_t v;
 
     v = pBytes[0] << 24;
     v |= pBytes[1] << 16;
@@ -89,15 +89,15 @@ unsigned long toBeUInt32(unsigned char *pBytes)
     v |= pBytes[3];
     return v;
 }
-unsigned long long toBeUInt64(unsigned char *pBytes)
+uint64_t toBeUInt64(uint8_t *pBytes)
 {
-    unsigned long long v;
+    uint64_t v;
 
-    v = (unsigned long long)pBytes[0] << 56;
-    v |= (unsigned long long)pBytes[1] << 48;
-    v |= (unsigned long long)pBytes[2] << 40;
-    v |= (unsigned long long)pBytes[3] << 32;
-    v |= (unsigned long long)pBytes[4] << 24;
+    v = (uint64_t)pBytes[0] << 56;
+    v |= (uint64_t)pBytes[1] << 48;
+    v |= (uint64_t)pBytes[2] << 40;
+    v |= (uint64_t)pBytes[3] << 32;
+    v |= (uint64_t)pBytes[4] << 24;
     v |= pBytes[5] << 16;
     v |= pBytes[6] << 8;
     v |= pBytes[7];
@@ -105,13 +105,13 @@ unsigned long long toBeUInt64(unsigned char *pBytes)
 }
 
 // write
-void putBeUInt16(unsigned char *pBytes, unsigned short v)
+void putBeUInt16(uint8_t *pBytes, uint16_t v)
 {
     pBytes[0] = v >> 8;
     pBytes[1] = v;
 }
 
-void putBeUInt32(unsigned char *pBytes, unsigned long v)
+void putBeUInt32(uint8_t *pBytes, uint32_t v)
 {
     pBytes[0] = v >> 24;
     pBytes[1] = v >> 16;
@@ -119,7 +119,7 @@ void putBeUInt32(unsigned char *pBytes, unsigned long v)
     pBytes[3] = v;
 }
 
-void putBeUInt64(unsigned char *pBytes, unsigned long long v)
+void putBeUInt64(uint8_t *pBytes, uint64_t v)
 {
     pBytes[0] = v >> 56;
     pBytes[1] = v >> 48;

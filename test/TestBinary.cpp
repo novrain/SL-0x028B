@@ -9,15 +9,15 @@ GTEST_TEST(Binary, hostEndian)
 
 GTEST_TEST(Binary, toBeUInt16)
 {
-    unsigned char bin[] = {1, 2, 3, 4, 0xab, 0xcd};
-    unsigned short v = toBeUInt16(bin);
+    uint8_t bin[] = {1, 2, 3, 4, 0xab, 0xcd};
+    uint16_t v = toBeUInt16(bin);
     ASSERT_EQ(v, (1 << 8) + 2);
 }
 
 GTEST_TEST(Binary, toLeUInt16)
 {
-    unsigned char bin[] = {1, 2, 3, 4, 0xab, 0xcd};
-    unsigned short v = toLeUInt16(bin);
+    uint8_t bin[] = {1, 2, 3, 4, 0xab, 0xcd};
+    uint16_t v = toLeUInt16(bin);
     ASSERT_EQ(v, (2 << 8) + 1);
 }
 
