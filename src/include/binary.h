@@ -6,9 +6,11 @@ extern "C"
 {
 #endif
 
-    static unsigned short ENDIAN_MAGIC = 0xFEEF;
-    static unsigned char ENDIAN_MAGIC_HIGH_BYTE = 0xFE;
-    static unsigned char ENDIAN_MAGIC_LOW_BYTE = 0xEF;
+#include <stdint.h>
+
+    static uint16_t ENDIAN_MAGIC = 0xFEEF;
+    static uint8_t ENDIAN_MAGIC_HIGH_BYTE = 0xFE;
+    static uint8_t ENDIAN_MAGIC_LOW_BYTE = 0xEF;
 
     typedef enum
     {
@@ -21,26 +23,26 @@ extern "C"
     // LittleEndian
 
     // read
-    unsigned short toLeUInt16(unsigned char *pBytes);
-    unsigned long toLeUInt32(unsigned char *pBytes);
-    unsigned long long toLeUInt64(unsigned char *pBytes);
+    uint16_t toLeUInt16(uint8_t *pBytes);
+    uint32_t toLeUInt32(uint8_t *pBytes);
+    uint64_t toLeUInt64(uint8_t *pBytes);
 
     // write
-    void putLeUInt16(unsigned char *pBytes, unsigned short v);
-    void putLeUInt32(unsigned char *pBytes, unsigned long v);
-    void putLeUInt64(unsigned char *pBytes, unsigned long long v);
+    void putLeUInt16(uint8_t *pBytes, uint16_t v);
+    void putLeUInt32(uint8_t *pBytes, uint32_t v);
+    void putLeUInt64(uint8_t *pBytes, uint64_t v);
 
     // BigEndian
 
     // read
-    unsigned short toBeUInt16(unsigned char *pBytes);
-    unsigned long toBeUInt32(unsigned char *pBytes);
-    unsigned long long toBeUInt64(unsigned char *pBytes);
+    uint16_t toBeUInt16(uint8_t *pBytes);
+    uint32_t toBeUInt32(uint8_t *pBytes);
+    uint64_t toBeUInt64(uint8_t *pBytes);
 
     // write
-    void putBeUInt16(unsigned char *pBytes, unsigned short v);
-    void putBeUInt32(unsigned char *pBytes, unsigned long v);
-    void putBeUInt64(unsigned char *pBytes, unsigned long long v);
+    void putBeUInt16(uint8_t *pBytes, uint16_t v);
+    void putBeUInt32(uint8_t *pBytes, uint32_t v);
+    void putBeUInt64(uint8_t *pBytes, uint64_t v);
 
 #ifdef __cplusplus
 }

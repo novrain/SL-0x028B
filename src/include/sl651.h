@@ -5,6 +5,8 @@
 extern "C"
 {
 #endif
+
+#include <stdint.h>
 /**
  *  报文帧控制字符定义 
  */
@@ -37,12 +39,12 @@ extern "C"
  */
     typedef struct
     {
-        unsigned char A5;
-        unsigned char A4;
-        unsigned char A3;
-        unsigned char A2;
-        unsigned char A1;
-        unsigned char A0;
+        uint8_t A5;
+        uint8_t A4;
+        uint8_t A3;
+        uint8_t A2;
+        uint8_t A1;
+        uint8_t A0;
     } RemoteStationAddr;
 
     /**
@@ -50,13 +52,13 @@ extern "C"
  */
     typedef struct
     {
-        unsigned char centerAddr;
+        uint8_t centerAddr;
         RemoteStationAddr stationAddr;
     } UpAddr;
 
     typedef struct
     {
-        unsigned char centerAddr;
+        uint8_t centerAddr;
         RemoteStationAddr stationAddr;
     } DownAddr;
 
@@ -73,8 +75,8 @@ extern "C"
 
     typedef struct
     {
-        unsigned short int count;
-        unsigned char seq;
+        uint16_t count;
+        uint8_t seq;
     } Sequence;
 
     /**
@@ -83,12 +85,12 @@ extern "C"
     typedef struct
     {
         Direction direction;
-        unsigned short int soh;
+        uint16_t soh;
         AddrPair addrPair;
-        unsigned short int pwd;
-        unsigned char funcCode;
-        unsigned short int len;
-        unsigned char stxFlag;
+        uint16_t pwd;
+        uint8_t funcCode;
+        uint16_t len;
+        uint8_t stxFlag;
         // if stxFlag == SNY
         Sequence seq;
     } PkgHead;
@@ -98,17 +100,26 @@ extern "C"
 
     typedef struct
     {
-        unsigned char etxFlag;
-        unsigned short int crc;
+        uint8_t etxFlag;
+        uint16_t crc;
     } PkgTail;
 
     typedef struct
     {
-        unsigned short int len;
         PkgHead head;
-        char *data;
         PkgTail tail;
     } Package;
+
+    typedef struct
+    {
+        uint8_t year;
+        uint8_t month;
+        uint8_t day;
+        uint8_t hour;
+        uint8_t minute;
+        uint8_t second;
+    } DateTime;
+
 #pragma pack()
 
 #ifdef __cplusplus
