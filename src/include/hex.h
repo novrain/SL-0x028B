@@ -12,8 +12,8 @@ extern "C"
 
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
-    size_t bin2hex(const uint8_t *bin, size_t binLen, char *hex, size_t hexLen);
-    size_t hex2bin(const char *hex, size_t hexLen, uint8_t *bin, size_t binLen);
+    size_t bin2hex(const uint8_t *bin, size_t binLen, uint8_t *hex, size_t hexLen);
+    size_t hex2bin(const uint8_t *hex, size_t hexLen, uint8_t *bin, size_t binLen);
 
 #ifdef __cplusplus
 }

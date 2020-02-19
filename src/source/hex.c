@@ -2,7 +2,7 @@
 
 static char hexChar[16 + 1] = "0123456789ABCDEF";
 
-size_t bin2hex(const uint8_t *bin, size_t binLen, char *hex, size_t hexLen)
+size_t bin2hex(const uint8_t *bin, size_t binLen, uint8_t *hex, size_t hexLen)
 {
     if (bin == NULL || binLen == 0 || hex == NULL || hexLen == 0)
     {
@@ -11,7 +11,7 @@ size_t bin2hex(const uint8_t *bin, size_t binLen, char *hex, size_t hexLen)
 
     size_t lenWritten = 0;
     size_t i = 0;
-    while (i < binLen && (i * 2 + (2 + 1)) <= hexLen)
+    while (i < binLen && (i * 2 + 2) <= hexLen)
     {
         uint8_t hB = (bin[i] & 0xF0) >> 4;
         *hex = hexChar[hB];
@@ -24,7 +24,7 @@ size_t bin2hex(const uint8_t *bin, size_t binLen, char *hex, size_t hexLen)
         lenWritten += 2;
         i++;
     }
-    *hex = '\0';
+    // *hex = '\0';
 
     return lenWritten;
 }
@@ -56,7 +56,7 @@ static int hexChar2bin(const char hex, uint8_t *byte)
     return 1;
 }
 
-size_t hex2bin(const char *hex, size_t hexLen, uint8_t *bin, size_t binLen)
+size_t hex2bin(const uint8_t *hex, size_t hexLen, uint8_t *bin, size_t binLen)
 {
     if (bin == NULL || binLen == 0 || hex == NULL || hexLen == 0)
     {
