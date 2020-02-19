@@ -5,10 +5,11 @@
 GTEST_TEST(Definition, package)
 {
     Package pkg;
-    pkg.head.direction = Up;
-    pkg.head.addrPair.downAddr.centerAddr = 0;
-    ASSERT_EQ(pkg.head.direction, Up);
-    ASSERT_EQ(pkg.head.addrPair.downAddr.centerAddr, 0);
+    Head head;
+    head.addrPair.downAddr.centerAddr = 0;
+    head.direction = Up;
+    Package_ctor(&pkg, head);
+    ASSERT_EQ(Package_Direction(&pkg), Up);
 }
 
 int main(int argc, char *argv[])

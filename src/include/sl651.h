@@ -32,11 +32,9 @@ extern "C"
 //ESC (escape)
 #define ESC 0x1b //传输结束，终端保持在线
 
-// Package Struct
-#pragma pack(1) //便于内存拷贝，但降低效率
-    /**
- * 遥测站地址
- */
+    // Package Struct
+    // #pragma pack(1)
+    /* 遥测站地址 */
     typedef struct
     {
         uint8_t A5;
@@ -47,9 +45,7 @@ extern "C"
         uint8_t A0;
     } RemoteStationAddr;
 
-    /**
- * 中心站地址/遥测站地址组合
- */
+    /* 中心站地址/遥测站地址组合 */
     typedef struct
     {
         uint8_t centerAddr;
@@ -79,9 +75,7 @@ extern "C"
         uint8_t seq;
     } Sequence;
 
-    /**
- * Head
- */
+    /* Head */
     typedef struct
     {
         Direction direction;
@@ -93,7 +87,7 @@ extern "C"
         uint8_t stxFlag;
         // if stxFlag == SNY
         Sequence seq;
-    } PkgHead;
+    } Head;
 
 #define PACKAGE_HEAD_STX_LEN 14
 #define PACKAGE_HEAD_SNY_LEN 17
@@ -102,13 +96,7 @@ extern "C"
     {
         uint8_t etxFlag;
         uint16_t crc;
-    } PkgTail;
-
-    typedef struct
-    {
-        PkgHead head;
-        PkgTail tail;
-    } Package;
+    } Tail;
 
     typedef struct
     {
@@ -120,8 +108,38 @@ extern "C"
         uint8_t second;
     } DateTime;
 
-#pragma pack()
+    // oop
+    // "AbstractClass" Package
+    struct PackageVtbl; /* forward declaration */
+    typedef struct
+    {
+        struct PackageVtbl const *vptr; /* <== Package's Virtual Pointer */
+        Head head;
+        Tail tail;
+    } Package;
 
+    /* Package's virtual table */
+    typedef struct PackageVtbl
+    {
+        // pure virtual
+        void (*encode2Hex)(Package const *const me, uint8_t *hex, size_t len);
+        void (*decodeFromHex)(Package const *const me, const uint8_t *hex, size_t len);
+        size_t (*size)();
+    } PackageVtbl;
+
+    /* Package Construtor */
+    void Package_ctor(Package *const me, Head head);
+    /* Public methods */
+    void Package_Head2Hex(Package const *const me, uint8_t *hex, size_t len);
+    void Package_Tail2Hex(Package const *const me, uint8_t *hex, size_t len);
+    void Package_Hex2Head(Package const *me, uint8_t *hex, size_t len);
+    void Package_Hex2Tail(Package const *me, uint8_t *hex, size_t len);
+    /* Public Helper*/
+    // "AbstractClass" Package END
+#define PACAKAGE_UPCAST(ptr_) ((Package *)(ptr_))
+#define Package_Direction(me_) (PACAKAGE_UPCAST(me_)->head.direction)
+
+    // #pragma pack()
 #ifdef __cplusplus
 }
 #endif
