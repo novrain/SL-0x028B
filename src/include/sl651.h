@@ -7,6 +7,13 @@ extern "C"
 #endif
 
 #include <stdint.h>
+
+#define SIMPLE_DTOR(ptr_) \
+    {                     \
+        (free(ptr_));     \
+        (ptr_) = NULL;    \
+    }
+
 /**
  *  报文帧控制字符定义 
  */
@@ -32,11 +39,9 @@ extern "C"
 //ESC (escape)
 #define ESC 0x1b //传输结束，终端保持在线
 
-// Package Struct
-#pragma pack(1) //便于内存拷贝，但降低效率
-    /**
- * 遥测站地址
- */
+    // Package Struct
+    // #pragma pack(1)
+    /* 遥测站地址 */
     typedef struct
     {
         uint8_t A5;
@@ -47,9 +52,7 @@ extern "C"
         uint8_t A0;
     } RemoteStationAddr;
 
-    /**
- * 中心站地址/遥测站地址组合
- */
+    /* 中心站地址/遥测站地址组合 */
     typedef struct
     {
         uint8_t centerAddr;
@@ -75,13 +78,21 @@ extern "C"
 
     typedef struct
     {
+        uint8_t year;
+        uint8_t month;
+        uint8_t day;
+        uint8_t hour;
+        uint8_t minute;
+        uint8_t second;
+    } DateTime;
+
+    typedef struct
+    {
         uint16_t count;
         uint8_t seq;
     } Sequence;
 
-    /**
- * Head
- */
+    /* Head */
     typedef struct
     {
         Direction direction;
@@ -93,35 +104,149 @@ extern "C"
         uint8_t stxFlag;
         // if stxFlag == SNY
         Sequence seq;
-    } PkgHead;
+    } Head;
+
+#define Head_ctor(ptr_)
+#define Head_dtor(ptr_) (SIMPLE_DTOR(ptr_))
 
 #define PACKAGE_HEAD_STX_LEN 14
 #define PACKAGE_HEAD_SNY_LEN 17
 
     typedef struct
     {
+        uint16_t seq;
+        DateTime sendTime;
+        uint8_t addrFlag[2]; // it is fixed value now, 0xF1F1
+        RemoteStationAddr stationAddr;
+        uint8_t stationCategory;
+        uint8_t observeTimeFlag[2]; // it is fixed value now, 0xF0F0
+        DateTime observeTime;
+    } UplinkMessageHead;
+
+    typedef struct
+    {
+        uint16_t seq;
+        DateTime sendTime;
+        uint8_t addrFlag[2]; // it is fixed value now, 0xF1F1
+        RemoteStationAddr stationAddr;
+    } DownlinkMessageHead;
+
+    typedef struct
+    {
         uint8_t etxFlag;
         uint16_t crc;
-    } PkgTail;
+    } Tail;
 
+    // oop
+    // "AbstractClass" Package
+    struct PackageVtbl; /* forward declaration */
     typedef struct
     {
-        PkgHead head;
-        PkgTail tail;
+        struct PackageVtbl const *vptr; /* <== Package's Virtual Pointer */
+        Head *head;
+        Tail *tail;
     } Package;
 
+    /* Package's virtual table */
+    typedef struct PackageVtbl
+    {
+        // pure virtual
+        void (*encode2Hex)(Package const *const me, uint8_t *hex, size_t len);
+        void (*decodeFromHex)(Package const *const me, const uint8_t *hex, size_t len);
+        size_t (*size)();
+    } PackageVtbl;
+
+    /* Package Construtor & Destrucor */
+    void Package_ctor(Package *const me, Head *head);
+    /* Public methods */
+    void Package_Head2Hex(Package const *const me, uint8_t *hex, size_t len);
+    void Package_Tail2Hex(Package const *const me, uint8_t *hex, size_t len);
+    void Package_Hex2Head(Package const *me, uint8_t *hex, size_t len);
+    void Package_Hex2Tail(Package const *me, uint8_t *hex, size_t len);
+    /* Public Helper*/
+#define PACAKAGE_UPCAST(ptr_) ((Package *)(ptr_))
+#define Package_dtor(ptr_) (SIMPLE_DTOR(ptr_))
+#define Package_Direction(me_) (PACAKAGE_UPCAST(me_)->head->direction)
+    // "AbstractClass" Package END
+
+    // "Interface" Element
+    struct ElementVtbl; /* forward declaration */
     typedef struct
     {
-        uint8_t year;
-        uint8_t month;
-        uint8_t day;
-        uint8_t hour;
-        uint8_t minute;
-        uint8_t second;
-    } DateTime;
+        struct ElementVtbl const *vptr;
+    } Element;
 
-#pragma pack()
+    typedef struct ElementVtbl
+    {
+        // pure virtual
+        void (*encode2Hex)(Package const *const me, uint8_t *hex, size_t len);
+        void (*decodeFromHex)(Package const *const me, const uint8_t *hex, size_t len);
+        size_t (*size)();
+    } ElementVtbl;
+    // "Interface" Element END
 
+    // "Basic" LinkMessage
+    typedef struct
+    {
+        Package super;
+        uint16_t elementCount;
+        Element *elements[0];
+        Element *elementCursor;
+    } LinkMessage;
+
+    /* LinkMessage Construtor & Destrucor */
+    void LinkMessage_ctor(LinkMessage *const me, Head *head, uint16_t elementCount);
+    void LinkMessage_dtor(LinkMessage *const me);
+    /* Public methods */
+    void LinkMessage_Elements2Hex(LinkMessage const *const me, uint8_t *hex, size_t len);
+    void LinkMessage_Hex2Elements(LinkMessage const *me, uint8_t *hex, size_t len);
+    void LinkMessage_putElement(LinkMessage const *me, uint16_t index, Element *element);
+    void LinkMessage_setElement(LinkMessage const *me, uint16_t index, Element *element);
+    Element *LinkMessage_getElement(LinkMessage const *me, uint16_t index);
+    /* Public Helper*/
+#define LINKMESSAGE_UPCAST(ptr_) ((Package *)(ptr_))
+#define LinkMessage_ElementCount(me_) (LINKMESSAGE_UPCAST(me_)->elementCount)
+#define LinkMessage_rewind(me_) (LINKMESSAGE_UPCAST(me_)->elementCursor = 0)
+    // "Basic" LinkMessage END
+
+    // "AbstractUpClass" UplinkMessage
+    typedef struct
+    {
+        LinkMessage super;
+        UplinkMessageHead *messageHead;
+    } UplinkMessage;
+
+    /* UplinkMessage Construtor & Destrucor */
+    void UplinkMessage_ctor(UplinkMessage *const me, Head *head, UplinkMessageHead *upLinkHead, uint16_t elementCount);
+    void UplinkMessage_dtor(UplinkMessage *const me);
+    /* Public methods */
+    void UplinkMessage_Head2Hex(UplinkMessage const *const me, uint8_t *hex, size_t len);
+    // void UplinkMessage_Tail2Hex(UplinkMessage const *const me, uint8_t *hex, size_t len);
+    void UplinkMessage_Hex2Head(UplinkMessage const *me, uint8_t *hex, size_t len);
+    // void UplinkMessage_Hex2Tail(UplinkMessage const *me, uint8_t *hex, size_t len);
+    // "AbstractUpClass" UplinkMessage END
+
+    // "AbstractUpClass" DownlinkMessage
+    typedef struct
+    {
+        LinkMessage super;
+        DownlinkMessageHead *messageHead;
+    } DownlinkMessage;
+
+    /* DownlinkMessage Construtor  & Destrucor */
+    void DownlinkMessage_ctor(DownlinkMessage *const me, Head *head, DownlinkMessageHead *downLinkHead, uint16_t elementCount);
+    void DownlinkMessage_dtor(DownlinkMessage *const me);
+    /* Public methods */
+    void DownlinkMessage_Head2Hex(DownlinkMessage const *const me, uint8_t *hex, size_t len);
+    // void DownlinkMessage_Tail2Hex(DownlinkMessage const *const me, uint8_t *hex, size_t len);
+    void DownlinkMessage_Hex2Head(DownlinkMessage const *me, uint8_t *hex, size_t len);
+    // void DownlinkMessage_Hex2Tail(DownlinkMessage const *me, uint8_t *hex, size_t len);
+    // "AbstractUpClass" DownlinkMessage END
+
+    // Elements
+
+    // Elements END
+    // #pragma pack()
 #ifdef __cplusplus
 }
 #endif
