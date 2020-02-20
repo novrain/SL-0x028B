@@ -39,6 +39,94 @@ extern "C"
 //ESC (escape)
 #define ESC 0x1b //传输结束，终端保持在线
 
+    enum StationCategory_HEX
+    {
+        // 降水  P
+        RAIN_STATION = 0x50,
+        // 河道  H
+        RIVER_STATION = 0x48,
+        // 水库/湖泊 K
+        RESERVOIR_STATION = 0x4B,
+        // 闸坝  Z
+        DAM_STATION = 0x5A,
+        // 泵站  D
+        PUMPING_STATION = 0x44,
+        // 潮汐  T
+        TIDE_STATION = 0x54,
+        // 墒情  M
+        SOIL_MOISTURE_STAION = 0x4D,
+        // 地下水 G
+        GROUNDWATER_STATION = 0x47,
+        // 水质  Q
+        WATER_QUALITY_STATION = 0x51,
+        // 取水口 I
+        WATER_INTAKE_STATION = 0x49,
+        // 排水口 O
+        DRIAN_STATION = 0x4F
+    };
+
+    enum FunctionCode
+    {
+        // 链路维持报
+        KEEPALIVE = 0x2F,
+        // 试试报
+        TEST = 0x30,
+        // 均匀时段水文信息报
+        EVEN_TIME,
+        // 遥测站定时报
+        INTERVAL,
+        // 遥测站加报报
+        ADDED,
+        // 遥测站小时报
+        HOUR,
+        // 遥测站人工置数报
+        ARTIFICIAL,
+        // 遥测站图片报 或 中心站查询遥测站图片采集信息
+        PICTURE,
+        // 中心站查询遥测站实时数据
+        QUERY_REALTIME,
+        // 中心站查询遥测站人工置数
+        QUERY_ARTIFICIAL,
+        // 中心站查询遥测站指定要素数据
+        QUERY_ELEMENT,
+        // 中心站修改遥测站基本配置表
+        MODIFY_BASIC_CONFIG = 0x40,
+        // 中心站读取遥测站基本配置表/遥测站自报基本配置表
+        BASIC_CONFIG,
+        // 中心站修改遥测站运行参数配置表
+        MODIFY_RUNTIME_CONFIG,
+        // 中心站读取遥测站运行参数配置表/遥测站自报运行参数配置表
+        RUNTIME_CONFIG,
+        // 查询水泵电机实时工作数据
+        QUERY_PUMPING_REALTIME,
+        // 查询遥测终端软件版本
+        QUERY_SOFTWARE_VERSION,
+        // 查询遥测站状态和报警信息
+        QUERY_STATUS,
+        // 初始化固态存储数据
+        INIT_STORAGE,
+        // 恢复终端出厂设置
+        RESET,
+        // 修改密码
+        CHANGE_PASSWORD,
+        // 设置遥测站时钟
+        SET_CLOCK,
+        // 设置遥测终端IC卡状态
+        SET_IC,
+        // 控制水泵开关命令/水泵状态信息自报
+        PUMPING_SWITCH,
+        // 控制阀门开关命令/阀门状态信息自报
+        VALVE_SWITCH,
+        // 控制闸门开关命令/闸门状态信息自报
+        GATE_SWITCH,
+        // 水量定值控制命令
+        WATER_VOLUME_SETTING,
+        // 中心站查询遥测站事件记录
+        QUERY_LOG,
+        // 中心站查询遥测站时钟
+        QUERY_CLOCK
+    };
+
     // Package Struct
     // #pragma pack(1)
     /* 遥测站地址 */
