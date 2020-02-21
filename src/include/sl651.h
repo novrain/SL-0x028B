@@ -7,12 +7,21 @@ extern "C"
 #endif
 
 #include <stdint.h>
+#include <memory.h>
 
-#define SIMPLE_DTOR(ptr_) \
+#define NewInstance(Class)                              \
+    ({                                                  \
+        Class *ptr_ = ((Class *)malloc(sizeof(Class))); \
+        (memset(ptr_, 0, sizeof(Class)));               \
+        ptr_;                                           \
+    })
+
+#define DelInstance(ptr_) \
+    do                    \
     {                     \
-        (free(ptr_));     \
-        (ptr_) = NULL;    \
-    }
+        free(ptr_);       \
+        ptr_ = NULL;      \
+    } while (0);
 
 /**
  *  报文帧控制字符定义 
@@ -195,7 +204,7 @@ extern "C"
     } Head;
 
 #define Head_ctor(ptr_)
-#define Head_dtor(ptr_) (SIMPLE_DTOR(ptr_))
+#define Head_dtor(ptr_)
 
 #define PACKAGE_HEAD_STX_LEN 14
 #define PACKAGE_HEAD_SNY_LEN 17
@@ -253,7 +262,7 @@ extern "C"
     void Package_Hex2Tail(Package const *me, uint8_t *hex, size_t len);
     /* Public Helper*/
 #define PACAKAGE_UPCAST(ptr_) ((Package *)(ptr_))
-#define Package_dtor(ptr_) (SIMPLE_DTOR(ptr_))
+#define Package_dtor(ptr_)
 #define Package_Direction(me_) (PACAKAGE_UPCAST(me_)->head->direction)
     // "AbstractClass" Package END
 
