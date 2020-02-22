@@ -202,3 +202,99 @@ size_t hex2bin(const uint8_t *hex, size_t hexLen, uint8_t *bin, size_t binLen)
     }
     return len;
 }
+
+size_t hexPutUInt8(uint8_t *hex, uint8_t *val)
+{
+    uint8_t hB = (*val & 0xF0) >> 4;
+    *hex = hexChar[hB];
+    hex++;
+    uint8_t lB = *val & 0x0F;
+    *hex = hexChar[lB];
+    return 2;
+}
+
+size_t hexPutBeUInt16(uint8_t *hex, uint16_t *val)
+{
+    uint8_t b = *val >> 8;
+    hex += hexPutUInt8(hex, &b);
+    b = *val;
+    hexPutUInt8(hex, &b);
+    return 4;
+}
+
+size_t hexPutBeUInt32(uint8_t *hex, uint32_t *val)
+{
+    uint8_t b = *val >> 24;
+    hex += hexPutUInt8(hex, &b);
+    b = *val >> 16;
+    hex += hexPutUInt8(hex, &b);
+    b = *val >> 8;
+    hex += hexPutUInt8(hex, &b);
+    b = *val;
+    hex += hexPutUInt8(hex, &b);
+    return 8;
+}
+
+size_t hexPutBeUInt64(uint8_t *hex, uint64_t *val)
+{
+    uint8_t b = *val >> 56;
+    hex += hexPutUInt8(hex, &b);
+    b = *val >> 48;
+    hex += hexPutUInt8(hex, &b);
+    b = *val >> 40;
+    hex += hexPutUInt8(hex, &b);
+    b = *val >> 32;
+    hex += hexPutUInt8(hex, &b);
+    b = *val >> 24;
+    hex += hexPutUInt8(hex, &b);
+    b = *val >> 16;
+    hex += hexPutUInt8(hex, &b);
+    b = *val >> 8;
+    hex += hexPutUInt8(hex, &b);
+    b = *val;
+    hexPutUInt8(hex, &b);
+    return 16;
+}
+
+size_t hexPutLeUInt16(uint8_t *hex, uint16_t *val)
+{
+    uint8_t b = *val;
+    hex += hexPutUInt8(hex, &b);
+    b = *val >> 8;
+    hexPutUInt8(hex, &b);
+    return 4;
+}
+
+size_t hexPutLeUInt32(uint8_t *hex, uint32_t *val)
+{
+    uint8_t b = *val;
+    hex += hexPutUInt8(hex, &b);
+    b = *val >> 8;
+    hex += hexPutUInt8(hex, &b);
+    b = *val >> 16;
+    hex += hexPutUInt8(hex, &b);
+    b = *val >> 24;
+    hex += hexPutUInt8(hex, &b);
+    return 8;
+}
+
+size_t hexPutLeUInt64(uint8_t *hex, uint64_t *val)
+{
+    uint8_t b = *val;
+    hex += hexPutUInt8(hex, &b);
+    b = *val >> 8;
+    hex += hexPutUInt8(hex, &b);
+    b = *val >> 16;
+    hex += hexPutUInt8(hex, &b);
+    b = *val >> 24;
+    hex += hexPutUInt8(hex, &b);
+    b = *val >> 32;
+    hex += hexPutUInt8(hex, &b);
+    b = *val >> 40;
+    hex += hexPutUInt8(hex, &b);
+    b = *val >> 48;
+    hex += hexPutUInt8(hex, &b);
+    b = *val >> 56;
+    hexPutUInt8(hex, &b);
+    return 16;
+}
