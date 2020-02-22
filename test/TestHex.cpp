@@ -49,6 +49,27 @@ GTEST_TEST(Hex, toLeUInt16)
     ASSERT_EQ(ui16, 0x2010);
 }
 
+GTEST_TEST(Hex, toLeUInt32)
+{
+    const uint8_t hex[] = "01020304ABcd";
+    uint32_t ui32 = 0;
+    hexToLeUInt32(hex, &ui32);
+    ASSERT_EQ(ui32, 0x4030201);
+    hexToLeUInt32(hex + 2, &ui32);
+    ASSERT_EQ(ui32, 0xAB040302);
+    hexToLeUInt32(hex + 1, &ui32);
+    ASSERT_EQ(ui32, 0x4A302010);
+}
+
+GTEST_TEST(Hex, toUInt64)
+{
+    const uint8_t hex[] = "01020304ABcd7890";
+    uint64_t ui64 = 0;
+    hexToLeUInt64(hex, &ui64);
+    ASSERT_EQ(ui64, 0x9078cdab04030201);
+    hexToBeUInt64(hex, &ui64);
+    ASSERT_EQ(ui64, 0x01020304ABcd7890);
+}
 GTEST_TEST(Bin, toHex)
 {
     char *hex = (char *)malloc(13);
@@ -58,6 +79,79 @@ GTEST_TEST(Bin, toHex)
     ASSERT_EQ(len, 12);
     printf("%d, %s", strlen(hex), hex);
     ASSERT_EQ(hex[0], '0');
+}
+
+GTEST_TEST(Bin, hexPutUInt8)
+{
+    char *hex = (char *)malloc(5);
+    char *head = hex;
+    memset(hex, 0, 5);
+    uint8_t b = 0xAB;
+    head += hexPutUInt8((uint8_t *)head, &b);
+    ASSERT_EQ(hex[0], 'A');
+    ASSERT_EQ(strlen(hex), 2);
+    b = 0xCD;
+    head += hexPutUInt8((uint8_t *)head, &b);
+    ASSERT_EQ(hex[2], 'C');
+    ASSERT_EQ(strlen(hex), 4);
+}
+
+GTEST_TEST(Bin, hexPutUInt16)
+{
+    char *hex = (char *)malloc(9);
+    char *head = hex;
+    memset(hex, 0, 9);
+    uint16_t b = 0xABCD;
+    head += hexPutBeUInt16((uint8_t *)head, &b);
+    ASSERT_EQ(hex[0], 'A');
+    ASSERT_EQ(hex[3], 'D');
+    ASSERT_EQ(strlen(hex), 4);
+    b = 0xEF01;
+    head += hexPutLeUInt16((uint8_t *)head, &b);
+    ASSERT_EQ(hex[4], '0');
+    ASSERT_EQ(hex[5], '1');
+    ASSERT_EQ(hex[6], 'E');
+    ASSERT_EQ(hex[7], 'F');
+    ASSERT_EQ(strlen(hex), 8);
+}
+
+GTEST_TEST(Bin, hexPutUInt)
+{
+    char *hex = (char *)malloc(61);
+    char *head = hex;
+    memset(hex, 0, 61);
+    uint16_t u16 = 0xABCD;
+    head += hexPutBeUInt16((uint8_t *)head, &u16);
+    ASSERT_EQ(hex[0], 'A');
+    ASSERT_EQ(hex[3], 'D');
+    ASSERT_EQ(strlen(hex), 4);
+    uint32_t u32 = 0xEF01;
+    head += hexPutLeUInt32((uint8_t *)head, &u32);
+    ASSERT_EQ(hex[4], '0');
+    ASSERT_EQ(hex[5], '1');
+    ASSERT_EQ(hex[6], 'E');
+    ASSERT_EQ(hex[7], 'F');
+    ASSERT_EQ(hex[11], '0');
+    ASSERT_EQ(strlen(hex), 12);
+    head += hexPutBeUInt32((uint8_t *)head, &u32);
+    ASSERT_EQ(hex[16], 'E');
+    ASSERT_EQ(hex[17], 'F');
+    ASSERT_EQ(strlen(hex), 20);
+    uint8_t b = 0xAB;
+    head += hexPutUInt8((uint8_t *)head, &b);
+    ASSERT_EQ(hex[20], 'A');
+    ASSERT_EQ(hex[21], 'B');
+    ASSERT_EQ(strlen(hex), 22);
+    uint64_t u64 = 0x9078cdab04030201;
+    head += hexPutBeUInt64((uint8_t *)head, &u64);
+    ASSERT_EQ(hex[26], 'C');
+    ASSERT_EQ(strlen(hex), 38);
+    head += hexPutLeUInt64((uint8_t *)head, &u64);
+    ASSERT_EQ(hex[39], '1');
+    ASSERT_EQ(strlen(hex), 54);
+    head += hexPutLeUInt16((uint8_t *)head, &u16);
+    ASSERT_EQ(hex[57], 'B');
+    ASSERT_EQ(strlen(hex), 58);
 }
 
 int main(int argc, char *argv[])
