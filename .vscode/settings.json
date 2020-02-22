@@ -24,5 +24,21 @@
     "gtest-adapter.debugConfig": [
         "Unit Test Debug"
     ],
-    "gtest-adapter.supportLocation": true
+    "gtest-adapter.supportLocation": true,
+    "files.associations": {
+        "*.nj": "html",
+        "*.cjson": "jsonc",
+        "*.wxss": "css",
+        "*.wxs": "javascript",
+        "*.html": "html",
+        "bytebuffer.h": "c",
+        "class.h": "c",
+        "memory.h": "c",
+        "corecrt_memory.h": "c",
+        "array": "c",
+        "vector": "c",
+        "xstring": "c",
+        "string": "c",
+        "string_view": "c"
+    }
 }

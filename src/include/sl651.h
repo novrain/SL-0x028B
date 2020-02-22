@@ -8,20 +8,10 @@ extern "C"
 
 #include <stdint.h>
 #include <memory.h>
+#include <stdbool.h>
 
-#define NewInstance(Class)                              \
-    ({                                                  \
-        Class *ptr_ = ((Class *)malloc(sizeof(Class))); \
-        (memset(ptr_, 0, sizeof(Class)));               \
-        ptr_;                                           \
-    })
-
-#define DelInstance(ptr_) \
-    do                    \
-    {                     \
-        free(ptr_);       \
-        ptr_ = NULL;      \
-    } while (0);
+#include "class.h"
+#include "bytebuffer.h"
 
 /**
  *  报文帧控制字符定义 
@@ -136,6 +126,54 @@ extern "C"
         QUERY_CLOCK
     };
 
+#define ELEMENT_IDENTIFER_LEN 2
+#define ELEMENT_IDENTIFER_LEADER_LEN 1
+#define NUMBER_ELEMENT_LEN_OFFSET 3
+#define NUMBER_ELEMENT_PRECISION_MASK 0x07 // 00000111
+
+    /* 标识符引导符*/
+    enum IdentifierLeader
+    {
+        /* 
+        * 特殊标识符，单独解析 
+        * F0 - FD && 04 && 05 && 45
+        */
+        // 观测时间引导符
+        DATETIME = 0xF0,
+        // 遥测站编码引导符
+        ADDRESS = 0xF1,
+        // 人工置数
+        ARTIFICIAL_IL = 0xF2,
+        // 图片信息
+        PICTURE_IL = 0xF3,
+        // 1小时内每5min时段雨量
+        DPR = 0xF4,
+        // 1小时内每5min间隔相对水位1, 以下相同
+        DRZ1 = 0xF5,
+        DRZ2 = 0xF6,
+        DRZ3 = 0xF7,
+        DRZ4 = 0xF8,
+        DRZ5 = 0xF9,
+        DRZ6 = 0xFA,
+        DRZ7 = 0xFB,
+        DRZ8 = 0xFC,
+        // 流速批量数据
+        FLOW_RATE_DATA = 0xFD,
+        // 时间步长码
+        DRXNN = 0x04,
+        // 时段长，降水，引排水，抽水历时
+        DURATION_OF_XX = 0x05,
+        // 遥测站状态及报警信息
+        STAION_STATUS = 0x45,
+        // 用户自定义引导符，暂不支持
+        CUSTOM_IDENTIFIER = 0xFF
+    };
+
+    // enum DataType
+    // {
+
+    // };
+
     // Package Struct
     // #pragma pack(1)
     /* 遥测站地址 */
@@ -146,8 +184,9 @@ extern "C"
         uint8_t A3;
         uint8_t A2;
         uint8_t A1;
-        uint8_t A0;
     } RemoteStationAddr;
+
+#define REMOTE_STATION_ADDR_LEN 5
 
     /* 中心站地址/遥测站地址组合 */
     typedef struct
@@ -183,6 +222,8 @@ extern "C"
         uint8_t second;
     } DateTime;
 
+#define DATETIME_LEN 5
+
     typedef struct
     {
         uint16_t count;
@@ -203,29 +244,68 @@ extern "C"
         Sequence seq;
     } Head;
 
-#define Head_ctor(ptr_)
-#define Head_dtor(ptr_)
-
 #define PACKAGE_HEAD_STX_LEN 14
 #define PACKAGE_HEAD_SNY_LEN 17
+
+    // oop
+#define Head_ctor(ptr_)
+#define Head_dtor(ptr_)
+    // "AbstractorClass" Element
+    struct ElementVtbl; /* forward declaration */
+    typedef struct
+    {
+        struct ElementVtbl const *vptr;
+        uint8_t identifierLeader;
+        uint8_t dataDef;
+    } Element;
+
+    typedef struct ElementVtbl
+    {
+        // pure virtual
+        bool (*encode2Hex)(Element const *const me, ByteBuffer *hexBuff);
+        bool (*decodeFromHex)(Element const *const me, ByteBuffer *hexBuff);
+        size_t (*sizeInHex)(Element const *const me);
+    } ElementVtbl;
+
+    void Element_ctor(Element *me);
+#define Element_dtor(ptr_) // empty implements
+    // "AbstractorClass" Element END
+
+    // RemoteStationAddrElement
+    typedef struct
+    {
+        // it is fixed value, 0xF1F1
+        Element super;
+        RemoteStationAddr stationAddr;
+    } RemoteStationAddrElement;
+    // RemoteStationAddrElement END
+
+    // ObserveTimeElement
+    typedef struct
+    {
+        // it is fixed value, 0xF1F1
+        Element super;
+        DateTime observeTime;
+    } ObserveTimeElement;
+
+    void ObserveTimeElement_ctor(ObserveTimeElement *me);
+#define ObserveTimeElement_dtor(ptr_) // empty implements
+    // ObserveTimeElement END
 
     typedef struct
     {
         uint16_t seq;
         DateTime sendTime;
-        uint8_t addrFlag[2]; // it is fixed value now, 0xF1F1
-        RemoteStationAddr stationAddr;
+        RemoteStationAddrElement stationAddrElement;
         uint8_t stationCategory;
-        uint8_t observeTimeFlag[2]; // it is fixed value now, 0xF0F0
-        DateTime observeTime;
+        ObserveTimeElement observeTimeElement;
     } UplinkMessageHead;
 
     typedef struct
     {
         uint16_t seq;
         DateTime sendTime;
-        uint8_t addrFlag[2]; // it is fixed value now, 0xF1F1
-        RemoteStationAddr stationAddr;
+        RemoteStationAddrElement stationAddrElement;
     } DownlinkMessageHead;
 
     typedef struct
@@ -234,7 +314,6 @@ extern "C"
         uint16_t crc;
     } Tail;
 
-    // oop
     // "AbstractClass" Package
     struct PackageVtbl; /* forward declaration */
     typedef struct
@@ -248,39 +327,23 @@ extern "C"
     typedef struct PackageVtbl
     {
         // pure virtual
-        void (*encode2Hex)(Package const *const me, uint8_t *hex, size_t len);
-        void (*decodeFromHex)(Package const *const me, const uint8_t *hex, size_t len);
+        bool (*encode2Hex)(Package const *const me, ByteBuffer *hexBuff);
+        bool (*decodeFromHex)(Package const *const me, ByteBuffer *hexBuff);
         size_t (*size)();
     } PackageVtbl;
 
     /* Package Construtor & Destrucor */
     void Package_ctor(Package *const me, Head *head);
     /* Public methods */
-    void Package_Head2Hex(Package const *const me, uint8_t *hex, size_t len);
-    void Package_Tail2Hex(Package const *const me, uint8_t *hex, size_t len);
-    void Package_Hex2Head(Package const *me, uint8_t *hex, size_t len);
-    void Package_Hex2Tail(Package const *me, uint8_t *hex, size_t len);
+    bool Package_Head2Hex(Package const *const me, ByteBuffer *hexBuff);
+    bool Package_Tail2Hex(Package const *const me, ByteBuffer *hexBuff);
+    bool Package_Hex2Head(Package const *me, ByteBuffer *hexBuff);
+    bool Package_Hex2Tail(Package const *me, ByteBuffer *hexBuff);
     /* Public Helper*/
 #define PACAKAGE_UPCAST(ptr_) ((Package *)(ptr_))
 #define Package_dtor(ptr_)
 #define Package_Direction(me_) (PACAKAGE_UPCAST(me_)->head->direction)
     // "AbstractClass" Package END
-
-    // "Interface" Element
-    struct ElementVtbl; /* forward declaration */
-    typedef struct
-    {
-        struct ElementVtbl const *vptr;
-    } Element;
-
-    typedef struct ElementVtbl
-    {
-        // pure virtual
-        void (*encode2Hex)(Package const *const me, uint8_t *hex, size_t len);
-        void (*decodeFromHex)(Package const *const me, const uint8_t *hex, size_t len);
-        size_t (*size)();
-    } ElementVtbl;
-    // "Interface" Element END
 
     // "Basic" LinkMessage
     typedef struct
@@ -295,10 +358,10 @@ extern "C"
     void LinkMessage_ctor(LinkMessage *const me, Head *head, uint16_t elementCount);
     void LinkMessage_dtor(LinkMessage *const me);
     /* Public methods */
-    void LinkMessage_Elements2Hex(LinkMessage const *const me, uint8_t *hex, size_t len);
-    void LinkMessage_Hex2Elements(LinkMessage const *me, uint8_t *hex, size_t len);
-    void LinkMessage_putElement(LinkMessage const *me, uint16_t index, Element *element);
-    void LinkMessage_setElement(LinkMessage const *me, uint16_t index, Element *element);
+    bool LinkMessage_Elements2Hex(LinkMessage const *const me, ByteBuffer *hexBuff);
+    bool LinkMessage_Hex2Elements(LinkMessage const *me, ByteBuffer *hexBuff);
+    bool LinkMessage_putElement(LinkMessage const *me, uint16_t index, Element *element);
+    bool LinkMessage_setElement(LinkMessage const *me, uint16_t index, Element *element);
     Element *LinkMessage_getElement(LinkMessage const *me, uint16_t index);
     /* Public Helper*/
 #define LINKMESSAGE_UPCAST(ptr_) ((Package *)(ptr_))
@@ -317,10 +380,10 @@ extern "C"
     void UplinkMessage_ctor(UplinkMessage *const me, Head *head, UplinkMessageHead *upLinkHead, uint16_t elementCount);
     void UplinkMessage_dtor(UplinkMessage *const me);
     /* Public methods */
-    void UplinkMessage_Head2Hex(UplinkMessage const *const me, uint8_t *hex, size_t len);
-    // void UplinkMessage_Tail2Hex(UplinkMessage const *const me, uint8_t *hex, size_t len);
-    void UplinkMessage_Hex2Head(UplinkMessage const *me, uint8_t *hex, size_t len);
-    // void UplinkMessage_Hex2Tail(UplinkMessage const *me, uint8_t *hex, size_t len);
+    bool UplinkMessage_Head2Hex(UplinkMessage const *const me, ByteBuffer *hexBuff);
+    // void UplinkMessage_Tail2Hex(UplinkMessage const *const me, ByteBuffer* hexBuff, size_t len);
+    bool UplinkMessage_Hex2Head(UplinkMessage const *me, ByteBuffer *hexBuff);
+    // void UplinkMessage_Hex2Tail(UplinkMessage const *me, ByteBuffer* hexBuff, size_t len);
     // "AbstractUpClass" UplinkMessage END
 
     // "AbstractUpClass" DownlinkMessage
@@ -334,13 +397,35 @@ extern "C"
     void DownlinkMessage_ctor(DownlinkMessage *const me, Head *head, DownlinkMessageHead *downLinkHead, uint16_t elementCount);
     void DownlinkMessage_dtor(DownlinkMessage *const me);
     /* Public methods */
-    void DownlinkMessage_Head2Hex(DownlinkMessage const *const me, uint8_t *hex, size_t len);
-    // void DownlinkMessage_Tail2Hex(DownlinkMessage const *const me, uint8_t *hex, size_t len);
-    void DownlinkMessage_Hex2Head(DownlinkMessage const *me, uint8_t *hex, size_t len);
-    // void DownlinkMessage_Hex2Tail(DownlinkMessage const *me, uint8_t *hex, size_t len);
+    bool DownlinkMessage_Head2Hex(DownlinkMessage const *const me, ByteBuffer *hexBuff);
+    // void DownlinkMessage_Tail2Hex(DownlinkMessage const *const me, ByteBuffer* hexBuff, size_t len);
+    bool DownlinkMessage_Hex2Head(DownlinkMessage const *me, ByteBuffer *hexBuff);
+    // void DownlinkMessage_Hex2Tail(DownlinkMessage const *me, ByteBuffer* hexBuff, size_t len);
     // "AbstractUpClass" DownlinkMessage END
 
     // Elements
+    Element *decodeElementFromHex(ByteBuffer *hexBuff);
+    typedef struct
+    {
+        Element super;
+        float value;
+    } NumberElement;
+
+    void NumberElement_ctor(NumberElement const *me);
+#define NumberElement_dtor(ptr_)
+
+    typedef struct
+    {
+        Element super;
+        uint8_t extIdentifier;
+    } ExtendElement;
+
+    typedef struct
+    {
+        Element super;
+        uint8_t extIdentifier;
+        float value;
+    } ExtendNumberElement;
 
     // Elements END
     // #pragma pack()
