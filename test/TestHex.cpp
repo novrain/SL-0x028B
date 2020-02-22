@@ -13,6 +13,42 @@ GTEST_TEST(Hex, toBin)
     ASSERT_EQ(bin[5], 0xCD);
 }
 
+GTEST_TEST(Hex, toUInt8)
+{
+    const uint8_t hex[] = "01020304ABcd";
+    uint8_t ui8 = 0;
+    hexToUInt8(hex, &ui8);
+    ASSERT_EQ(ui8, 1);
+    hexToUInt8(hex + 2, &ui8);
+    ASSERT_EQ(ui8, 2);
+    hexToUInt8(hex + 1, &ui8);
+    ASSERT_EQ(ui8, 0x10);
+}
+
+GTEST_TEST(Hex, toBeUInt16)
+{
+    const uint8_t hex[] = "01020304ABcd";
+    uint16_t ui16 = 0;
+    hexToBeUInt16(hex, &ui16);
+    ASSERT_EQ(ui16, 0x102);
+    hexToBeUInt16(hex + 2, &ui16);
+    ASSERT_EQ(ui16, 0x203);
+    hexToBeUInt16(hex + 1, &ui16);
+    ASSERT_EQ(ui16, 0x1020);
+}
+
+GTEST_TEST(Hex, toLeUInt16)
+{
+    const uint8_t hex[] = "01020304ABcd";
+    uint16_t ui16 = 0;
+    hexToLeUInt16(hex, &ui16);
+    ASSERT_EQ(ui16, 0x201);
+    hexToLeUInt16(hex + 2, &ui16);
+    ASSERT_EQ(ui16, 0x302);
+    hexToLeUInt16(hex + 1, &ui16);
+    ASSERT_EQ(ui16, 0x2010);
+}
+
 GTEST_TEST(Bin, toHex)
 {
     char *hex = (char *)malloc(13);

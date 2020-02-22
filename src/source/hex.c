@@ -29,31 +29,157 @@ size_t bin2hex(const uint8_t *bin, size_t binLen, uint8_t *hex, size_t hexLen)
     return lenWritten;
 }
 
-static int hexChar2bin(const char hex, uint8_t *byte)
+static size_t hexToBeUInt(const uint8_t *hex, void *val, const size_t size)
 {
-    if (byte == NULL)
+    uint8_t count = 0;
+    while (*hex && count < size * 2)
     {
-        return 0;
+        // get current character then increment
+        uint8_t byte = *hex++;
+        // transform hex character to the 4bit equivalent number, using the ascii table indexes
+        if (byte >= '0' && byte <= '9')
+        {
+            byte = byte - '0';
+        }
+        else if (byte >= 'a' && byte <= 'f')
+        {
+            byte = byte - 'a' + 10;
+        }
+        else if (byte >= 'A' && byte <= 'F')
+        {
+            byte = byte - 'A' + 10;
+        }
+        else
+        {
+            return count;
+        }
+        // shift 4 to make space for new digit, and add the 4 bits of the new digit
+        if (size <= 1)
+        {
+            uint8_t *p = (uint8_t *)val;
+            *(p) = (*p << 4) | (byte & 0xF);
+        }
+        else if (size <= 2)
+        {
+            uint16_t *p = (uint16_t *)val;
+            *(p) = (*p << 4) | (byte & 0xF);
+        }
+        else if (size <= 4)
+        {
+            uint32_t *p = (uint32_t *)val;
+            *(p) = (*p << 4) | (byte & 0xF);
+        }
+        else
+        {
+            uint64_t *p = (uint64_t *)val;
+            *(p) = (*p << 4) | (byte & 0xF);
+        }
+        count++;
     }
+    return count;
+}
 
-    if (hex >= '0' && hex <= '9')
-    {
-        *byte = hex - '0';
-    }
-    else if (hex >= 'A' && hex <= 'F')
-    {
-        *byte = hex - 'A' + 10;
-    }
-    else if (hex >= 'a' && hex <= 'f')
-    {
-        *byte = hex - 'a' + 10;
-    }
-    else
-    {
-        return 0;
-    }
+bool hexToUInt8(const uint8_t *hex, uint8_t *val)
+{
+    *val = 0;
+    return hexToBeUInt(hex, (void *)val, 1) == 2; // 1 byte 2 hex char
+}
 
-    return 1;
+bool hexToBeUInt16(const uint8_t *hex, uint16_t *val)
+{
+    *val = 0;
+    return hexToBeUInt(hex, (void *)val, 2) == 4; // 2 byte 4 hex char
+}
+
+bool hexToBeUInt32(const uint8_t *hex, uint32_t *val)
+{
+    *val = 0;
+    return hexToBeUInt(hex, (void *)val, 4) == 8; // 4 byte 8 hex char
+}
+
+bool hexToBeUInt64(const uint8_t *hex, uint64_t *val)
+{
+    *val = 0;
+    return hexToBeUInt(hex, (void *)val, 8) == 16; // 4 byte 8 hex char
+}
+
+static size_t hexToLeUInt(const uint8_t *hex, void *val, const size_t size)
+{
+    uint8_t count = 0;
+    const uint8_t *oneByteCursor = hex + size * 2 - 2;
+    while (*oneByteCursor && count < size * 2)
+    {
+        // get current character then increment
+        uint8_t byte = 0;
+        byte = *oneByteCursor;
+        // transform hex character to the 4bit equivalent number, using the ascii table indexes
+        if (byte >= '0' && byte <= '9')
+        {
+            byte = byte - '0';
+        }
+        else if (byte >= 'a' && byte <= 'f')
+        {
+            byte = byte - 'a' + 10;
+        }
+        else if (byte >= 'A' && byte <= 'F')
+        {
+            byte = byte - 'A' + 10;
+        }
+        else
+        {
+            return count;
+        }
+        // shift 4 to make space for new digit, and add the 4 bits of the new digit
+        if (size <= 1)
+        {
+            uint8_t *p = (uint8_t *)val;
+            *(p) = (*p << 4) | (byte & 0xF);
+        }
+        else if (size <= 2)
+        {
+            uint16_t *p = (uint16_t *)val;
+            *(p) = (*p << 4) | (byte & 0xF);
+        }
+        else if (size <= 4)
+        {
+            uint32_t *p = (uint32_t *)val;
+            *(p) = (*p << 4) | (byte & 0xF);
+        }
+        else
+        {
+            uint64_t *p = (uint64_t *)val;
+            *(p) = (*p << 4) | (byte & 0xF);
+        }
+        count++;
+
+        if (count & 1 == 1)
+        {
+            oneByteCursor++;
+        }
+        else
+        {
+            oneByteCursor -= 3;
+        }
+    }
+    return count;
+}
+
+bool hexToLeUInt16(const uint8_t *hex, uint16_t *val)
+{
+    *val = 0;
+    return hexToLeUInt(hex, (void *)val, 2) == 4; // 2 byte 4 hex char
+}
+
+bool hexToLeUInt32(const uint8_t *hex, uint32_t *val)
+{
+    *val = 0;
+    return hexToLeUInt(hex, (void *)val, 4) == 8; // 4 byte 8 hex char
+}
+
+bool hexToLeUInt64(const uint8_t *hex, uint64_t *val)
+{
+    *val = 0;
+    return hexToLeUInt(hex, (void *)val, 8) == 16; // 4 byte 8 hex char
 }
 
 size_t hex2bin(const uint8_t *hex, size_t hexLen, uint8_t *bin, size_t binLen)
@@ -65,15 +191,14 @@ size_t hex2bin(const uint8_t *hex, size_t hexLen, uint8_t *bin, size_t binLen)
 
     size_t len = hexLen / 2;
     len = MIN(len, binLen);
-    uint8_t b1;
-    uint8_t b2;
+    uint8_t b;
     for (size_t i = 0; i < len; i++)
     {
-        if (!hexChar2bin(hex[i * 2], &b1) || !hexChar2bin(hex[i * 2 + 1], &b2))
+        if (!hexToUInt8(hex + i * 2, &b))
         {
             return 0;
         }
-        bin[i] = (b1 << 4) | b2;
+        bin[i] = b;
     }
     return len;
 }

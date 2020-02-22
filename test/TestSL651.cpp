@@ -14,7 +14,7 @@ GTEST_TEST(Definition, package)
     // if var is malloced call this, othewise donot call this.
     Head_dtor(pkg);    // 倒序析构，用来释放实例所 管理 的指针，管理：包括实例在其封装方法中创建的内存指针，或接口中约定的传入的代管内存指针
     Package_dtor(pkg); // 析构
-    DelInstance(head); // 释放实例，与析构分开调用
+    DelInstance(head); // 释放实例，与析构分开调用；如果不是New，则不需要释放实例
     DelInstance(pkg);  // 同上
 }
 
