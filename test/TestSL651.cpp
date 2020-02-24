@@ -21,7 +21,7 @@ GTEST_TEST(DecodeElement, decodeCustomeElement)
 {
     Element *el = decodeElementFromHex(NULL);
     ByteBuffer *hexBuff = NewInstance(ByteBuffer);
-    ByteBuffer_ctor_copy(hexBuff, (uint8_t *)"FFFFFFFFFF", 10);
+    ByteBuffer_ctor_fromHexStr(hexBuff, "FFFFFFFFFF", 10);
     el = decodeElementFromHex(hexBuff);
     ASSERT_TRUE(el == NULL);
     ByteBuffer_dtor(hexBuff);
@@ -41,7 +41,7 @@ GTEST_TEST(DecodeElement, decodeObserveTimeElement)
     DelInstance(hexBuff);
 
     hexBuff = NewInstance(ByteBuffer);
-    ByteBuffer_ctor_copy(hexBuff, (uint8_t *)"F0F0200222222211", 16);
+    ByteBuffer_ctor_fromHexStr(hexBuff, "F0F0200222222211", 16);
     ByteBuffer_Flip(hexBuff);
     el = decodeElementFromHex(hexBuff);
     ASSERT_TRUE(el != NULL);
@@ -64,7 +64,7 @@ GTEST_TEST(DecodeElement, decodeRemoteStationAddrElement)
     ASSERT_TRUE(el == NULL);
 
     ByteBuffer *hexBuff = NewInstance(ByteBuffer);
-    ByteBuffer_ctor_copy(hexBuff, (uint8_t *)"F1F12002222222", 14); // 其他遥测站  != A5_HYDROLOGICAL_TELEMETRY_STATION
+    ByteBuffer_ctor_fromHexStr(hexBuff, "F1F12002222222", 14); // 其他遥测站  != A5_HYDROLOGICAL_TELEMETRY_STATION
     ByteBuffer_Flip(hexBuff);
     el = decodeElementFromHex(hexBuff);
     ASSERT_TRUE(el != NULL);
@@ -81,7 +81,7 @@ GTEST_TEST(DecodeElement, decodeRemoteStationAddrElement)
     DelInstance(hexBuff);
 
     hexBuff = NewInstance(ByteBuffer);
-    ByteBuffer_ctor_copy(hexBuff, (uint8_t *)"F1F10002222222", 14); // 水文遥测站 A5_HYDROLOGICAL_TELEMETRY_STATION
+    ByteBuffer_ctor_fromHexStr(hexBuff, "F1F10002222222", 14); // 水文遥测站 A5_HYDROLOGICAL_TELEMETRY_STATION
     ByteBuffer_Flip(hexBuff);
     el = decodeElementFromHex(hexBuff);
     ASSERT_TRUE(el != NULL);
@@ -105,7 +105,7 @@ GTEST_TEST(DecodeElement, decodePictureElement)
     ASSERT_TRUE(el == NULL);
 
     ByteBuffer *hexBuff = NewInstance(ByteBuffer);
-    ByteBuffer_ctor_copy(hexBuff, (uint8_t *)"F3F3200222222211", 16);
+    ByteBuffer_ctor_fromHexStr(hexBuff, "F3F3200222222211", 16);
     ByteBuffer_Flip(hexBuff);
     el = decodeElementFromHex(hexBuff);
     ASSERT_TRUE(el != NULL);
@@ -132,14 +132,14 @@ GTEST_TEST(DecodeElement, decodeNumberElement)
     // 00 01 11 10
     // 11.110米
     // N(7,3) ，数据单位：米
-    ByteBuffer_ctor_copy(hexBuff, (uint8_t *)"282300011110", 12);
+    ByteBuffer_ctor_fromHexStr(hexBuff, "282300011110", 12);
     ByteBuffer_Flip(hexBuff);
     el = decodeElementFromHex(hexBuff);
     ASSERT_TRUE(el != NULL);
     NumberElement *nel = (NumberElement *)el;
     ASSERT_EQ(nel->super.identifierLeader, 0x28);
     ASSERT_EQ(nel->super.dataDef, 0x23);
-    ASSERT_EQ(nel->buff->size, 8);
+    ASSERT_EQ(nel->buff->size, 4);
 
     uint64_t u64 = 0;
     NumberElement_GetInteger(nel, &u64);
