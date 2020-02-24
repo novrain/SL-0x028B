@@ -50,10 +50,51 @@ GTEST_TEST(DecodeElement, decodeObserveTimeElement)
     ObserveTimeElement *otel = (ObserveTimeElement *)el; // 类型转换要小心，因为没有严格的类型匹配
     ASSERT_EQ(otel->super.identifierLeader, DATETIME);
     ASSERT_EQ(otel->super.dataDef, DATETIME);
-    ASSERT_EQ(otel->observeTime.day, 0x22);
+    ASSERT_EQ(otel->observeTime.day, 22);
 
     ObserveTimeElement_dtor(otel);
     DelInstance(otel);
+    ByteBuffer_dtor(hexBuff);
+    DelInstance(hexBuff);
+}
+
+GTEST_TEST(DecodeElement, decodeRemoteStationAddrElement)
+{
+    Element *el = decodeElementFromHex(NULL);
+    ASSERT_TRUE(el == NULL);
+
+    ByteBuffer *hexBuff = NewInstance(ByteBuffer);
+    ByteBuffer_ctor_copy(hexBuff, (uint8_t *)"F1F12002222222", 14); // 其他遥测站  != A5_HYDROLOGICAL_TELEMETRY_STATION
+    ByteBuffer_Flip(hexBuff);
+    el = decodeElementFromHex(hexBuff);
+    ASSERT_TRUE(el != NULL);
+    ASSERT_EQ(el->identifierLeader, ADDRESS);
+    ASSERT_EQ(el->dataDef, ADDRESS);
+    RemoteStationAddrElement *rsael = (RemoteStationAddrElement *)el; // 类型转换要小心，因为没有严格的类型匹配
+    ASSERT_EQ(rsael->super.identifierLeader, ADDRESS);
+    ASSERT_EQ(rsael->super.dataDef, ADDRESS);
+    ASSERT_EQ(rsael->stationAddr.A1, 87); // 0x2222  8738  =>  00 87 38
+
+    RemoteStationAddrElement_dtor(rsael);
+    DelInstance(rsael);
+    ByteBuffer_dtor(hexBuff);
+    DelInstance(hexBuff);
+
+    hexBuff = NewInstance(ByteBuffer);
+    ByteBuffer_ctor_copy(hexBuff, (uint8_t *)"F1F10002222222", 14); // 水文遥测站 A5_HYDROLOGICAL_TELEMETRY_STATION
+    ByteBuffer_Flip(hexBuff);
+    el = decodeElementFromHex(hexBuff);
+    ASSERT_TRUE(el != NULL);
+    ASSERT_EQ(el->identifierLeader, ADDRESS);
+    ASSERT_EQ(el->dataDef, ADDRESS);
+    rsael = (RemoteStationAddrElement *)el; // 类型转换要小心，因为没有严格的类型匹配
+    ASSERT_EQ(rsael->super.identifierLeader, ADDRESS);
+    ASSERT_EQ(rsael->super.dataDef, ADDRESS);
+    ASSERT_EQ(rsael->stationAddr.A5, A5_HYDROLOGICAL_TELEMETRY_STATION);
+    ASSERT_EQ(rsael->stationAddr.A1, 22);
+
+    RemoteStationAddrElement_dtor(rsael);
+    DelInstance(rsael);
     ByteBuffer_dtor(hexBuff);
     DelInstance(hexBuff);
 }

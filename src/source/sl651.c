@@ -157,6 +157,65 @@ void Element_ctor(Element *const me, uint8_t identifierLeader, uint8_t dataDef)
 }
 // "AbstractorClass" Element END
 
+// RemoteStationAddrElement
+static bool RemoteStationAddrElement_Encode2Hex(Element const *const me, ByteBuffer *const hexBuff)
+{
+    assert(me);
+}
+
+static bool RemoteStationAddrElement_DecodeFromHex(Element *const me, ByteBuffer *const hexBuff)
+{
+    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < REMOTE_STATION_ADDR_LEN * 2)
+    {
+        return false;
+    }
+    RemoteStationAddrElement *self = (RemoteStationAddrElement *)me;
+    uint8_t usedLen = 0;
+    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->stationAddr.A5);
+    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->stationAddr.A4);
+    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->stationAddr.A3);
+    if (self->stationAddr.A5 == A5_HYDROLOGICAL_TELEMETRY_STATION)
+    {
+        usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->stationAddr.A2);
+        usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->stationAddr.A1);
+    }
+    else
+    {
+        uint16_t u16A2A1 = 0;
+        uint8_t len = ByteBuffer_BE_HEXGetUInt16(hexBuff, &u16A2A1);
+        if (len == 4) // 2 byte 4 hex
+        {
+            self->stationAddr.A2 = u16A2A1 / 10000;
+            self->stationAddr.A1 = u16A2A1 / 100 - self->stationAddr.A2 * 10000;
+            self->stationAddr.A0 = u16A2A1 - self->stationAddr.A2 * 10000 - self->stationAddr.A1 * 100;
+            usedLen += len;
+        }
+        else
+        {
+            return false;
+        }
+    }
+    return usedLen == REMOTE_STATION_ADDR_LEN * 2;
+}
+
+static size_t RemoteStationAddrElement_SizeInHex(Element const *const me)
+{
+    assert(me);
+    return REMOTE_STATION_ADDR_LEN * 2 + ELEMENT_IDENTIFER_LEN * 2;
+}
+
+void RemoteStationAddrElement_ctor(RemoteStationAddrElement *const me)
+{
+    // override
+    static ElementVtbl const vtbl = {
+        &RemoteStationAddrElement_Encode2Hex,
+        &RemoteStationAddrElement_DecodeFromHex,
+        &RemoteStationAddrElement_SizeInHex};
+    Element_ctor(&me->super, ADDRESS, ADDRESS);
+    me->super.vptr = &vtbl;
+}
+// RemoteStationAddrElement END
+
 // ObserveTimeElement
 static bool ObserveTimeElement_Encode2Hex(Element const *const me, ByteBuffer *const hexBuff)
 {
@@ -171,19 +230,19 @@ static bool ObserveTimeElement_DecodeFromHex(Element *const me, ByteBuffer *cons
     }
     ObserveTimeElement *self = (ObserveTimeElement *)me;
     uint8_t usedLen = 0;
-    usedLen += ByteBuffer_HEXGetUInt8(hexBuff, &self->observeTime.year);
-    usedLen += ByteBuffer_HEXGetUInt8(hexBuff, &self->observeTime.month);
-    usedLen += ByteBuffer_HEXGetUInt8(hexBuff, &self->observeTime.day);
-    usedLen += ByteBuffer_HEXGetUInt8(hexBuff, &self->observeTime.hour);
-    usedLen += ByteBuffer_HEXGetUInt8(hexBuff, &self->observeTime.minute);
-    usedLen += ByteBuffer_HEXGetUInt8(hexBuff, &self->observeTime.second);
-    return usedLen == 12;
+    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->observeTime.year);
+    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->observeTime.month);
+    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->observeTime.day);
+    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->observeTime.hour);
+    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->observeTime.minute);
+    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->observeTime.second);
+    return usedLen == DATETIME_LEN * 2;
 }
 
 static size_t ObserveTimeElement_SizeInHex(Element const *const me)
 {
     assert(me);
-    return 14; // IDNENTIFIER 2 + ADDRESS 5 in hex
+    return DATETIME_LEN * 2 + ELEMENT_IDENTIFER_LEN * 2;
 }
 
 void ObserveTimeElement_ctor(ObserveTimeElement *const me)
@@ -277,6 +336,7 @@ static bool NumberElement_DecodeFromHex(Element *const me, ByteBuffer *const hex
 
 static size_t NumberElement_SizeInHex(Element const *const me)
 {
+    assert(me);
     return ELEMENT_IDENTIFER_LEN * 2 + (me->dataDef >> NUMBER_ELEMENT_LEN_OFFSET) * 2;
 }
 
@@ -312,36 +372,12 @@ uint8_t NumberElement_GetInteger(NumberElement *const me, uint64_t *val)
     }
     uint8_t bitLen = ByteBuffer_Available(me->buff) / 2;
     *val = 0; // 副作用
-    uint8_t b = 0;
-    while (bitLen > 0)
-    {
-        ByteBuffer_HEXGetUInt8(me->buff, &b);
-        if (b == 0)
-        {
-            bitLen--;
-            continue;
-        }
-        uint8_t h = b >> 4;
-        uint8_t l = b & 0xF;
-        if (h > 9 || l > 9) //非法
-        {
-            return 0;
-        }
-        if (h != 0)
-        {
-            *val += h * pow(10, bitLen * 2 - 1);
-        }
-        if (l != 0)
-        {
-            *val += l * pow(10, bitLen * 2 - 2);
-        }
-        bitLen--;
-    }
-    if (signedFlag == 0xFF)
+    uint8_t res = ByteBuffer_BCDGetUInt(me->buff, val, bitLen);
+    if (signedFlag == 0xFF && res != 0)
     {
         *val *= -1;
     }
-    return 1;
+    return res;
 }
 
 uint8_t NumberElement_GetFloat(NumberElement *const me, float *val)
@@ -387,6 +423,16 @@ Element *decodeElementFromHex(ByteBuffer *const hexBuff)
         }                                                  //
         return el;
     case ADDRESS:
+        el = (Element *)(NewInstance(RemoteStationAddrElement));       // 创建指针，需要转为Element*
+        RemoteStationAddrElement_ctor((RemoteStationAddrElement *)el); // 构造函数
+        decoded = el->vptr->decodeFromHex(el, hexBuff);                // 解析观测时间Element，调用 “重载” 的解码方法
+        if (!decoded)                                                  // 解析失败，需要手动删除指针
+        {                                                              //
+            RemoteStationAddrElement_dtor(el);                         // 调用析构，规范步骤
+            DelInstance(el);                                           // 删除指针
+            return NULL;                                               //
+        }                                                              //
+        return el;
         break;
     case ARTIFICIAL_IL:
         break;
@@ -416,10 +462,7 @@ Element *decodeElementFromHex(ByteBuffer *const hexBuff)
         break;
     default:
         // 按照数据类型解析
-        if (identifierLeader >= 0x01 && identifierLeader <= 0x75 &&
-            identifierLeader != DRXNN &&
-            identifierLeader != STAION_STATUS &&
-            identifierLeader != DURATION_OF_XX)
+        if (isNumberElement(identifierLeader))
         {
             el = (Element *)NewInstance(NumberElement);
             NumberElement_ctor((NumberElement *)el, identifierLeader, dataDef);

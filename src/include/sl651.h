@@ -179,13 +179,19 @@ extern "C"
     /* 遥测站地址 */
     typedef struct
     {
+        /**
+         * A5 == 0, A4-A1 为BCD码， 组成地址
+         * A5 != 0, A5-A3 BCD码，为行政区划；A2A1 HEX 为一个short值
+         */
         uint8_t A5;
         uint8_t A4;
         uint8_t A3;
         uint8_t A2;
         uint8_t A1;
+        // 当 A5 非 0 时，A2 A1 A0 组成一个自定义地址，为BCD码，从原始的 A2A1 HEX 转来
+        uint8_t A0;
     } RemoteStationAddr;
-
+#define A5_HYDROLOGICAL_TELEMETRY_STATION 0
 #define REMOTE_STATION_ADDR_LEN 5
 
     /* 中心站地址/遥测站地址组合 */
@@ -214,6 +220,7 @@ extern "C"
 
     typedef struct
     {
+        // 6字节BCD码
         uint8_t year;
         uint8_t month;
         uint8_t day;
@@ -222,7 +229,7 @@ extern "C"
         uint8_t second;
     } DateTime;
 
-#define DATETIME_LEN 5
+#define DATETIME_LEN 6
 
     typedef struct
     {
@@ -278,6 +285,8 @@ extern "C"
         Element super;
         RemoteStationAddr stationAddr;
     } RemoteStationAddrElement;
+    void RemoteStationAddrElement_ctor(RemoteStationAddrElement *const me);
+#define RemoteStationAddrElement_dtor(ptr_) // empty implements
     // RemoteStationAddrElement END
 
     // ObserveTimeElement
@@ -407,6 +416,14 @@ extern "C"
 
     // Elements
     // Util Functions.
+    static bool inline isNumberElement(uint8_t identifierLeader)
+    {
+        return identifierLeader >= 0x01 && identifierLeader <= 0x75 &&
+               identifierLeader != DRXNN &&
+               identifierLeader != STAION_STATUS &&
+               identifierLeader != DURATION_OF_XX;
+    }
+
     Element *decodeElementFromHex(ByteBuffer *const hexBuff);
 
     // Element Class
