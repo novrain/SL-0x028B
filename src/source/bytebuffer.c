@@ -107,7 +107,7 @@ static size_t hexToLeUInt(const uint8_t *hex, void *val, const size_t size)
     return count;
 }
 
-void ByteBuffer_ctor(ByteBuffer *me, uint32_t size)
+void ByteBuffer_ctor(ByteBuffer *const me, uint32_t size)
 {
     if (me == NULL)
     {
@@ -121,7 +121,7 @@ void ByteBuffer_ctor(ByteBuffer *me, uint32_t size)
     memset(me->buff, 0, size);
 }
 
-void ByteBuffer_ctor_wrapped(ByteBuffer *me, uint8_t *buff, uint32_t size)
+void ByteBuffer_ctor_wrapped(ByteBuffer *const me, uint8_t *buff, uint32_t size)
 {
     if (me == NULL || buff == NULL)
     {
@@ -134,7 +134,7 @@ void ByteBuffer_ctor_wrapped(ByteBuffer *me, uint8_t *buff, uint32_t size)
     me->buff = buff;
 }
 
-void ByteBuffer_ctor_copy(ByteBuffer *me, uint8_t *buff, uint32_t size)
+void ByteBuffer_ctor_copy(ByteBuffer *const me, uint8_t *buff, uint32_t size)
 {
     if (me == NULL || buff == NULL)
     {
@@ -143,12 +143,12 @@ void ByteBuffer_ctor_copy(ByteBuffer *me, uint8_t *buff, uint32_t size)
     me->size = size;
     me->position = size;
     me->limit = size;
-    me->wrapped = true;
+    me->wrapped = false;
     me->buff = (uint8_t *)malloc(size);
     memcpy(me->buff, buff, size);
 }
 
-void ByteBuffer_dtor(ByteBuffer *me)
+void ByteBuffer_dtor(ByteBuffer *const me)
 {
     if (me == NULL)
     {
@@ -160,7 +160,7 @@ void ByteBuffer_dtor(ByteBuffer *me)
     }
 }
 
-void ByteBuffer_Flip(ByteBuffer *me)
+void ByteBuffer_Flip(ByteBuffer *const me)
 {
     if (me == NULL)
     {
@@ -170,7 +170,7 @@ void ByteBuffer_Flip(ByteBuffer *me)
     me->position = 0;
 }
 
-void ByteBuffer_Clear(ByteBuffer *me)
+void ByteBuffer_Clear(ByteBuffer *const me)
 {
     if (me == NULL || me->wrapped)
     {
@@ -181,17 +181,53 @@ void ByteBuffer_Clear(ByteBuffer *me)
     me->limit = me->size;
 }
 
-uint8_t ByteBuffer_GetUInt8(ByteBuffer *me, uint8_t *val)
+void ByteBuffer_Rewind(ByteBuffer *const me)
+{
+    me->position = 0;
+}
+
+ByteBuffer *ByteBuffer_GetByteBuffer(ByteBuffer *const me, uint32_t size)
+{
+    ByteBuffer *val = ByteBuffer_PeekByteBuffer(me, size);
+    if (val != NULL)
+    {
+        me->position += size;
+    }
+    return val;
+}
+
+ByteBuffer *ByteBuffer_PeekByteBuffer(ByteBuffer *const me, uint32_t size)
+{
+    if (me == NULL || me->position + size > me->limit)
+    {
+        return NULL;
+    }
+    ByteBuffer *val = NewInstance(ByteBuffer);
+    ByteBuffer_ctor_copy(val, me->buff + me->position, size);
+    return val;
+}
+
+uint8_t ByteBuffer_PeekUInt8(ByteBuffer *const me, uint8_t *val)
 {
     if (me == NULL || me->position >= me->limit)
     {
         return 0;
     }
-    *val = me->buff[me->position++];
+    *val = me->buff[me->position];
     return 1;
 }
 
-uint8_t ByteBuffer_PutUInt8(ByteBuffer *me, uint8_t val)
+uint8_t ByteBuffer_GetUInt8(ByteBuffer *const me, uint8_t *val)
+{
+    uint8_t usedLen = ByteBuffer_PeekUInt8(me, val);
+    if (usedLen == 1)
+    {
+        me->position++;
+    }
+    return usedLen;
+}
+
+uint8_t ByteBuffer_PutUInt8(ByteBuffer *const me, uint8_t val)
 {
     if (me == NULL || me->wrapped || me->position >= me->limit)
     {
@@ -201,7 +237,7 @@ uint8_t ByteBuffer_PutUInt8(ByteBuffer *me, uint8_t val)
     return 1;
 }
 
-uint8_t ByteBuffer_BE_GetUInt16(ByteBuffer *me, uint16_t *val)
+uint8_t ByteBuffer_BE_GetUInt16(ByteBuffer *const me, uint16_t *val)
 {
     if (me == NULL || me->position + 1 >= me->limit)
     {
@@ -212,7 +248,7 @@ uint8_t ByteBuffer_BE_GetUInt16(ByteBuffer *me, uint16_t *val)
     return 2;
 }
 
-uint8_t ByteBuffer_BE_GetUInt32(ByteBuffer *me, uint32_t *val)
+uint8_t ByteBuffer_BE_GetUInt32(ByteBuffer *const me, uint32_t *val)
 {
     if (me == NULL || me->position + 3 >= me->limit)
     {
@@ -225,7 +261,7 @@ uint8_t ByteBuffer_BE_GetUInt32(ByteBuffer *me, uint32_t *val)
     return 4;
 }
 
-uint8_t ByteBuffer_BE_GetUInt64(ByteBuffer *me, uint64_t *val)
+uint8_t ByteBuffer_BE_GetUInt64(ByteBuffer *const me, uint64_t *val)
 {
     if (me == NULL || me->position + 7 >= me->limit)
     {
@@ -242,7 +278,7 @@ uint8_t ByteBuffer_BE_GetUInt64(ByteBuffer *me, uint64_t *val)
     return 8;
 }
 
-uint8_t ByteBuffer_LE_GetUInt16(ByteBuffer *me, uint16_t *val)
+uint8_t ByteBuffer_LE_GetUInt16(ByteBuffer *const me, uint16_t *val)
 {
     if (me == NULL || me->position + 1 >= me->limit)
     {
@@ -253,7 +289,7 @@ uint8_t ByteBuffer_LE_GetUInt16(ByteBuffer *me, uint16_t *val)
     return 2;
 }
 
-uint8_t ByteBuffer_LE_GetUInt32(ByteBuffer *me, uint32_t *val)
+uint8_t ByteBuffer_LE_GetUInt32(ByteBuffer *const me, uint32_t *val)
 {
     if (me == NULL || me->position + 3 >= me->limit)
     {
@@ -266,7 +302,7 @@ uint8_t ByteBuffer_LE_GetUInt32(ByteBuffer *me, uint32_t *val)
     return 4;
 }
 
-uint8_t ByteBuffer_LE_GetUInt64(ByteBuffer *me, uint64_t *val)
+uint8_t ByteBuffer_LE_GetUInt64(ByteBuffer *const me, uint64_t *val)
 {
     if (me == NULL || me->position + 7 >= me->limit)
     {
@@ -283,21 +319,39 @@ uint8_t ByteBuffer_LE_GetUInt64(ByteBuffer *me, uint64_t *val)
     return 8;
 }
 
-uint8_t ByteBuffer_HexGetUInt8(ByteBuffer *me, uint8_t *val)
+uint8_t ByteBuffer_BE_HEXGetUInt(ByteBuffer *const me, void *val, uint8_t size)
 {
-    if (me == NULL || me->position + 1 >= me->limit)
+    if (me == NULL || me->position + size * 2 - 1 >= me->limit)
     {
         return 0;
     }
-    uint8_t u8 = 0;
-    uint8_t usedLen = hexToBeUInt(me->buff + me->position, &u8, 1);
-    if (usedLen == 2)
+    uint8_t usedLen = hexToBeUInt(me->buff + me->position, val, size);
+    if (usedLen == size * 2)
     {
-        *val = u8;
-        me->position += 2;
-        return 2;
+        me->position += usedLen;
+        return usedLen;
     }
     return 0;
+}
+
+uint8_t ByteBuffer_LE_HEXGetUInt(ByteBuffer *const me, void *val, uint8_t size)
+{
+    if (me == NULL || me->position + size * 2 - 1 >= me->limit)
+    {
+        return 0;
+    }
+    uint8_t usedLen = hexToLeUInt(me->buff + me->position, val, size);
+    if (usedLen == size * 2)
+    {
+        me->position += usedLen;
+        return usedLen;
+    }
+    return 0;
+}
+
+uint8_t ByteBuffer_HEXGetUInt8(ByteBuffer *const me, uint8_t *val)
+{
+    return ByteBuffer_BE_HEXGetUInt(me, val, 1);
 }
 
 static void hexPutUInt8(uint8_t *hex, uint8_t val)
@@ -306,7 +360,7 @@ static void hexPutUInt8(uint8_t *hex, uint8_t val)
     hex[1] = hexChar[val & 0x0F];
 }
 
-uint8_t ByteBuffer_HexPutUInt8(ByteBuffer *me, uint8_t val)
+uint8_t ByteBuffer_HEXPutUInt8(ByteBuffer *const me, uint8_t val)
 {
     if (me == NULL || me->position + 1 >= me->limit)
     {
@@ -317,109 +371,37 @@ uint8_t ByteBuffer_HexPutUInt8(ByteBuffer *me, uint8_t val)
     return 2;
 }
 
-uint8_t ByteBuffer_BE_HEXGetUInt16(ByteBuffer *me, uint16_t *val)
+uint8_t ByteBuffer_BE_HEXGetUInt16(ByteBuffer *const me, uint16_t *val)
 {
-    if (me == NULL || me->position + 3 >= me->limit)
-    {
-        return 0;
-    }
-    uint16_t u16 = 0;
-    uint8_t usedLen = hexToBeUInt(me->buff + me->position, &u16, 2);
-    if (usedLen == 4)
-    {
-        *val = u16;
-        me->position += 4;
-        return 4;
-    }
-    return 0;
+    return ByteBuffer_BE_HEXGetUInt(me, val, 2);
 }
 
-uint8_t ByteBuffer_BE_HEXGetUInt32(ByteBuffer *me, uint32_t *val)
+uint8_t ByteBuffer_BE_HEXGetUInt32(ByteBuffer *const me, uint32_t *val)
 {
-    if (me == NULL || me->position + 7 >= me->limit)
-    {
-        return 0;
-    }
-    uint32_t u32 = 0;
-    uint8_t usedLen = hexToBeUInt(me->buff + me->position, &u32, 4);
-    if (usedLen == 8)
-    {
-        *val = u32;
-        me->position += 8;
-        return 8;
-    }
-    return 0;
+    return ByteBuffer_BE_HEXGetUInt(me, val, 4);
 }
 
-uint8_t ByteBuffer_BE_HEXGetUInt64(ByteBuffer *me, uint64_t *val)
+uint8_t ByteBuffer_BE_HEXGetUInt64(ByteBuffer *const me, uint64_t *val)
 {
-    if (me == NULL || me->position + 15 >= me->limit)
-    {
-        return 0;
-    }
-    uint64_t u64 = 0;
-    uint8_t usedLen = hexToBeUInt(me->buff + me->position, &u64, 8);
-    if (usedLen == 16)
-    {
-        *val = u64;
-        me->position += 16;
-        return 16;
-    }
-    return 0;
+    return ByteBuffer_BE_HEXGetUInt(me, val, 8);
 }
 
-uint8_t ByteBuffer_LE_HEXGetUInt16(ByteBuffer *me, uint16_t *val)
+uint8_t ByteBuffer_LE_HEXGetUInt16(ByteBuffer *const me, uint16_t *val)
 {
-    if (me == NULL || me->position + 3 >= me->limit)
-    {
-        return 0;
-    }
-    uint16_t u16 = 0;
-    uint8_t usedLen = hexToLeUInt(me->buff + me->position, &u16, 2);
-    if (usedLen == 4)
-    {
-        *val = u16;
-        me->position += 4;
-        return 4;
-    }
-    return 0;
+    return ByteBuffer_LE_HEXGetUInt(me, val, 2);
 }
 
-uint8_t ByteBuffer_LE_HEXGetUInt32(ByteBuffer *me, uint32_t *val)
+uint8_t ByteBuffer_LE_HEXGetUInt32(ByteBuffer *const me, uint32_t *val)
 {
-    if (me == NULL || me->position + 7 >= me->limit)
-    {
-        return 0;
-    }
-    uint32_t u32 = 0;
-    uint8_t usedLen = hexToLeUInt(me->buff + me->position, &u32, 4);
-    if (usedLen == 8)
-    {
-        *val = u32;
-        me->position += 8;
-        return 8;
-    }
-    return 0;
+    return ByteBuffer_LE_HEXGetUInt(me, val, 4);
 }
 
-uint8_t ByteBuffer_LE_HEXGetUInt64(ByteBuffer *me, uint64_t *val)
+uint8_t ByteBuffer_LE_HEXGetUInt64(ByteBuffer *const me, uint64_t *val)
 {
-    if (me == NULL || me->position + 15 >= me->limit)
-    {
-        return 0;
-    }
-    uint64_t u64 = 0;
-    uint8_t usedLen = hexToLeUInt(me->buff + me->position, &u64, 8);
-    if (usedLen == 16)
-    {
-        *val = u64;
-        me->position += 16;
-        return 16;
-    }
-    return 0;
+    return ByteBuffer_LE_HEXGetUInt(me, val, 8);
 }
 
-uint8_t ByteBuffer_BE_PutUInt16(ByteBuffer *me, uint16_t val)
+uint8_t ByteBuffer_BE_PutUInt16(ByteBuffer *const me, uint16_t val)
 {
     if (me == NULL || me->position + 1 >= me->limit)
     {
@@ -430,7 +412,7 @@ uint8_t ByteBuffer_BE_PutUInt16(ByteBuffer *me, uint16_t val)
     return 2;
 }
 
-uint8_t ByteBuffer_BE_PutUInt32(ByteBuffer *me, uint32_t val)
+uint8_t ByteBuffer_BE_PutUInt32(ByteBuffer *const me, uint32_t val)
 {
     if (me == NULL || me->position + 3 >= me->limit)
     {
@@ -443,7 +425,7 @@ uint8_t ByteBuffer_BE_PutUInt32(ByteBuffer *me, uint32_t val)
     return 4;
 }
 
-uint8_t ByteBuffer_BE_PutUInt64(ByteBuffer *me, uint64_t val)
+uint8_t ByteBuffer_BE_PutUInt64(ByteBuffer *const me, uint64_t val)
 {
     if (me == NULL || me->position + 7 >= me->limit)
     {
@@ -460,7 +442,7 @@ uint8_t ByteBuffer_BE_PutUInt64(ByteBuffer *me, uint64_t val)
     return 8;
 }
 
-uint8_t ByteBuffer_LE_PutUInt16(ByteBuffer *me, uint16_t val)
+uint8_t ByteBuffer_LE_PutUInt16(ByteBuffer *const me, uint16_t val)
 {
     if (me == NULL || me->position + 1 >= me->limit)
     {
@@ -471,7 +453,7 @@ uint8_t ByteBuffer_LE_PutUInt16(ByteBuffer *me, uint16_t val)
     return 2;
 }
 
-uint8_t ByteBuffer_LE_PutUInt32(ByteBuffer *me, uint32_t val)
+uint8_t ByteBuffer_LE_PutUInt32(ByteBuffer *const me, uint32_t val)
 {
     if (me == NULL || me->position + 3 >= me->limit)
     {
@@ -484,7 +466,7 @@ uint8_t ByteBuffer_LE_PutUInt32(ByteBuffer *me, uint32_t val)
     return 4;
 }
 
-uint8_t ByteBuffer_LE_PutUInt64(ByteBuffer *me, uint64_t val)
+uint8_t ByteBuffer_LE_PutUInt64(ByteBuffer *const me, uint64_t val)
 {
     if (me == NULL || me->position + 7 >= me->limit)
     {
@@ -501,7 +483,7 @@ uint8_t ByteBuffer_LE_PutUInt64(ByteBuffer *me, uint64_t val)
     return 8;
 }
 
-uint8_t ByteBuffer_BE_HEXPutUInt16(ByteBuffer *me, uint16_t val)
+uint8_t ByteBuffer_BE_HEXPutUInt16(ByteBuffer *const me, uint16_t val)
 {
     if (me == NULL || me->position + 3 >= me->limit)
     {
@@ -512,7 +494,7 @@ uint8_t ByteBuffer_BE_HEXPutUInt16(ByteBuffer *me, uint16_t val)
     me->position + 4;
 }
 
-uint8_t ByteBuffer_BE_HEXPutUInt32(ByteBuffer *me, uint32_t val)
+uint8_t ByteBuffer_BE_HEXPutUInt32(ByteBuffer *const me, uint32_t val)
 {
     if (me == NULL || me->position + 7 >= me->limit)
     {
@@ -525,7 +507,7 @@ uint8_t ByteBuffer_BE_HEXPutUInt32(ByteBuffer *me, uint32_t val)
     me->position + 8;
 }
 
-uint8_t ByteBuffer_BE_HEXPutUInt64(ByteBuffer *me, uint64_t val)
+uint8_t ByteBuffer_BE_HEXPutUInt64(ByteBuffer *const me, uint64_t val)
 {
     if (me == NULL || me->position + 15 >= me->limit)
     {
@@ -542,7 +524,7 @@ uint8_t ByteBuffer_BE_HEXPutUInt64(ByteBuffer *me, uint64_t val)
     me->position + 16;
 }
 
-uint8_t ByteBuffer_LE_HEXPutUInt16(ByteBuffer *me, uint16_t val)
+uint8_t ByteBuffer_LE_HEXPutUInt16(ByteBuffer *const me, uint16_t val)
 {
     if (me == NULL || me->position + 3 >= me->limit)
     {
@@ -553,7 +535,7 @@ uint8_t ByteBuffer_LE_HEXPutUInt16(ByteBuffer *me, uint16_t val)
     me->position + 4;
 }
 
-uint8_t ByteBuffer_LE_HEXPutUInt32(ByteBuffer *me, uint32_t val)
+uint8_t ByteBuffer_LE_HEXPutUInt32(ByteBuffer *const me, uint32_t val)
 {
     if (me == NULL || me->position + 7 >= me->limit)
     {
@@ -566,7 +548,7 @@ uint8_t ByteBuffer_LE_HEXPutUInt32(ByteBuffer *me, uint32_t val)
     me->position + 8;
 }
 
-uint8_t ByteBuffer_LE_HEXPutUInt64(ByteBuffer *me, uint64_t val)
+uint8_t ByteBuffer_LE_HEXPutUInt64(ByteBuffer *const me, uint64_t val)
 {
     if (me == NULL || me->position + 15 >= me->limit)
     {

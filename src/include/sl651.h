@@ -262,12 +262,12 @@ extern "C"
     typedef struct ElementVtbl
     {
         // pure virtual
-        bool (*encode2Hex)(Element const *const me, ByteBuffer *hexBuff);
-        bool (*decodeFromHex)(Element const *const me, ByteBuffer *hexBuff);
+        bool (*encode2Hex)(Element const *const me, ByteBuffer *const hexBuff);
+        bool (*decodeFromHex)(Element *const me, ByteBuffer *const hexBuff);
         size_t (*sizeInHex)(Element const *const me);
     } ElementVtbl;
 
-    void Element_ctor(Element *me);
+    void Element_ctor(Element *me, uint8_t identifierLeader, uint8_t dataDef);
 #define Element_dtor(ptr_) // empty implements
     // "AbstractorClass" Element END
 
@@ -288,7 +288,7 @@ extern "C"
         DateTime observeTime;
     } ObserveTimeElement;
 
-    void ObserveTimeElement_ctor(ObserveTimeElement *me);
+    void ObserveTimeElement_ctor(ObserveTimeElement *const me);
 #define ObserveTimeElement_dtor(ptr_) // empty implements
     // ObserveTimeElement END
 
@@ -314,6 +314,8 @@ extern "C"
         uint16_t crc;
     } Tail;
 
+#define PACKAGE_TAIL_LEN 3
+
     // "AbstractClass" Package
     struct PackageVtbl; /* forward declaration */
     typedef struct
@@ -327,18 +329,18 @@ extern "C"
     typedef struct PackageVtbl
     {
         // pure virtual
-        bool (*encode2Hex)(Package const *const me, ByteBuffer *hexBuff);
-        bool (*decodeFromHex)(Package const *const me, ByteBuffer *hexBuff);
+        bool (*encode2Hex)(Package const *const me, ByteBuffer *const hexBuff);
+        bool (*decodeFromHex)(Package *const me, ByteBuffer *const hexBuff);
         size_t (*size)();
     } PackageVtbl;
 
     /* Package Construtor & Destrucor */
     void Package_ctor(Package *const me, Head *head);
     /* Public methods */
-    bool Package_Head2Hex(Package const *const me, ByteBuffer *hexBuff);
-    bool Package_Tail2Hex(Package const *const me, ByteBuffer *hexBuff);
-    bool Package_Hex2Head(Package const *me, ByteBuffer *hexBuff);
-    bool Package_Hex2Tail(Package const *me, ByteBuffer *hexBuff);
+    bool Package_Head2Hex(Package const *const me, ByteBuffer *const hexBuff);
+    bool Package_Tail2Hex(Package const *const me, ByteBuffer *const hexBuff);
+    bool Package_Hex2Head(Package *const me, ByteBuffer *const hexBuff);
+    bool Package_Hex2Tail(Package *const me, ByteBuffer *const hexBuff);
     /* Public Helper*/
 #define PACAKAGE_UPCAST(ptr_) ((Package *)(ptr_))
 #define Package_dtor(ptr_)
@@ -358,11 +360,11 @@ extern "C"
     void LinkMessage_ctor(LinkMessage *const me, Head *head, uint16_t elementCount);
     void LinkMessage_dtor(LinkMessage *const me);
     /* Public methods */
-    bool LinkMessage_Elements2Hex(LinkMessage const *const me, ByteBuffer *hexBuff);
-    bool LinkMessage_Hex2Elements(LinkMessage const *me, ByteBuffer *hexBuff);
-    bool LinkMessage_putElement(LinkMessage const *me, uint16_t index, Element *element);
-    bool LinkMessage_setElement(LinkMessage const *me, uint16_t index, Element *element);
-    Element *LinkMessage_getElement(LinkMessage const *me, uint16_t index);
+    bool LinkMessage_Elements2Hex(LinkMessage const *const me, ByteBuffer *const hexBuff);
+    bool LinkMessage_Hex2Elements(LinkMessage *const me, ByteBuffer *const hexBuff);
+    bool LinkMessage_putElement(LinkMessage *const me, uint16_t index, Element *element);
+    bool LinkMessage_setElement(LinkMessage *const me, uint16_t index, Element *element);
+    Element *LinkMessage_getElement(LinkMessage const *const me, uint16_t index);
     /* Public Helper*/
 #define LINKMESSAGE_UPCAST(ptr_) ((Package *)(ptr_))
 #define LinkMessage_ElementCount(me_) (LINKMESSAGE_UPCAST(me_)->elementCount)
@@ -380,9 +382,9 @@ extern "C"
     void UplinkMessage_ctor(UplinkMessage *const me, Head *head, UplinkMessageHead *upLinkHead, uint16_t elementCount);
     void UplinkMessage_dtor(UplinkMessage *const me);
     /* Public methods */
-    bool UplinkMessage_Head2Hex(UplinkMessage const *const me, ByteBuffer *hexBuff);
+    bool UplinkMessage_Head2Hex(UplinkMessage const *const me, ByteBuffer *const hexBuff);
     // void UplinkMessage_Tail2Hex(UplinkMessage const *const me, ByteBuffer* hexBuff, size_t len);
-    bool UplinkMessage_Hex2Head(UplinkMessage const *me, ByteBuffer *hexBuff);
+    bool UplinkMessage_Hex2Head(UplinkMessage const *me, ByteBuffer *const hexBuff);
     // void UplinkMessage_Hex2Tail(UplinkMessage const *me, ByteBuffer* hexBuff, size_t len);
     // "AbstractUpClass" UplinkMessage END
 
@@ -397,23 +399,40 @@ extern "C"
     void DownlinkMessage_ctor(DownlinkMessage *const me, Head *head, DownlinkMessageHead *downLinkHead, uint16_t elementCount);
     void DownlinkMessage_dtor(DownlinkMessage *const me);
     /* Public methods */
-    bool DownlinkMessage_Head2Hex(DownlinkMessage const *const me, ByteBuffer *hexBuff);
+    bool DownlinkMessage_Head2Hex(DownlinkMessage const *const me, ByteBuffer *const hexBuff);
     // void DownlinkMessage_Tail2Hex(DownlinkMessage const *const me, ByteBuffer* hexBuff, size_t len);
-    bool DownlinkMessage_Hex2Head(DownlinkMessage const *me, ByteBuffer *hexBuff);
+    bool DownlinkMessage_Hex2Head(DownlinkMessage const *me, ByteBuffer *const hexBuff);
     // void DownlinkMessage_Hex2Tail(DownlinkMessage const *me, ByteBuffer* hexBuff, size_t len);
     // "AbstractUpClass" DownlinkMessage END
 
     // Elements
-    Element *decodeElementFromHex(ByteBuffer *hexBuff);
+    // Util Functions.
+    Element *decodeElementFromHex(ByteBuffer *const hexBuff);
+
+    // Element Class
+    // PictureElement
     typedef struct
     {
         Element super;
-        float value;
+        ByteBuffer *buff;
+    } PictureElement;
+
+    void PictureElement_ctor(PictureElement *const me);
+    void PictureElement_dtor(PictureElement *const me);
+    // PictureElement END
+
+    // All NumberElement
+    typedef struct
+    {
+        Element super;
+        ByteBuffer *buff;
     } NumberElement;
 
-    void NumberElement_ctor(NumberElement const *me);
-#define NumberElement_dtor(ptr_)
-
+    void NumberElement_ctor(NumberElement *const me, uint8_t identifierLeader, uint8_t dataDef);
+    void NumberElement_dtor(NumberElement *const me);
+    uint8_t NumberElement_GetFloat(NumberElement *const me, float *val);
+    uint8_t NumberElement_GetInteger(NumberElement *const me, uint64_t *val);
+    // All NumberElement END
     typedef struct
     {
         Element super;
@@ -422,9 +441,8 @@ extern "C"
 
     typedef struct
     {
-        Element super;
+        NumberElement super;
         uint8_t extIdentifier;
-        float value;
     } ExtendNumberElement;
 
     // Elements END

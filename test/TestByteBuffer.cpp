@@ -76,6 +76,34 @@ GTEST_TEST(ByteBuffer, PutGetUInt8)
     DelInstance(buf);
 }
 
+GTEST_TEST(ByteBuffer, ByteBuffer_GetByteBuffer)
+{
+    ByteBuffer *buf = NewInstance(ByteBuffer);
+    ByteBuffer_ctor_wrapped(buf, (uint8_t *)"af0", 3);
+    ByteBuffer_Flip(buf);
+
+    ByteBuffer *cp = ByteBuffer_GetByteBuffer(buf, 4);
+    ASSERT_TRUE(cp == NULL);
+    cp = ByteBuffer_GetByteBuffer(buf, 1);
+    ByteBuffer_Flip(cp);
+    uint8_t u8 = 0;
+    ASSERT_EQ(ByteBuffer_GetUInt8(cp, &u8), 1);
+    ASSERT_EQ(u8, 'a');
+    ByteBuffer_dtor(cp);
+    DelInstance(cp);
+
+    cp = ByteBuffer_GetByteBuffer(buf, 2);
+    ByteBuffer_Flip(cp);
+    u8 = 0;
+    ASSERT_EQ(ByteBuffer_HEXGetUInt8(cp, &u8), 2);
+    ASSERT_EQ(u8, 0xF0);
+    ByteBuffer_dtor(cp);
+    DelInstance(cp);
+
+    ByteBuffer_dtor(buf);
+    DelInstance(buf);
+}
+
 int main(int argc, char *argv[])
 {
     ::testing::InitGoogleTest(&argc, argv);
