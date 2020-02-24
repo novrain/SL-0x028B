@@ -165,7 +165,7 @@ static bool RemoteStationAddrElement_Encode2Hex(Element const *const me, ByteBuf
 
 static bool RemoteStationAddrElement_DecodeFromHex(Element *const me, ByteBuffer *const hexBuff)
 {
-    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < REMOTE_STATION_ADDR_LEN * 2)
+    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < REMOTE_STATION_ADDR_LEN)
     {
         return false;
     }
@@ -182,8 +182,8 @@ static bool RemoteStationAddrElement_DecodeFromHex(Element *const me, ByteBuffer
     else
     {
         uint16_t u16A2A1 = 0;
-        uint8_t len = ByteBuffer_BE_HEXGetUInt16(hexBuff, &u16A2A1);
-        if (len == 4) // 2 byte 4 hex
+        uint8_t len = ByteBuffer_BE_GetUInt16(hexBuff, &u16A2A1);
+        if (len == 2) // 2 byte
         {
             self->stationAddr.A2 = u16A2A1 / 10000;
             self->stationAddr.A1 = u16A2A1 / 100 - self->stationAddr.A2 * 10000;
@@ -195,13 +195,13 @@ static bool RemoteStationAddrElement_DecodeFromHex(Element *const me, ByteBuffer
             return false;
         }
     }
-    return usedLen == REMOTE_STATION_ADDR_LEN * 2;
+    return usedLen == REMOTE_STATION_ADDR_LEN;
 }
 
 static size_t RemoteStationAddrElement_SizeInHex(Element const *const me)
 {
     assert(me);
-    return REMOTE_STATION_ADDR_LEN * 2 + ELEMENT_IDENTIFER_LEN * 2;
+    return REMOTE_STATION_ADDR_LEN + ELEMENT_IDENTIFER_LEN;
 }
 
 void RemoteStationAddrElement_ctor(RemoteStationAddrElement *const me)
@@ -224,7 +224,7 @@ static bool ObserveTimeElement_Encode2Hex(Element const *const me, ByteBuffer *c
 
 static bool ObserveTimeElement_DecodeFromHex(Element *const me, ByteBuffer *const hexBuff)
 {
-    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < DATETIME_LEN * 2)
+    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < DATETIME_LEN)
     {
         return false;
     }
@@ -236,13 +236,13 @@ static bool ObserveTimeElement_DecodeFromHex(Element *const me, ByteBuffer *cons
     usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->observeTime.hour);
     usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->observeTime.minute);
     usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->observeTime.second);
-    return usedLen == DATETIME_LEN * 2;
+    return usedLen == DATETIME_LEN;
 }
 
 static size_t ObserveTimeElement_SizeInHex(Element const *const me)
 {
     assert(me);
-    return DATETIME_LEN * 2 + ELEMENT_IDENTIFER_LEN * 2;
+    return DATETIME_LEN + ELEMENT_IDENTIFER_LEN;
 }
 
 void ObserveTimeElement_ctor(ObserveTimeElement *const me)
@@ -279,7 +279,7 @@ static bool PictureElement_DecodeFromHex(Element *const me, ByteBuffer *const he
 static size_t PictureElement_SizeInHex(Element const *const me)
 {
     assert(me);
-    return ELEMENT_IDENTIFER_LEN * 2 + ((PictureElement *)me)->buff->size * 2;
+    return ELEMENT_IDENTIFER_LEN + ((PictureElement *)me)->buff->size;
 }
 
 void PictureElement_ctor(PictureElement *const me)
@@ -320,12 +320,12 @@ static bool NumberElement_DecodeFromHex(Element *const me, ByteBuffer *const hex
         return false;
     }
     uint8_t size = me->dataDef >> 3;
-    if (ByteBuffer_Available(hexBuff) < size * 2)
+    if (ByteBuffer_Available(hexBuff) < size)
     {
         return false;
     }
     NumberElement *self = (NumberElement *)me;
-    self->buff = ByteBuffer_GetByteBuffer(hexBuff, size * 2); //read all bcd
+    self->buff = ByteBuffer_GetByteBuffer(hexBuff, size); //read all bcd
     if (self->buff == NULL)
     {
         return false;
@@ -337,7 +337,7 @@ static bool NumberElement_DecodeFromHex(Element *const me, ByteBuffer *const hex
 static size_t NumberElement_SizeInHex(Element const *const me)
 {
     assert(me);
-    return ELEMENT_IDENTIFER_LEN * 2 + (me->dataDef >> NUMBER_ELEMENT_LEN_OFFSET) * 2;
+    return ELEMENT_IDENTIFER_LEN + (me->dataDef >> NUMBER_ELEMENT_LEN_OFFSET);
 }
 
 void NumberElement_ctor(NumberElement *const me, uint8_t identifierLeader, uint8_t dataDef)
@@ -370,7 +370,7 @@ uint8_t NumberElement_GetInteger(NumberElement *const me, uint64_t *val)
     {
         ByteBuffer_Rewind(me->buff);
     }
-    uint8_t bitLen = ByteBuffer_Available(me->buff) / 2;
+    uint8_t bitLen = ByteBuffer_Available(me->buff);
     *val = 0; // 副作用
     uint8_t res = ByteBuffer_BCDGetUInt(me->buff, val, bitLen);
     if (signedFlag == 0xFF && res != 0)
@@ -397,14 +397,14 @@ uint8_t NumberElement_GetFloat(NumberElement *const me, float *val)
 // ByteBuffer should be in read mode
 Element *decodeElementFromHex(ByteBuffer *const hexBuff)
 {
-    if (hexBuff == NULL || ByteBuffer_Available(hexBuff) < ELEMENT_IDENTIFER_LEN * 2)
+    if (hexBuff == NULL || ByteBuffer_Available(hexBuff) < ELEMENT_IDENTIFER_LEN)
     {
         return NULL;
     }                                                      // 至少包含标识符
     uint8_t identifierLeader = 0;                          //
-    ByteBuffer_HEXGetUInt8(hexBuff, &identifierLeader);    // 解析一个字节的 标识符引导符 ， 同时位移
+    ByteBuffer_GetUInt8(hexBuff, &identifierLeader);       // 解析一个字节的 标识符引导符 ， 同时位移
     uint8_t dataDef = 0;                                   //
-    ByteBuffer_HEXGetUInt8(hexBuff, &dataDef);             // 解析一个字节的 数据定义符，同时位移
+    ByteBuffer_GetUInt8(hexBuff, &dataDef);                // 解析一个字节的 数据定义符，同时位移
     Element *el = NULL;                                    // 根据标识符引导符，开始解析 Element
     bool decoded = false;                                  //
     switch (identifierLeader)                              //

@@ -94,9 +94,6 @@ GTEST_TEST(ByteBuffer, ByteBuffer_GetByteBuffer)
 
     cp = ByteBuffer_GetByteBuffer(buf, 2);
     ByteBuffer_Flip(cp);
-    u8 = 0;
-    ASSERT_EQ(ByteBuffer_HEXGetUInt8(cp, &u8), 2);
-    ASSERT_EQ(u8, 0xF0);
     ByteBuffer_dtor(cp);
     DelInstance(cp);
 
@@ -168,6 +165,18 @@ GTEST_TEST(ByteBuffer, ByteBuffer_BE_GetUInt)
 
     ByteBuffer_dtor(buf);
     DelInstance(buf);
+}
+
+GTEST_TEST(ByteBuffer, ByteBuffer_CRC16)
+{
+    ByteBuffer *buf = NewInstance(ByteBuffer);
+    ByteBuffer_ctor_fromHexStr(buf, "7E7E001234567810123434800802000114061314385304696E", 50);
+    ByteBuffer_Flip(buf);
+
+    uint16_t crc = 0;
+    ByteBuffer_CRC16(buf, &crc, 0, ByteBuffer_Available(buf) - 2);
+    ASSERT_EQ(crc >> 8, 0x69);
+    ASSERT_EQ(crc & 0xFF, 0x6E);
 }
 
 int main(int argc, char *argv[])
