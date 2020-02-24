@@ -104,6 +104,72 @@ GTEST_TEST(ByteBuffer, ByteBuffer_GetByteBuffer)
     DelInstance(buf);
 }
 
+GTEST_TEST(ByteBuffer, ByteBuffer_BE_GetUInt)
+{
+    ByteBuffer *buf = NewInstance(ByteBuffer);
+    uint8_t bin[] = {1, 2, 3, 4, 0xab, 0xcd, 1, 2, 3, 4};
+    ByteBuffer_ctor_wrapped(buf, bin, 10);
+    ByteBuffer_Flip(buf);
+    uint8_t u8 = 0;
+    ASSERT_EQ(1, ByteBuffer_BE_GetUInt(buf, &u8, 1));
+    ASSERT_EQ(1, u8);
+
+    uint16_t u16 = 0;
+    ASSERT_EQ(2, ByteBuffer_BE_GetUInt16(buf, &u16));
+    ASSERT_EQ((2 << 8) + 3, u16);
+
+    ByteBuffer_Rewind(buf);
+
+    uint32_t u32 = 0;
+    ASSERT_EQ(4, ByteBuffer_BE_GetUInt32(buf, &u32));
+    ASSERT_EQ((1 << 24) + (2 << 16) + (3 << 8) + 4, u32);
+
+    ByteBuffer_Rewind(buf);
+
+    uint64_t u64 = 0;
+    ASSERT_EQ(8, ByteBuffer_BE_GetUInt64(buf, &u64));
+    uint64_t expect = (1ll << 56) |
+                      (2ll << 48) |
+                      (3ll << 40) |
+                      (4ll << 32) |
+                      (0xabll << 24) |
+                      (0xcdll << 16) |
+                      (1ll << 8) |
+                      2ll;
+    ASSERT_EQ(expect, u64);
+
+    ByteBuffer_Rewind(buf);
+
+    u8 = 0;
+    ASSERT_EQ(1, ByteBuffer_LE_GetUInt(buf, &u8, 1));
+    ASSERT_EQ(1, u8);
+
+    u16 = 0;
+    ASSERT_EQ(2, ByteBuffer_LE_GetUInt16(buf, &u16));
+    ASSERT_EQ((3 << 8) + 2, u16);
+
+    ByteBuffer_Rewind(buf);
+    u32 = 0;
+    ASSERT_EQ(4, ByteBuffer_LE_GetUInt32(buf, &u32));
+    ASSERT_EQ((4 << 24) + (3 << 16) + (2 << 8) + 1, u32);
+
+    ByteBuffer_Rewind(buf);
+    u64 = 0;
+    ASSERT_EQ(8, ByteBuffer_LE_GetUInt64(buf, &u64));
+    expect = (1ll) |
+             (2ll << 8) |
+             (3ll << 16) |
+             (4ll << 24) |
+             (0xabll << 32) |
+             (0xcdll << 40) |
+             (1ll << 48) |
+             (2ll << 56);
+    ASSERT_EQ(expect, u64);
+
+    ByteBuffer_dtor(buf);
+    DelInstance(buf);
+}
+
 int main(int argc, char *argv[])
 {
     ::testing::InitGoogleTest(&argc, argv);
