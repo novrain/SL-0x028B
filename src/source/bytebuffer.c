@@ -3,7 +3,8 @@
 static size_t binToBeUInt(const uint8_t *bin, void *val, const size_t size)
 {
     uint8_t count = 0;
-    while (*bin && count < size)
+    // while (*bin && count < size)
+    while (count < size)
     {
         uint8_t byte = *bin++;
         if (size <= 1)
@@ -35,7 +36,8 @@ static size_t binToLeUInt(const uint8_t *bin, void *val, const size_t size)
 {
     uint8_t count = 0;
     bin += size - 1;
-    while (*bin && (size - count > 0))
+    // while (*bin && (size - count > 0))
+    while (size - count > 0)
     {
         uint8_t byte = *bin--;
         if (size <= 1)
@@ -68,7 +70,8 @@ static char hexChar[16 + 1] = "0123456789ABCDEF";
 static size_t hexToBeUInt(const uint8_t *hex, void *val, const size_t size)
 {
     uint8_t count = 0;
-    while (*hex && count < size * 2)
+    // while (*hex && count < size * 2)
+    while (count < size * 2)
     {
         uint8_t byte = *hex++;
         if (byte >= '0' && byte <= '9')
@@ -115,7 +118,8 @@ static size_t hexToBeUInt(const uint8_t *hex, void *val, const size_t size)
 static size_t hexToBCDUInt(const uint8_t *hex, void *val, const size_t size)
 {
     uint8_t count = 0;
-    while (*hex && count < size * 2)
+    // while (*hex && count < size * 2)
+    while (count < size * 2)
     {
         uint8_t byte = *hex++;
         if (byte >= '0' && byte <= '9')
@@ -155,7 +159,8 @@ static size_t hexToLeUInt(const uint8_t *hex, void *val, const size_t size)
 {
     uint8_t count = 0;
     const uint8_t *oneByteCursor = hex + size * 2 - 2;
-    while (*oneByteCursor && count < size * 2)
+    // while (*oneByteCursor && count < size * 2)
+    while (count < size * 2)
     {
         uint8_t byte = 0;
         byte = *oneByteCursor;
