@@ -39,6 +39,7 @@
         "vector": "c",
         "xstring": "c",
         "string": "c",
-        "string_view": "c"
+        "string_view": "c",
+        "cmath": "c"
     }
 }

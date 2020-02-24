@@ -17,7 +17,7 @@ GTEST_TEST(Definition, package)
     DelInstance(pkg);                         // 同上
 }
 
-GTEST_TEST(Definition, decodeCustomeElement)
+GTEST_TEST(DecodeElement, decodeCustomeElement)
 {
     Element *el = decodeElementFromHex(NULL);
     ByteBuffer *hexBuff = NewInstance(ByteBuffer);
@@ -27,7 +27,8 @@ GTEST_TEST(Definition, decodeCustomeElement)
     ByteBuffer_dtor(hexBuff);
     DelInstance(hexBuff);
 }
-GTEST_TEST(Definition, decodeObserveTimeElement)
+
+GTEST_TEST(DecodeElement, decodeObserveTimeElement)
 {
     Element *el = decodeElementFromHex(NULL);
     ASSERT_TRUE(el == NULL);
@@ -44,10 +45,70 @@ GTEST_TEST(Definition, decodeObserveTimeElement)
     ByteBuffer_Flip(hexBuff);
     el = decodeElementFromHex(hexBuff);
     ASSERT_TRUE(el != NULL);
-    ObserveTimeElement *ote = (ObserveTimeElement *)el;
-    ASSERT_EQ(ote->super.identifierLeader, 0xF0);
-    ASSERT_EQ(ote->super.dataDef, 0xF0);
-    ASSERT_EQ(ote->observeTime.day, 0x22);
+    ASSERT_EQ(el->identifierLeader, DATETIME);
+    ASSERT_EQ(el->dataDef, DATETIME);
+    ObserveTimeElement *otel = (ObserveTimeElement *)el; // 类型转换要小心，因为没有严格的类型匹配
+    ASSERT_EQ(otel->super.identifierLeader, DATETIME);
+    ASSERT_EQ(otel->super.dataDef, DATETIME);
+    ASSERT_EQ(otel->observeTime.day, 0x22);
+
+    ObserveTimeElement_dtor(otel);
+    DelInstance(otel);
+    ByteBuffer_dtor(hexBuff);
+    DelInstance(hexBuff);
+}
+
+GTEST_TEST(DecodeElement, decodePictureElement)
+{
+    Element *el = decodeElementFromHex(NULL);
+    ASSERT_TRUE(el == NULL);
+
+    ByteBuffer *hexBuff = NewInstance(ByteBuffer);
+    ByteBuffer_ctor_copy(hexBuff, (uint8_t *)"F3F3200222222211", 16);
+    ByteBuffer_Flip(hexBuff);
+    el = decodeElementFromHex(hexBuff);
+    ASSERT_TRUE(el != NULL);
+    ASSERT_EQ(el->identifierLeader, PICTURE_IL);
+    ASSERT_EQ(el->dataDef, PICTURE_IL);
+    PictureElement *pel = (PictureElement *)el;
+    ASSERT_EQ(pel->super.identifierLeader, PICTURE_IL);
+    ASSERT_EQ(pel->super.dataDef, PICTURE_IL);
+
+    PictureElement_dtor(pel);
+    DelInstance(pel);
+    ByteBuffer_dtor(hexBuff);
+    DelInstance(hexBuff);
+}
+
+GTEST_TEST(DecodeElement, decodeNumberElement)
+{
+    Element *el = decodeElementFromHex(NULL);
+    ASSERT_TRUE(el == NULL);
+
+    ByteBuffer *hexBuff = NewInstance(ByteBuffer);
+    // 28 23
+    // 水位基值1标识符
+    // 00 01 11 10
+    // 11.110米
+    // N(7,3) ，数据单位：米
+    ByteBuffer_ctor_copy(hexBuff, (uint8_t *)"282300011110", 12);
+    ByteBuffer_Flip(hexBuff);
+    el = decodeElementFromHex(hexBuff);
+    ASSERT_TRUE(el != NULL);
+    NumberElement *nel = (NumberElement *)el;
+    ASSERT_EQ(nel->super.identifierLeader, 0x28);
+    ASSERT_EQ(nel->super.dataDef, 0x23);
+    ASSERT_EQ(nel->buff->size, 8);
+
+    uint64_t u64 = 0;
+    NumberElement_GetInteger(nel, &u64);
+
+    float f = 0;
+    NumberElement_GetFloat(nel, &f);
+    ASSERT_EQ(f, 11.11f);
+
+    NumberElement_dtor(nel);
+    DelInstance(nel);
     ByteBuffer_dtor(hexBuff);
     DelInstance(hexBuff);
 }
