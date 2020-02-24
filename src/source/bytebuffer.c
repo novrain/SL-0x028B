@@ -33,9 +33,9 @@ static size_t binToBeUInt(const uint8_t *bin, void *val, const size_t size)
 
 static size_t binToLeUInt(const uint8_t *bin, void *val, const size_t size)
 {
-    uint8_t count = size;
-    bin += size;
-    while (*bin && count > 0)
+    uint8_t count = 0;
+    bin += size - 1;
+    while (*bin && (size - count > 0))
     {
         uint8_t byte = *bin--;
         if (size <= 1)
@@ -58,7 +58,7 @@ static size_t binToLeUInt(const uint8_t *bin, void *val, const size_t size)
             uint64_t *p = (uint64_t *)val;
             *(p) = (*p << 8) | byte;
         }
-        count--;
+        count++;
     }
     return count;
 }
@@ -371,31 +371,37 @@ uint8_t ByteBuffer_PutUInt8(ByteBuffer *const me, uint8_t val)
 
 uint8_t ByteBuffer_BE_GetUInt16(ByteBuffer *const me, uint16_t *val)
 {
+    // *val = 0; // 副作用
     return ByteBuffer_BE_GetUInt(me, val, 2);
 }
 
 uint8_t ByteBuffer_BE_GetUInt32(ByteBuffer *const me, uint32_t *val)
 {
+    // *val = 0; // 副作用
     return ByteBuffer_BE_GetUInt(me, val, 4);
 }
 
 uint8_t ByteBuffer_BE_GetUInt64(ByteBuffer *const me, uint64_t *val)
 {
+    // *val = 0; // 副作用
     return ByteBuffer_BE_GetUInt(me, val, 8);
 }
 
 uint8_t ByteBuffer_LE_GetUInt16(ByteBuffer *const me, uint16_t *val)
 {
+    // *val = 0; // 副作用
     return ByteBuffer_LE_GetUInt(me, val, 2);
 }
 
 uint8_t ByteBuffer_LE_GetUInt32(ByteBuffer *const me, uint32_t *val)
 {
+    // *val = 0; // 副作用
     return ByteBuffer_LE_GetUInt(me, val, 4);
 }
 
 uint8_t ByteBuffer_LE_GetUInt64(ByteBuffer *const me, uint64_t *val)
 {
+    // *val = 0; // 副作用
     return ByteBuffer_LE_GetUInt(me, val, 8);
 }
 
@@ -431,6 +437,7 @@ uint8_t ByteBuffer_LE_HEXGetUInt(ByteBuffer *const me, void *val, uint8_t size)
 
 uint8_t ByteBuffer_HEXGetUInt8(ByteBuffer *const me, uint8_t *val)
 {
+    // *val = 0; // 副作用
     return ByteBuffer_BE_HEXGetUInt(me, val, 1);
 }
 
@@ -453,31 +460,37 @@ uint8_t ByteBuffer_HEXPutUInt8(ByteBuffer *const me, uint8_t val)
 
 uint8_t ByteBuffer_BE_HEXGetUInt16(ByteBuffer *const me, uint16_t *val)
 {
+    // *val = 0; // 副作用
     return ByteBuffer_BE_HEXGetUInt(me, val, 2);
 }
 
 uint8_t ByteBuffer_BE_HEXGetUInt32(ByteBuffer *const me, uint32_t *val)
 {
+    // *val = 0; // 副作用
     return ByteBuffer_BE_HEXGetUInt(me, val, 4);
 }
 
 uint8_t ByteBuffer_BE_HEXGetUInt64(ByteBuffer *const me, uint64_t *val)
 {
+    // *val = 0; // 副作用
     return ByteBuffer_BE_HEXGetUInt(me, val, 8);
 }
 
 uint8_t ByteBuffer_LE_HEXGetUInt16(ByteBuffer *const me, uint16_t *val)
 {
+    // *val = 0; // 副作用
     return ByteBuffer_LE_HEXGetUInt(me, val, 2);
 }
 
 uint8_t ByteBuffer_LE_HEXGetUInt32(ByteBuffer *const me, uint32_t *val)
 {
+    // *val = 0; // 副作用
     return ByteBuffer_LE_HEXGetUInt(me, val, 4);
 }
 
 uint8_t ByteBuffer_LE_HEXGetUInt64(ByteBuffer *const me, uint64_t *val)
 {
+    // *val = 0; // 副作用
     return ByteBuffer_LE_HEXGetUInt(me, val, 8);
 }
 
