@@ -110,6 +110,13 @@ extern "C"
 #define ByteBuffer_Available(ptr_) ((ptr_)->limit - (ptr_)->position)
 
     uint8_t ByteBuffer_PeekUInt8(ByteBuffer *const me, uint8_t *val);
+    uint8_t ByteBuffer_PeekUInt8At(ByteBuffer *const me, uint8_t index, uint8_t *val);
+
+    uint8_t ByteBuffer_BE_PeekUInt(ByteBuffer *const me, void *val, uint8_t size);
+    uint8_t ByteBuffer_LE_PeekUInt(ByteBuffer *const me, void *val, uint8_t size);
+    uint8_t ByteBuffer_BE_PeekUIntAt(ByteBuffer *const me, uint8_t index, void *val, uint8_t size);
+    uint8_t ByteBuffer_LE_PeekUIntAt(ByteBuffer *const me, uint8_t index, void *val, uint8_t size);
+    uint8_t ByteBuffer_BE_PeekUInt16At(ByteBuffer *const me, uint8_t index, uint16_t *val);
 
     uint8_t ByteBuffer_BE_GetUInt(ByteBuffer *const me, void *val, uint8_t size);
     uint8_t ByteBuffer_LE_GetUInt(ByteBuffer *const me, void *val, uint8_t size);

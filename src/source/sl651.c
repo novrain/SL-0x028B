@@ -258,7 +258,6 @@ void ObserveTimeElement_ctor(ObserveTimeElement *const me)
 // ObserveTimeElement END
 
 // PictureElement
-
 static bool PictureElement_Encode2Hex(Element const *const me, ByteBuffer *const hexBuff)
 {
     assert(me);
@@ -271,8 +270,8 @@ static bool PictureElement_DecodeFromHex(Element *const me, ByteBuffer *const he
         return false;
     }
     PictureElement *self = (PictureElement *)me;
-    // @Todo 是否需要直接转为二进制
     self->buff = ByteBuffer_GetByteBuffer(hexBuff, ByteBuffer_Available(hexBuff));
+    ByteBuffer_Flip(self->buff);
     return true;
 }
 
@@ -306,6 +305,362 @@ void PictureElement_dtor(PictureElement *const me)
     }
 }
 // PictureElement END
+
+// ArtificialElement ARTIFICIAL_IL
+
+static bool ArtificialElement_Encode2Hex(Element const *const me, ByteBuffer *const hexBuff)
+{
+    assert(me);
+}
+
+static bool ArtificialElement_DecodeFromHex(Element *const me, ByteBuffer *const hexBuff)
+{
+    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < 0) // 截取所有
+    {
+        return false;
+    }
+    ArtificialElement *self = (ArtificialElement *)me;
+    self->buff = ByteBuffer_GetByteBuffer(hexBuff, ByteBuffer_Available(hexBuff));
+    ByteBuffer_Flip(self->buff);
+    // @Todo decode to ArtificialItem
+    // @See SL 330 2011
+    return true;
+}
+
+static size_t ArtificialElement_SizeInHex(Element const *const me)
+{
+    assert(me);
+    return ELEMENT_IDENTIFER_LEN + ((ArtificialElement *)me)->buff->size;
+}
+
+void ArtificialElement_ctor(ArtificialElement *const me)
+{
+    // override
+    static ElementVtbl const vtbl = {
+        &ArtificialElement_Encode2Hex,
+        &ArtificialElement_DecodeFromHex,
+        &ArtificialElement_SizeInHex};
+    Element_ctor(&me->super, ARTIFICIAL_IL, ARTIFICIAL_IL);
+    me->super.vptr = &vtbl;
+}
+
+void ArtificialElement_dtor(ArtificialElement *const me)
+{
+    if (me == NULL)
+    {
+        return;
+    }
+    if (me->buff)
+    {
+        ByteBuffer_dtor(me->buff);
+        DelInstance(me->buff);
+    }
+}
+// ArtificialElement ARTIFICIAL_IL END
+
+// DRP5MINElement
+
+static bool DRP5MINElement_Encode2Hex(Element const *const me, ByteBuffer *const hexBuff)
+{
+    assert(me);
+}
+
+static bool DRP5MINElement_DecodeFromHex(Element *const me, ByteBuffer *const hexBuff)
+{
+    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < DRP5MIN_LEN)
+    {
+        return false;
+    }
+    DRP5MINElement *self = (DRP5MINElement *)me;
+    self->buff = ByteBuffer_GetByteBuffer(hexBuff, DRP5MIN_LEN);
+    ByteBuffer_Flip(self->buff);
+    return true;
+}
+
+static size_t DRP5MINElement_SizeInHex(Element const *const me)
+{
+    assert(me);
+    return ELEMENT_IDENTIFER_LEN + DRP5MIN_LEN;
+}
+
+void DRP5MINElement_ctor(DRP5MINElement *const me)
+{
+    // override
+    static ElementVtbl const vtbl = {
+        &DRP5MINElement_Encode2Hex,
+        &DRP5MINElement_DecodeFromHex,
+        &DRP5MINElement_SizeInHex};
+    Element_ctor(&me->super, DRP5MIN, DRP5MIN_DATADEF);
+    me->super.vptr = &vtbl;
+}
+
+void DRP5MINElement_dtor(DRP5MINElement *const me)
+{
+    if (me == NULL)
+    {
+        return;
+    }
+    if (me->buff)
+    {
+        ByteBuffer_dtor(me->buff);
+        DelInstance(me->buff);
+    }
+}
+
+uint8_t DRP5MINElement_ValueAt(DRP5MINElement *const me, uint8_t index, float *val)
+{
+    if (me == NULL || me->buff == NULL)
+    {
+        return 0;
+    }
+    uint8_t u8;
+    uint8_t res = ByteBuffer_PeekUInt8At(me->buff, index, &u8);
+    if (res == 1)
+    {
+        *val = u8 != 0xFF ? u8 / 10.0f : u8; // FF 为无效值
+    }
+    return res;
+}
+// DRP5MINElement END
+
+// FlowRateDataElement
+static bool FlowRateDataElement_Encode2Hex(Element const *const me, ByteBuffer *const hexBuff)
+{
+    assert(me);
+}
+
+static bool FlowRateDataElement_DecodeFromHex(Element *const me, ByteBuffer *const hexBuff)
+{
+    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < 0) // 截取所有
+    {
+        return false;
+    }
+    FlowRateDataElement *self = (FlowRateDataElement *)me;
+    self->buff = ByteBuffer_GetByteBuffer(hexBuff, ByteBuffer_Available(hexBuff));
+    ByteBuffer_Flip(self->buff);
+    return true;
+}
+
+static size_t FlowRateDataElement_SizeInHex(Element const *const me)
+{
+    assert(me);
+    return ELEMENT_IDENTIFER_LEN + ((FlowRateDataElement *)me)->buff->size;
+}
+
+void FlowRateDataElement_ctor(FlowRateDataElement *const me)
+{
+    // override
+    static ElementVtbl const vtbl = {
+        &FlowRateDataElement_Encode2Hex,
+        &FlowRateDataElement_DecodeFromHex,
+        &FlowRateDataElement_SizeInHex};
+    Element_ctor(&me->super, FLOW_RATE_DATA, FLOW_RATE_DATA_DATADEF);
+    me->super.vptr = &vtbl;
+}
+
+void FlowRateDataElement_dtor(FlowRateDataElement *const me)
+{
+    if (me == NULL)
+    {
+        return;
+    }
+    if (me->buff)
+    {
+        ByteBuffer_dtor(me->buff);
+        DelInstance(me->buff);
+    }
+}
+// FlowRateDataElement END
+
+// RelativeWaterLevelElement
+static bool RelativeWaterLevelElement_Encode2Hex(Element const *const me, ByteBuffer *const hexBuff)
+{
+    assert(me);
+}
+
+static bool RelativeWaterLevelElement_DecodeFromHex(Element *const me, ByteBuffer *const hexBuff)
+{
+    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < RELATIVE_WATER_LEVEL_LEN)
+    {
+        return false;
+    }
+    RelativeWaterLevelElement *self = (RelativeWaterLevelElement *)me;
+    self->buff = ByteBuffer_GetByteBuffer(hexBuff, RELATIVE_WATER_LEVEL_LEN);
+    ByteBuffer_Flip(self->buff);
+    return true;
+}
+
+static size_t RelativeWaterLevelElement_SizeInHex(Element const *const me)
+{
+    assert(me);
+    return ELEMENT_IDENTIFER_LEN + RELATIVE_WATER_LEVEL_LEN;
+}
+
+void RelativeWaterLevelElement_ctor(RelativeWaterLevelElement *const me, uint8_t identifierLeader)
+{
+    // override
+    static ElementVtbl const vtbl = {
+        &RelativeWaterLevelElement_Encode2Hex,
+        &RelativeWaterLevelElement_DecodeFromHex,
+        &RelativeWaterLevelElement_SizeInHex};
+    Element_ctor(&me->super, identifierLeader, RELATIVE_WATER_LEVEL_5MIN1_DATADEF);
+    me->super.vptr = &vtbl;
+}
+
+void RelativeWaterLevelElement_dtor(RelativeWaterLevelElement *const me)
+{
+    if (me == NULL)
+    {
+        return;
+    }
+    if (me->buff)
+    {
+        ByteBuffer_dtor(me->buff);
+        DelInstance(me->buff);
+    }
+}
+
+uint8_t RelativeWaterLevelElement_ValueAt(RelativeWaterLevelElement *const me, uint8_t index, float *val)
+{
+    if (me == NULL || me->buff == NULL)
+    {
+        return 0;
+    }
+    uint16_t u16;
+    uint8_t res = ByteBuffer_BE_PeekUInt16At(me->buff, index * 2, &u16);
+    if (res == 2)
+    {
+        *val = u16 != 0xFFFF ? u16 / 100.0f : u16; // FF 为无效值
+    }
+    return res;
+}
+// RelativeWaterLevelElement END
+
+// TimeStepCodeElement
+static bool TimeStepCodeElement_Encode2Hex(Element const *const me, ByteBuffer *const hexBuff)
+{
+    assert(me);
+}
+
+static bool TimeStepCodeElement_DecodeFromHex(Element *const me, ByteBuffer *const hexBuff)
+{
+    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < TIME_STEP_CODE_LEN)
+    {
+        return false;
+    }
+    TimeStepCodeElement *self = (TimeStepCodeElement *)me;
+    uint8_t usedLen = 0;
+    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->timeStepCode.day);
+    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->timeStepCode.hour);
+    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->timeStepCode.minute);
+    return usedLen == TIME_STEP_CODE_LEN;
+}
+
+static size_t TimeStepCodeElement_SizeInHex(Element const *const me)
+{
+    assert(me);
+    return TIME_STEP_CODE_LEN + ELEMENT_IDENTIFER_LEN;
+}
+
+void TimeStepCodeElement_ctor(TimeStepCodeElement *const me)
+{
+    // override
+    static ElementVtbl const vtbl = {
+        &TimeStepCodeElement_Encode2Hex,
+        &TimeStepCodeElement_DecodeFromHex,
+        &TimeStepCodeElement_SizeInHex};
+    Element_ctor(&me->super, TIME_STEP_CODE, TIME_STEP_CODE_DATADEF);
+    me->super.vptr = &vtbl;
+}
+// TimeStepCodeElement END
+
+// StationStatusElement
+static bool StationStatusElement_Encode2Hex(Element const *const me, ByteBuffer *const hexBuff)
+{
+    assert(me);
+}
+
+static bool StationStatusElement_DecodeFromHex(Element *const me, ByteBuffer *const hexBuff)
+{
+    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < STATION_STATUS_LEN)
+    {
+        return false;
+    }
+    StationStatusElement *self = (StationStatusElement *)me;
+    uint8_t usedLen = ByteBuffer_BE_GetUInt32(hexBuff, &self->status);
+    return usedLen == STATION_STATUS_LEN;
+}
+
+static size_t StationStatusElement_SizeInHex(Element const *const me)
+{
+    assert(me);
+    return STATION_STATUS_LEN + ELEMENT_IDENTIFER_LEN;
+}
+
+void StationStatusElement_ctor(StationStatusElement *const me)
+{
+    // override
+    static ElementVtbl const vtbl = {
+        &StationStatusElement_Encode2Hex,
+        &StationStatusElement_DecodeFromHex,
+        &StationStatusElement_SizeInHex};
+    Element_ctor(&me->super, STATION_STATUS, STATION_STATUS_DATADEF);
+    me->super.vptr = &vtbl;
+}
+
+uint8_t StationStatusElement_StatusAt(StationStatusElement const *const me, uint8_t index)
+{
+    if (me == NULL || index < 0 || index > 31)
+    {
+        return 0;
+    }
+    return me->status >> index & 1;
+}
+// StationStatusElement END
+
+// DurationElement
+static bool DurationElement_Encode2Hex(Element const *const me, ByteBuffer *const hexBuff)
+{
+    assert(me);
+}
+
+static bool DurationElement_DecodeFromHex(Element *const me, ByteBuffer *const hexBuff)
+{
+    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < DURATION_OF_XX_LEN)
+    {
+        return false;
+    }
+    DurationElement *self = (DurationElement *)me;
+    uint8_t byte = 0;
+    // @Todo ASCII TO INT
+    uint8_t usedLen = ByteBuffer_GetUInt8(hexBuff, &self->hour);
+    usedLen += ByteBuffer_GetUInt8(hexBuff, &byte);
+    self->hour = (self->hour - 0x30) * 10 + (byte - 0x30);
+    usedLen += ByteBuffer_GetUInt8(hexBuff, &byte);
+    usedLen += ByteBuffer_GetUInt8(hexBuff, &self->minute);
+    byte = 0;
+    usedLen += ByteBuffer_GetUInt8(hexBuff, &byte);
+    self->minute = (self->minute - 0x30) * 10 + (byte - 0x30);
+    return usedLen == DURATION_OF_XX_LEN;
+}
+
+static size_t DurationElement_SizeInHex(Element const *const me)
+{
+    assert(me);
+    return DURATION_OF_XX_LEN + ELEMENT_IDENTIFER_LEN;
+}
+
+void DurationElement_ctor(DurationElement *const me)
+{
+    // override
+    static ElementVtbl const vtbl = {
+        &DurationElement_Encode2Hex,
+        &DurationElement_DecodeFromHex,
+        &DurationElement_SizeInHex};
+    Element_ctor(&me->super, DURATION_OF_XX, DURATION_OF_XX_DATADEF);
+    me->super.vptr = &vtbl;
+}
+// DurationElement END
 
 // NumberElement
 static bool NumberElement_Encode2Hex(Element const *const me, ByteBuffer *const hexBuff)
@@ -407,6 +762,7 @@ Element *decodeElementFromHex(ByteBuffer *const hexBuff)
     ByteBuffer_GetUInt8(hexBuff, &dataDef);                // 解析一个字节的 数据定义符，同时位移
     Element *el = NULL;                                    // 根据标识符引导符，开始解析 Element
     bool decoded = false;                                  //
+    void (*dtor)(void *) = NULL;                           // 统一的析构函数形式；但具体实现和构造函数无法统一
     switch (identifierLeader)                              //
     {                                                      //
     case CUSTOM_IDENTIFIER:                                // unsupport
@@ -414,51 +770,71 @@ Element *decodeElementFromHex(ByteBuffer *const hexBuff)
     case DATETIME:                                         // 观测时间 Element
         el = (Element *)(NewInstance(ObserveTimeElement)); // 创建指针，需要转为Element*
         ObserveTimeElement_ctor((ObserveTimeElement *)el); // 构造函数
-        decoded = el->vptr->decodeFromHex(el, hexBuff);    // 解析观测时间Element，调用 “重载” 的解码方法
-        if (!decoded)                                      // 解析失败，需要手动删除指针
-        {                                                  //
-            ObserveTimeElement_dtor(el);                   // 调用析构，规范步骤
-            DelInstance(el);                               // 删除指针
-            return NULL;                                   //
-        }                                                  //
-        return el;
+        // dtor = &ObserveTimeElement_dtor;
+        break;
     case ADDRESS:
         el = (Element *)(NewInstance(RemoteStationAddrElement));       // 创建指针，需要转为Element*
         RemoteStationAddrElement_ctor((RemoteStationAddrElement *)el); // 构造函数
-        decoded = el->vptr->decodeFromHex(el, hexBuff);                // 解析观测时间Element，调用 “重载” 的解码方法
-        if (!decoded)                                                  // 解析失败，需要手动删除指针
-        {                                                              //
-            RemoteStationAddrElement_dtor(el);                         // 调用析构，规范步骤
-            DelInstance(el);                                           // 删除指针
-            return NULL;                                               //
-        }                                                              //
-        return el;
+        // dtor = &RemoteStationAddrElement_dtor;
         break;
     case ARTIFICIAL_IL:
+        el = (Element *)(NewInstance(ArtificialElement)); // 创建指针，需要转为Element*
+        ArtificialElement_ctor((ArtificialElement *)el);  // 构造函数
+        dtor = (void (*)(void *))(&ArtificialElement_dtor);
         break;
     case PICTURE_IL:
-        el = (Element *)(NewInstance(PictureElement));  // 创建指针，需要转为Element*
-        PictureElement_ctor((PictureElement *)el);      // 构造函数
-        decoded = el->vptr->decodeFromHex(el, hexBuff); // 解析观测时间Element，调用 “重载” 的解码方法
-        if (!decoded)                                   // 解析失败，需要手动删除指针
-        {                                               //
-            PictureElement_dtor((PictureElement *)el);  // 调用析构，规范步骤
-            DelInstance(el);                            // 删除指针
-            return NULL;                                //
-        }                                               //
-        return el;
-    case DPR:
+        el = (Element *)(NewInstance(PictureElement)); // 创建指针，需要转为Element*
+        PictureElement_ctor((PictureElement *)el);     // 构造函数
+        dtor = (void (*)(void *))(&PictureElement_dtor);
         break;
-    case DRZ1:
-    case DRZ2:
-    case DRZ3:
-    case DRZ4:
-    case DRZ5:
-    case DRZ6:
-    case DRZ7:
-    case DRZ8:
+    case DRP5MIN:
+        if (dataDef != DRP5MIN_DATADEF) //固定为 0x60
+        {
+            return NULL;
+        }
+        el = (Element *)(NewInstance(DRP5MINElement)); // 创建指针，需要转为Element*
+        DRP5MINElement_ctor((DRP5MINElement *)el);     // 构造函数
+        dtor = (void (*)(void *))(&DRP5MINElement_dtor);
+        break;
+    case RELATIVE_WATER_LEVEL_5MIN1:
+    case RELATIVE_WATER_LEVEL_5MIN2:
+    case RELATIVE_WATER_LEVEL_5MIN3:
+    case RELATIVE_WATER_LEVEL_5MIN4:
+    case RELATIVE_WATER_LEVEL_5MIN5:
+    case RELATIVE_WATER_LEVEL_5MIN6:
+    case RELATIVE_WATER_LEVEL_5MIN7:
+    case RELATIVE_WATER_LEVEL_5MIN8:
+        if (dataDef != RELATIVE_WATER_LEVEL_5MIN1_DATADEF) //固定为 0x60
+        {
+            return NULL;
+        }
+        el = (Element *)(NewInstance(RelativeWaterLevelElement));                          // 创建指针，需要转为Element*
+        RelativeWaterLevelElement_ctor((RelativeWaterLevelElement *)el, identifierLeader); // 构造函数
+        dtor = (void (*)(void *))(&RelativeWaterLevelElement_dtor);
         break;
     case FLOW_RATE_DATA:
+        if (dataDef != FLOW_RATE_DATA_DATADEF) //固定为 0xF6
+        {
+            return NULL;
+        }
+        el = (Element *)(NewInstance(FlowRateDataElement));  // 创建指针，需要转为Element*
+        FlowRateDataElement_ctor((FlowRateDataElement *)el); // 构造函数
+        dtor = (void (*)(void *))(&FlowRateDataElement_dtor);
+        break;
+    case TIME_STEP_CODE:
+        el = (Element *)(NewInstance(TimeStepCodeElement));  // 创建指针，需要转为Element*
+        TimeStepCodeElement_ctor((TimeStepCodeElement *)el); // 构造函数
+        // dtor = &TimeStepCodeElement_dtor;
+        break;
+    case STATION_STATUS:
+        el = (Element *)(NewInstance(StationStatusElement));   // 创建指针，需要转为Element*
+        StationStatusElement_ctor((StationStatusElement *)el); // 构造函数
+        // dtor = &TimeStepCodeElement_dtor;
+        break;
+    case DURATION_OF_XX:
+        el = (Element *)(NewInstance(DurationElement)); // 创建指针，需要转为Element*
+        DurationElement_ctor((DurationElement *)el);    // 构造函数
+        // dtor = &TimeStepCodeElement_dtor;
         break;
     default:
         // 按照数据类型解析
@@ -466,20 +842,24 @@ Element *decodeElementFromHex(ByteBuffer *const hexBuff)
         {
             el = (Element *)NewInstance(NumberElement);
             NumberElement_ctor((NumberElement *)el, identifierLeader, dataDef);
-            el->identifierLeader = identifierLeader;
-            el->dataDef = dataDef;
-            decoded = el->vptr->decodeFromHex(el, hexBuff);
-            if (!decoded)
-            {
-                NumberElement_dtor((NumberElement *)el);
-                DelInstance(el);
-                return NULL;
-            }
-            return el;
+            dtor = (void (*)(void *))(&NumberElement_dtor);
         }
         else
         {
             return NULL;
+        }
+    }
+    if (el != NULL)
+    {
+        decoded = el->vptr->decodeFromHex(el, hexBuff); // 解析
+        if (!decoded)                                   // 解析失败，需要手动删除指针
+        {                                               //
+            if (dtor != NULL)                           // 实现了析构函数
+            {                                           //
+                dtor((ArtificialElement *)el);          // 调用析构，规范步骤
+            }                                           //
+            DelInstance(el);                            // 删除指针
+            return NULL;                                //
         }
     }
     return el;
