@@ -170,13 +170,64 @@ GTEST_TEST(ByteBuffer, ByteBuffer_BE_GetUInt)
 GTEST_TEST(ByteBuffer, ByteBuffer_CRC16)
 {
     ByteBuffer *buf = NewInstance(ByteBuffer);
-    ByteBuffer_ctor_fromHexStr(buf, "7E7E001234567810123434800802000114061314385304696E", 50);
+    ByteBuffer_ctor_fromHexStr(buf, "7E7E"
+                                    "0012345678"
+                                    "10"
+                                    "1234"
+                                    "34"
+                                    "8008"
+                                    "02"
+                                    "0001"
+                                    "140613143853"
+                                    "04"
+                                    "696E",
+                               50);
     ByteBuffer_Flip(buf);
 
     uint16_t crc = 0;
     ByteBuffer_CRC16(buf, &crc, 0, ByteBuffer_Available(buf) - 2);
     ASSERT_EQ(crc >> 8, 0x69);
     ASSERT_EQ(crc & 0xFF, 0x6E);
+
+    ByteBuffer_dtor(buf);
+    DelInstance(buf);
+
+    buf = NewInstance(ByteBuffer);
+    ByteBuffer_ctor_fromHexStr(buf, "7E7E"
+                                    "10"
+                                    "0012345678"
+                                    "1234"
+                                    "34"
+                                    "0038"
+                                    "02"
+                                    "0001"
+                                    "140612020000"
+                                    "F1F1"
+                                    "0012345678"
+                                    "50"
+                                    "F0F0"
+                                    "1406120200"
+                                    "F460"
+                                    "000000000000000000000000"
+                                    "2619"
+                                    "000000"
+                                    "2019"
+                                    "000000"
+                                    "1A19"
+                                    "000000"
+                                    "3812"
+                                    "1290"
+                                    "03"
+                                    "4383",
+                               146);
+    ByteBuffer_Flip(buf);
+    crc = 0;
+    ByteBuffer_CRC16(buf, &crc, 0, ByteBuffer_Available(buf) - 2);
+    ASSERT_EQ(crc >> 8, 0x43);
+    ASSERT_EQ(crc & 0xFF, 0x83);
+
+    ByteBuffer_dtor(buf);
+    DelInstance(buf);
 }
 
 int main(int argc, char *argv[])
