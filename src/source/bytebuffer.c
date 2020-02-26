@@ -103,9 +103,10 @@ static size_t binToBCDUInt(const uint8_t *bin, void *val, const size_t size)
     return count;
 }
 
-void ByteBuffer_ctor(ByteBuffer *const me, uint32_t size)
+void BB_ctor(ByteBuffer *const me, uint32_t size)
 {
-    if (me == NULL || size < 0)
+    assert(me);
+    if (size < 0)
     {
         return;
     }
@@ -117,9 +118,10 @@ void ByteBuffer_ctor(ByteBuffer *const me, uint32_t size)
     memset(me->buff, 0, size);
 }
 
-void ByteBuffer_ctor_wrapped(ByteBuffer *const me, uint8_t *buff, uint32_t size)
+void BB_ctor_wrapped(ByteBuffer *const me, uint8_t *buff, uint32_t size)
 {
-    if (me == NULL || buff == NULL || size < 0)
+    assert(me);
+    if (buff == NULL || size < 0)
     {
         return;
     }
@@ -130,9 +132,10 @@ void ByteBuffer_ctor_wrapped(ByteBuffer *const me, uint8_t *buff, uint32_t size)
     me->buff = buff;
 }
 
-void ByteBuffer_ctor_copy(ByteBuffer *const me, uint8_t *buff, uint32_t size)
+void BB_ctor_copy(ByteBuffer *const me, uint8_t *buff, uint32_t size)
 {
-    if (me == NULL || buff == NULL || size < 0)
+    assert(me);
+    if (buff == NULL || size < 0)
     {
         return;
     }
@@ -144,9 +147,10 @@ void ByteBuffer_ctor_copy(ByteBuffer *const me, uint8_t *buff, uint32_t size)
     memcpy(me->buff, buff, size);
 }
 
-void ByteBuffer_ctor_fromHexStr(ByteBuffer *const me, char const *const hexStr, uint32_t size)
+void BB_ctor_fromHexStr(ByteBuffer *const me, char const *const hexStr, uint32_t size)
 {
-    if (me == NULL || hexStr == NULL || size < 0 || size & 1 == 1)
+    assert(me);
+    if (hexStr == NULL || size < 0 || size & 1 == 1)
     {
         return;
     }
@@ -159,31 +163,26 @@ void ByteBuffer_ctor_fromHexStr(ByteBuffer *const me, char const *const hexStr, 
     hex2bin(hexStr, size, me->buff, me->size);
 }
 
-void ByteBuffer_dtor(ByteBuffer *const me)
+void BB_dtor(ByteBuffer *const me)
 {
-    if (me == NULL)
-    {
-        return;
-    }
+    assert(me);
     if (!me->wrapped)
     {
         free(me->buff);
     }
 }
 
-void ByteBuffer_Flip(ByteBuffer *const me)
+void BB_Flip(ByteBuffer *const me)
 {
-    if (me == NULL)
-    {
-        return;
-    }
+    assert(me);
     me->limit = me->position;
     me->position = 0;
 }
 
-void ByteBuffer_Clear(ByteBuffer *const me)
+void BB_Clear(ByteBuffer *const me)
 {
-    if (me == NULL || me->wrapped)
+    assert(me);
+    if (me->wrapped)
     {
         return;
     }
@@ -192,7 +191,7 @@ void ByteBuffer_Clear(ByteBuffer *const me)
     me->limit = me->size;
 }
 
-void ByteBuffer_Rewind(ByteBuffer *const me)
+void BB_Rewind(ByteBuffer *const me)
 {
     me->position = 0;
 }
@@ -216,9 +215,10 @@ static void CRC16(const uint8_t *bin, uint16_t *crc16, uint32_t size)
     }
 }
 
-uint8_t ByteBuffer_CRC16(ByteBuffer *const me, uint16_t *crc16, uint32_t start, uint32_t size)
+uint8_t BB_CRC16(ByteBuffer *const me, uint16_t *crc16, uint32_t start, uint32_t size)
 {
-    if (me == NULL || start < 0 || size < 0 || start + size > me->limit)
+    assert(me);
+    if (start < 0 || size < 0 || start + size > me->limit)
     {
         return 0;
     }
@@ -226,9 +226,9 @@ uint8_t ByteBuffer_CRC16(ByteBuffer *const me, uint16_t *crc16, uint32_t start, 
     return 1;
 }
 
-ByteBuffer *ByteBuffer_GetByteBuffer(ByteBuffer *const me, uint32_t size)
+ByteBuffer *BB_GetByteBuffer(ByteBuffer *const me, uint32_t size)
 {
-    ByteBuffer *val = ByteBuffer_PeekByteBuffer(me, me->position, size);
+    ByteBuffer *val = BB_PeekByteBuffer(me, me->position, size);
     if (val != NULL)
     {
         me->position += size;
@@ -236,20 +236,22 @@ ByteBuffer *ByteBuffer_GetByteBuffer(ByteBuffer *const me, uint32_t size)
     return val;
 }
 
-ByteBuffer *ByteBuffer_PeekByteBuffer(ByteBuffer *const me, uint32_t start, uint32_t size)
+ByteBuffer *BB_PeekByteBuffer(ByteBuffer *const me, uint32_t start, uint32_t size)
 {
-    if (me == NULL || start < 0 || size < 0 || start + size > me->limit)
+    assert(me);
+    if (start < 0 || size < 0 || start + size > me->limit)
     {
         return NULL;
     }
     ByteBuffer *val = NewInstance(ByteBuffer);
-    ByteBuffer_ctor_copy(val, me->buff + start, size);
+    BB_ctor_copy(val, me->buff + start, size);
     return val;
 }
 
-uint8_t ByteBuffer_BE_PeekUIntAt(ByteBuffer *const me, uint8_t index, void *val, uint8_t size)
+uint8_t BB_BE_PeekUIntAt(ByteBuffer *const me, uint8_t index, void *val, uint8_t size)
 {
-    if (me == NULL || val == NULL || size < 0 || index < 0 || index + size >= me->limit)
+    assert(me);
+    if (val == NULL || size < 0 || index < 0 || index + size > me->limit)
     {
         return 0;
     }
@@ -261,13 +263,14 @@ uint8_t ByteBuffer_BE_PeekUIntAt(ByteBuffer *const me, uint8_t index, void *val,
     return 0;
 }
 
-uint8_t ByteBuffer_LE_PeekUIntAt(ByteBuffer *const me, uint8_t index, void *val, uint8_t size)
+uint8_t BB_LE_PeekUIntAt(ByteBuffer *const me, uint8_t index, void *val, uint8_t size)
 {
-    if (me == NULL || val == NULL || size < 0 || index < 0 || index + size >= me->limit)
+    assert(me);
+    if (val == NULL || size < 0 || index < 0 || index + size > me->limit)
     {
         return 0;
     }
-    uint8_t usedLen = binToBeUInt(me->buff + me->position, val, size);
+    uint8_t usedLen = binToBeUInt(me->buff + index, val, size);
     if (usedLen == size)
     {
         return usedLen;
@@ -275,29 +278,30 @@ uint8_t ByteBuffer_LE_PeekUIntAt(ByteBuffer *const me, uint8_t index, void *val,
     return 0;
 }
 
-uint8_t ByteBuffer_BE_PeekUInt(ByteBuffer *const me, void *val, uint8_t size)
+uint8_t BB_BE_PeekUInt(ByteBuffer *const me, void *val, uint8_t size)
 {
-    return ByteBuffer_BE_PeekUIntAt(me, 0, val, 2);
+    return BB_BE_PeekUIntAt(me, 0, val, 2);
 }
 
-uint8_t ByteBuffer_BE_PeekUInt16At(ByteBuffer *const me, uint8_t index, uint16_t *val)
+uint8_t BB_BE_PeekUInt16At(ByteBuffer *const me, uint8_t index, uint16_t *val)
 {
-    return ByteBuffer_BE_PeekUIntAt(me, index, val, 2);
+    return BB_BE_PeekUIntAt(me, index, val, 2);
 }
 
-uint8_t ByteBuffer_LE_PeekUInt(ByteBuffer *const me, void *val, uint8_t size)
+uint8_t BB_LE_PeekUInt(ByteBuffer *const me, void *val, uint8_t size)
 {
-    return ByteBuffer_LE_PeekUIntAt(me, 0, val, 2);
+    return BB_LE_PeekUIntAt(me, 0, val, 2);
 }
 
-uint8_t ByteBuffer_PeekUInt8(ByteBuffer *const me, uint8_t *val)
+uint8_t BB_PeekUInt8(ByteBuffer *const me, uint8_t *val)
 {
-    return ByteBuffer_PeekUInt8At(me, me->position, val);
+    return BB_PeekUInt8At(me, me->position, val);
 }
 
-uint8_t ByteBuffer_PeekUInt8At(ByteBuffer *const me, uint8_t index, uint8_t *val)
+uint8_t BB_PeekUInt8At(ByteBuffer *const me, uint8_t index, uint8_t *val)
 {
-    if (me == NULL || val == NULL || index >= me->limit || index < 0)
+    assert(me);
+    if (val == NULL || index >= me->limit || index < 0)
     {
         return 0;
     }
@@ -305,9 +309,15 @@ uint8_t ByteBuffer_PeekUInt8At(ByteBuffer *const me, uint8_t index, uint8_t *val
     return 1;
 }
 
-uint8_t ByteBuffer_BE_GetUInt(ByteBuffer *const me, void *val, uint8_t size)
+uint8_t BB_BE_PeekUInt16(ByteBuffer *const me, uint16_t *val)
 {
-    if (me == NULL || me->position + size - 1 >= me->limit)
+    return BB_BE_PeekUInt16At(me, me->position, val);
+}
+
+uint8_t BB_BE_GetUInt(ByteBuffer *const me, void *val, uint8_t size)
+{
+    assert(me);
+    if (me->position + size - 1 >= me->limit)
     {
         return 0;
     }
@@ -320,9 +330,10 @@ uint8_t ByteBuffer_BE_GetUInt(ByteBuffer *const me, void *val, uint8_t size)
     return 0;
 }
 
-uint8_t ByteBuffer_LE_GetUInt(ByteBuffer *const me, void *val, uint8_t size)
+uint8_t BB_LE_GetUInt(ByteBuffer *const me, void *val, uint8_t size)
 {
-    if (me == NULL || me->position + size - 1 >= me->limit)
+    assert(me);
+    if (me->position + size - 1 >= me->limit)
     {
         return 0;
     }
@@ -335,9 +346,9 @@ uint8_t ByteBuffer_LE_GetUInt(ByteBuffer *const me, void *val, uint8_t size)
     return 0;
 }
 
-uint8_t ByteBuffer_GetUInt8(ByteBuffer *const me, uint8_t *val)
+uint8_t BB_GetUInt8(ByteBuffer *const me, uint8_t *val)
 {
-    uint8_t usedLen = ByteBuffer_PeekUInt8(me, val);
+    uint8_t usedLen = BB_PeekUInt8(me, val);
     if (usedLen == 1)
     {
         me->position++;
@@ -345,9 +356,10 @@ uint8_t ByteBuffer_GetUInt8(ByteBuffer *const me, uint8_t *val)
     return usedLen;
 }
 
-uint8_t ByteBuffer_PutUInt8(ByteBuffer *const me, uint8_t val)
+uint8_t BB_PutUInt8(ByteBuffer *const me, uint8_t val)
 {
-    if (me == NULL || me->wrapped || me->position >= me->limit)
+    assert(me);
+    if (me->wrapped || me->position >= me->limit)
     {
         return 0;
     }
@@ -355,45 +367,46 @@ uint8_t ByteBuffer_PutUInt8(ByteBuffer *const me, uint8_t val)
     return 1;
 }
 
-uint8_t ByteBuffer_BE_GetUInt16(ByteBuffer *const me, uint16_t *val)
+uint8_t BB_BE_GetUInt16(ByteBuffer *const me, uint16_t *val)
 {
     // *val = 0; // 副作用
-    return ByteBuffer_BE_GetUInt(me, val, 2);
+    return BB_BE_GetUInt(me, val, 2);
 }
 
-uint8_t ByteBuffer_BE_GetUInt32(ByteBuffer *const me, uint32_t *val)
+uint8_t BB_BE_GetUInt32(ByteBuffer *const me, uint32_t *val)
 {
     // *val = 0; // 副作用
-    return ByteBuffer_BE_GetUInt(me, val, 4);
+    return BB_BE_GetUInt(me, val, 4);
 }
 
-uint8_t ByteBuffer_BE_GetUInt64(ByteBuffer *const me, uint64_t *val)
+uint8_t BB_BE_GetUInt64(ByteBuffer *const me, uint64_t *val)
 {
     // *val = 0; // 副作用
-    return ByteBuffer_BE_GetUInt(me, val, 8);
+    return BB_BE_GetUInt(me, val, 8);
 }
 
-uint8_t ByteBuffer_LE_GetUInt16(ByteBuffer *const me, uint16_t *val)
+uint8_t BB_LE_GetUInt16(ByteBuffer *const me, uint16_t *val)
 {
     // *val = 0; // 副作用
-    return ByteBuffer_LE_GetUInt(me, val, 2);
+    return BB_LE_GetUInt(me, val, 2);
 }
 
-uint8_t ByteBuffer_LE_GetUInt32(ByteBuffer *const me, uint32_t *val)
+uint8_t BB_LE_GetUInt32(ByteBuffer *const me, uint32_t *val)
 {
     // *val = 0; // 副作用
-    return ByteBuffer_LE_GetUInt(me, val, 4);
+    return BB_LE_GetUInt(me, val, 4);
 }
 
-uint8_t ByteBuffer_LE_GetUInt64(ByteBuffer *const me, uint64_t *val)
+uint8_t BB_LE_GetUInt64(ByteBuffer *const me, uint64_t *val)
 {
     // *val = 0; // 副作用
-    return ByteBuffer_LE_GetUInt(me, val, 8);
+    return BB_LE_GetUInt(me, val, 8);
 }
 
-uint8_t ByteBuffer_BE_PutUInt16(ByteBuffer *const me, uint16_t val)
+uint8_t BB_BE_PutUInt16(ByteBuffer *const me, uint16_t val)
 {
-    if (me == NULL || me->position + 1 >= me->limit)
+    assert(me);
+    if (me->position + 1 >= me->limit)
     {
         return 0;
     }
@@ -402,9 +415,10 @@ uint8_t ByteBuffer_BE_PutUInt16(ByteBuffer *const me, uint16_t val)
     return 2;
 }
 
-uint8_t ByteBuffer_BE_PutUInt32(ByteBuffer *const me, uint32_t val)
+uint8_t BB_BE_PutUInt32(ByteBuffer *const me, uint32_t val)
 {
-    if (me == NULL || me->position + 3 >= me->limit)
+    assert(me);
+    if (me->position + 3 >= me->limit)
     {
         return 0;
     }
@@ -415,9 +429,10 @@ uint8_t ByteBuffer_BE_PutUInt32(ByteBuffer *const me, uint32_t val)
     return 4;
 }
 
-uint8_t ByteBuffer_BE_PutUInt64(ByteBuffer *const me, uint64_t val)
+uint8_t BB_BE_PutUInt64(ByteBuffer *const me, uint64_t val)
 {
-    if (me == NULL || me->position + 7 >= me->limit)
+    assert(me);
+    if (me->position + 7 >= me->limit)
     {
         return 0;
     }
@@ -432,9 +447,10 @@ uint8_t ByteBuffer_BE_PutUInt64(ByteBuffer *const me, uint64_t val)
     return 8;
 }
 
-uint8_t ByteBuffer_LE_PutUInt16(ByteBuffer *const me, uint16_t val)
+uint8_t BB_LE_PutUInt16(ByteBuffer *const me, uint16_t val)
 {
-    if (me == NULL || me->position + 1 >= me->limit)
+    assert(me);
+    if (me->position + 1 >= me->limit)
     {
         return 0;
     }
@@ -443,9 +459,10 @@ uint8_t ByteBuffer_LE_PutUInt16(ByteBuffer *const me, uint16_t val)
     return 2;
 }
 
-uint8_t ByteBuffer_LE_PutUInt32(ByteBuffer *const me, uint32_t val)
+uint8_t BB_LE_PutUInt32(ByteBuffer *const me, uint32_t val)
 {
-    if (me == NULL || me->position + 3 >= me->limit)
+    assert(me);
+    if (me->position + 3 >= me->limit)
     {
         return 0;
     }
@@ -456,9 +473,10 @@ uint8_t ByteBuffer_LE_PutUInt32(ByteBuffer *const me, uint32_t val)
     return 4;
 }
 
-uint8_t ByteBuffer_LE_PutUInt64(ByteBuffer *const me, uint64_t val)
+uint8_t BB_LE_PutUInt64(ByteBuffer *const me, uint64_t val)
 {
-    if (me == NULL || me->position + 7 >= me->limit)
+    assert(me);
+    if (me->position + 7 >= me->limit)
     {
         return 0;
     }
@@ -473,9 +491,10 @@ uint8_t ByteBuffer_LE_PutUInt64(ByteBuffer *const me, uint64_t val)
     return 8;
 }
 
-uint8_t ByteBuffer_BCDGetUInt(ByteBuffer *const me, void *val, uint8_t size)
+uint8_t BB_BCDGetUInt(ByteBuffer *const me, void *val, uint8_t size)
 {
-    if (me == NULL || me->position + size - 1 >= me->limit)
+    assert(me);
+    if (me->position + size - 1 >= me->limit)
     {
         return 0;
     }
@@ -488,7 +507,7 @@ uint8_t ByteBuffer_BCDGetUInt(ByteBuffer *const me, void *val, uint8_t size)
     return 0;
 }
 
-uint8_t ByteBuffer_BCDGetUInt8(ByteBuffer *const me, uint8_t *val)
+uint8_t BB_BCDGetUInt8(ByteBuffer *const me, uint8_t *val)
 {
-    return ByteBuffer_BCDGetUInt(me, val, 1);
+    return BB_BCDGetUInt(me, val, 1);
 }
