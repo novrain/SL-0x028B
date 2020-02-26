@@ -5,20 +5,30 @@
 extern "C"
 {
 #endif
-
+// std
 #include <stdint.h>
 #include <memory.h>
 #include <stdbool.h>
+// others
+#include "vec.h"
 
 #include "class.h"
 #include "bytebuffer.h"
+
+    typedef enum
+    {
+        // 二进制报文，(注：协议中的HEX模式，并非HEX STR；同时也是混杂模式，部分数据为BCD/ASCII)
+        TRANS_IN_BINARY,
+        // ASCII字符编码报文 (注：不严谨，混杂模式，标识符试用ASCII，数据部分有的转为ASCII(实际是HEX STR)，有的还是BINARY模式)
+        TRANS_IN_ASCII
+    } DataTransMode;
 
 /**
  *  报文帧控制字符定义 
  */
 //SOH(start of header)
-#define SOH_ASCII 0x01 //ASCII字符编码报文帧起始
-#define SOH_HEX 0x7E7E //HEX/BCD编码报文帧起始
+#define SOH_ASCII 0x01    //ASCII字符编码报文帧起始
+#define SOH_BINARY 0x7E7E //HEX/BCD编码报文帧起始
 //STX (start of text)
 #define STX 0x02 //传输正文起始
 //SYN (synchronous idle)
@@ -38,7 +48,7 @@ extern "C"
 //ESC (escape)
 #define ESC 0x1b //传输结束，终端保持在线
 
-    enum StationCategory_HEX
+    enum StationCategory
     {
         // 降水  P
         RAIN_STATION = 0x50,
@@ -126,6 +136,62 @@ extern "C"
         QUERY_CLOCK
     };
 
+    /**
+     * @description: 根据功能码判断报文头是否包含RemoteStationAddrElement
+     * @param {type} 
+     * @return: 
+     */
+    static bool inline isContainRemoteStationAddrElement(uint8_t functionCode)
+    {
+        switch (functionCode)
+        {
+        default:
+            return false;
+        }
+    }
+
+    /**
+     * @description: 根据功能码判断报文头是否包含StationCategory
+     * @param {type} 
+     * @return: 
+     */
+    static bool inline isContainStationCategoryField(uint8_t functionCode)
+    {
+        switch (functionCode)
+        {
+        default:
+            return false;
+        }
+    }
+
+    /**
+     * @description: 根据功能码判断报文头是否包含ObserveTimeElement
+     * @param {type} 
+     * @return: 
+     */
+    static bool inline isContainObserveTimeElement(uint8_t functionCode)
+    {
+        switch (functionCode)
+        {
+        default:
+            return false;
+        }
+    }
+
+    /**
+     * @description: 根据功能码判断报文是否为要素组成
+     * @param {type} 
+     * @return: 
+     */
+    static bool inline isMessageCombinedByElements(uint8_t functionCode)
+    {
+        switch (functionCode)
+        {
+        default:
+            return false;
+        }
+    }
+
 #define ELEMENT_IDENTIFER_LEN 2
 #define ELEMENT_IDENTIFER_LEADER_LEN 1
 #define NUMBER_ELEMENT_LEN_OFFSET 3
@@ -194,28 +260,10 @@ extern "C"
 #define A5_HYDROLOGICAL_TELEMETRY_STATION 0
 #define REMOTE_STATION_ADDR_LEN 5
 
-    /* 中心站地址/遥测站地址组合 */
-    typedef struct
-    {
-        uint8_t centerAddr;
-        RemoteStationAddr stationAddr;
-    } UpAddr;
-
-    typedef struct
-    {
-        uint8_t centerAddr;
-        RemoteStationAddr stationAddr;
-    } DownAddr;
-
-    typedef union {
-        UpAddr upAddr;
-        DownAddr downAddr;
-    } AddrPair;
-
     typedef enum
     {
-        Up,
-        Down
+        Down = 1 << 3, // 4 bit: 1000
+        Up = 0         // 4 bit: 0000
     } Direction;
 
     typedef struct
@@ -234,25 +282,32 @@ extern "C"
     typedef struct
     {
         uint16_t count;
-        uint8_t seq;
+        uint16_t seq;
     } Sequence;
 
     /* Head */
     typedef struct
     {
-        Direction direction;
         uint16_t soh;
-        AddrPair addrPair;
-        uint16_t pwd;
+        uint8_t centerAddr;
+        RemoteStationAddr stationAddr;
+        uint16_t password;
         uint8_t funcCode;
+        uint8_t direction;
         uint16_t len;
         uint8_t stxFlag;
         // if stxFlag == SNY
-        Sequence seq;
+        Sequence sequence;
     } Head;
 
 #define PACKAGE_HEAD_STX_LEN 14
 #define PACKAGE_HEAD_SNY_LEN 17
+#define PACKAGE_HEAD_STX_DIRECTION_INDEX 11
+#define PACKAGE_HEAD_STX_DIRECTION_INDEX_MASK_BIT 12
+#define PACKAGE_HEAD_STX_BODY_LEN_MASK 0xFFF
+#define PACKAGE_HEAD_SEQUENCE_COUNT_BIT_MASK_LEN 12
+#define PACKAGE_HEAD_SEQUENCE_SEQ_MASK 0xFFF
+#define PACKAGE_HEAD_SEQUENCE_COUNT_MASK 0xFFF
 
     // oop
 #define Head_ctor(ptr_)
@@ -269,8 +324,8 @@ extern "C"
     typedef struct ElementVtbl
     {
         // pure virtual
-        bool (*encode)(Element const *const me, ByteBuffer *const hexBuff);
-        bool (*decode)(Element *const me, ByteBuffer *const hexBuff);
+        bool (*encode)(Element const *const me, ByteBuffer *const byteBuff);
+        bool (*decode)(Element *const me, ByteBuffer *const byteBuff);
         size_t (*size)(Element const *const me);
     } ElementVtbl;
 
@@ -307,8 +362,10 @@ extern "C"
         DateTime sendTime;
         RemoteStationAddrElement stationAddrElement;
         uint8_t stationCategory;
-        ObserveTimeElement observeTimeElement;
+        ObserveTimeElement ObserveTimeElement;
     } UplinkMessageHead;
+
+#define UPLINK_MESSAGE_HEAD_LEN 22
 
     typedef struct
     {
@@ -330,53 +387,55 @@ extern "C"
     typedef struct
     {
         struct PackageVtbl const *vptr; /* <== Package's Virtual Pointer */
-        Head *head;
-        Tail *tail;
+        Head head;
+        Tail tail;
     } Package;
 
     /* Package's virtual table */
     typedef struct PackageVtbl
     {
         // pure virtual
-        bool (*encode)(Package const *const me, ByteBuffer *const hexBuff);
-        bool (*decode)(Package *const me, ByteBuffer *const hexBuff);
+        bool (*encode)(Package const *const me, ByteBuffer *const byteBuff);
+        bool (*decode)(Package *const me, ByteBuffer *const byteBuff);
         size_t (*size)();
     } PackageVtbl;
 
     /* Package Construtor & Destrucor */
-    void Package_ctor(Package *const me, Head *head);
+    void Package_ctor(Package *const me);
     /* Public methods */
-    bool Package_EncodeHead(Package const *const me, ByteBuffer *const hexBuff);
-    bool Package_EncodeTail(Package const *const me, ByteBuffer *const hexBuff);
-    bool Package_DecodeHead(Package *const me, ByteBuffer *const hexBuff);
-    bool Package_DecodeTail(Package *const me, ByteBuffer *const hexBuff);
+    bool Package_EncodeHead(Package const *const me, ByteBuffer *const byteBuff);
+    bool Package_EncodeTail(Package const *const me, ByteBuffer *const byteBuff);
+    bool Package_DecodeHead(Package *const me, ByteBuffer *const byteBuff);
+    bool Package_DecodeTail(Package *const me, ByteBuffer *const byteBuff);
     /* Public Helper*/
 #define PACAKAGE_UPCAST(ptr_) ((Package *)(ptr_))
 #define Package_dtor(ptr_)
-#define Package_Direction(me_) (PACAKAGE_UPCAST(me_)->head->direction)
+#define Package_Direction(me_) (PACAKAGE_UPCAST(me_)->head.direction)
     // "AbstractClass" Package END
 
     // "Basic" LinkMessage
+    // Dynamic Array for Element @see https://github.com/rxi/vec
+    typedef vec_t(Element *) ElementPtrVector;
+#define DEFAULT_ELEMENT_NUMBER 5
+#define MAX_ELEMENT_NUMBER 50
     typedef struct
     {
         Package super;
-        uint16_t elementCount;
-        Element *elements[0];
-        Element *elementCursor;
+        ElementPtrVector elements;
     } LinkMessage;
 
     /* LinkMessage Construtor & Destrucor */
-    void LinkMessage_ctor(LinkMessage *const me, Head *head, uint16_t elementCount);
+    void LinkMessage_ctor(LinkMessage *const me, uint16_t initElementCount);
     void LinkMessage_dtor(LinkMessage *const me);
     /* Public methods */
-    bool LinkMessage_EncodeElements(LinkMessage const *const me, ByteBuffer *const hexBuff);
-    bool LinkMessage_DecodeElements(LinkMessage *const me, ByteBuffer *const hexBuff);
+    bool LinkMessage_EncodeElements(LinkMessage const *const me, ByteBuffer *const byteBuff);
+    bool LinkMessage_DecodeElements(LinkMessage *const me, ByteBuffer *const byteBuff);
     bool LinkMessage_PutElement(LinkMessage *const me, uint16_t index, Element *element);
     bool LinkMessage_SetElement(LinkMessage *const me, uint16_t index, Element *element);
     Element *LinkMessage_GetElement(LinkMessage const *const me, uint16_t index);
     /* Public Helper*/
 #define LINKMESSAGE_UPCAST(ptr_) ((Package *)(ptr_))
-#define LinkMessage_ElementCount(me_) (LINKMESSAGE_UPCAST(me_)->elementCount)
+#define LinkMessage_ElementCount(me_) (LINKMESSAGE_UPCAST(me_)->initElementCount)
 #define LinkMessage_rewind(me_) (LINKMESSAGE_UPCAST(me_)->elementCursor = 0)
     // "Basic" LinkMessage END
 
@@ -384,48 +443,37 @@ extern "C"
     typedef struct
     {
         LinkMessage super;
-        UplinkMessageHead *messageHead;
+        UplinkMessageHead messageHead;
     } UplinkMessage;
 
     /* UplinkMessage Construtor & Destrucor */
-    void UplinkMessage_ctor(UplinkMessage *const me, Head *head, UplinkMessageHead *upLinkHead, uint16_t elementCount);
+    void UplinkMessage_ctor(UplinkMessage *const me, uint16_t initElementCount);
     void UplinkMessage_dtor(UplinkMessage *const me);
     /* Public methods */
-    bool UplinkMessage_EncodeHead(UplinkMessage const *const me, ByteBuffer *const hexBuff);
-    // void UplinkMessage_EncodeTail(UplinkMessage const *const me, ByteBuffer* hexBuff, size_t len);
-    bool UplinkMessage_DecodeHead(UplinkMessage const *me, ByteBuffer *const hexBuff);
-    // void UplinkMessage_DecodeTail(UplinkMessage const *me, ByteBuffer* hexBuff, size_t len);
+    bool UplinkMessage_EncodeHead(UplinkMessage const *const me, ByteBuffer *const byteBuff);
+    // void UplinkMessage_EncodeTail(UplinkMessage const *const me, ByteBuffer* byteBuff, size_t len);
+    bool UplinkMessage_DecodeHead(UplinkMessage *const me, ByteBuffer *const byteBuff);
+    // void UplinkMessage_DecodeTail(UplinkMessage * const me, ByteBuffer* byteBuff, size_t len);
     // "AbstractUpClass" UplinkMessage END
 
     // "AbstractUpClass" DownlinkMessage
     typedef struct
     {
         LinkMessage super;
-        DownlinkMessageHead *messageHead;
+        DownlinkMessageHead messageHead;
     } DownlinkMessage;
 
     /* DownlinkMessage Construtor  & Destrucor */
-    void DownlinkMessage_ctor(DownlinkMessage *const me, Head *head, DownlinkMessageHead *downLinkHead, uint16_t elementCount);
+    void DownlinkMessage_ctor(DownlinkMessage *const me, uint16_t initElementCount);
     void DownlinkMessage_dtor(DownlinkMessage *const me);
     /* Public methods */
-    bool DownlinkMessage_EncodeHead(DownlinkMessage const *const me, ByteBuffer *const hexBuff);
-    // void DownlinkMessage_EncodeTail(DownlinkMessage const *const me, ByteBuffer* hexBuff, size_t len);
-    bool DownlinkMessage_DecodeHead(DownlinkMessage const *me, ByteBuffer *const hexBuff);
-    // void DownlinkMessage_DecodeTail(DownlinkMessage const *me, ByteBuffer* hexBuff, size_t len);
+    bool DownlinkMessage_EncodeHead(DownlinkMessage const *const me, ByteBuffer *const byteBuff);
+    // void DownlinkMessage_EncodeTail(DownlinkMessage const *const me, ByteBuffer* byteBuff, size_t len);
+    bool DownlinkMessage_DecodeHead(DownlinkMessage *const me, ByteBuffer *const byteBuff);
+    // void DownlinkMessage_DecodeTail(DownlinkMessage * const me, ByteBuffer* byteBuff, size_t len);
     // "AbstractUpClass" DownlinkMessage END
 
     // Elements
-    // Util Functions.
-    static bool inline isNumberElement(uint8_t identifierLeader)
-    {
-        return identifierLeader >= 0x01 && identifierLeader <= 0x75 &&
-               identifierLeader != TIME_STEP_CODE &&
-               identifierLeader != STATION_STATUS &&
-               identifierLeader != DURATION_OF_XX;
-    }
-
-    Element *decodeElement(ByteBuffer *const hexBuff);
-
     // Element Class
     // PictureElement
     typedef struct
@@ -568,6 +616,33 @@ extern "C"
     } ExtendNumberElement;
 
     // Elements END
+
+    // Decode & Encode
+    // Util Functions
+    static bool inline isNumberElement(uint8_t identifierLeader)
+    {
+        return identifierLeader >= 0x01 && identifierLeader <= 0x75 &&
+               identifierLeader != TIME_STEP_CODE &&
+               identifierLeader != STATION_STATUS &&
+               identifierLeader != DURATION_OF_XX;
+    }
+
+    /**
+     * @description: Decode an Element from ByteBuffer.
+     * @param {ByteBuffer *const} byteBuff
+     *        ByteBuffer should flip to read mode.
+     * @return: An Instance of Element.
+     */
+    Element *decodeElement(ByteBuffer *const byteBuff);
+
+    /**
+     * @description: Decode a Package from ByteBuffer
+     * @param {ByteBuffer *const} byteBuff
+     *        ByteBuffer should flip to read mode.
+     * @return: An Instance of Package: DownlinkMessage Or UplinkMessage
+     */
+    Package *decodePackage(ByteBuffer *const byteBuff);
+    // Decode & Encode END
     // #pragma pack()
 #ifdef __cplusplus
 }

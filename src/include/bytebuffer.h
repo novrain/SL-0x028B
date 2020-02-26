@@ -5,6 +5,7 @@
 extern "C"
 {
 #endif
+#include <assert.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -65,79 +66,80 @@ extern "C"
      * Construtor
      * @param size buffer 大小
      */
-    void ByteBuffer_ctor(ByteBuffer *const me, uint32_t size);
-    void ByteBuffer_ctor_wrapped(ByteBuffer *const me, uint8_t *buff, uint32_t len);
-    void ByteBuffer_ctor_copy(ByteBuffer *const me, uint8_t *buff, uint32_t len);
+    void BB_ctor(ByteBuffer *const me, uint32_t size);
+    void BB_ctor_wrapped(ByteBuffer *const me, uint8_t *buff, uint32_t len);
+    void BB_ctor_copy(ByteBuffer *const me, uint8_t *buff, uint32_t len);
     // Test Only
-    void ByteBuffer_ctor_fromHexStr(ByteBuffer *const me, char const *const buff, uint32_t len);
+    void BB_ctor_fromHexStr(ByteBuffer *const me, char const *const buff, uint32_t len);
 
-    void ByteBuffer_dtor(ByteBuffer *const me);
+    void BB_dtor(ByteBuffer *const me);
 
     /**
      * Destructor
      */
-    void ByteBuffer_dtor(ByteBuffer *const me);
+    void BB_dtor(ByteBuffer *const me);
 
     /**
      * Reset the Buffer.
      */
-    void ByteBuffer_Clear(ByteBuffer *const me);
+    void BB_Clear(ByteBuffer *const me);
 
     /**
      * Compacts the buffer. Drop readed
      */
-    void ByteBuffer_Compact(ByteBuffer *const me);
+    void BB_Compact(ByteBuffer *const me);
 
     /**
      * Flip the buffer. Change to Read mode.
      */
-    void ByteBuffer_Flip(ByteBuffer *const me);
+    void BB_Flip(ByteBuffer *const me);
 
     /**
      * 重新开始读取
      */
-    void ByteBuffer_Rewind(ByteBuffer *const me);
+    void BB_Rewind(ByteBuffer *const me);
 
     /**
      * CRC16
      */
-    uint8_t ByteBuffer_CRC16(ByteBuffer *const me, uint16_t *crc16, uint32_t start, uint32_t size);
+    uint8_t BB_CRC16(ByteBuffer *const me, uint16_t *crc16, uint32_t start, uint32_t size);
 
-    ByteBuffer *ByteBuffer_GetByteBuffer(ByteBuffer *const me, uint32_t size);
-    ByteBuffer *ByteBuffer_PeekByteBuffer(ByteBuffer *const me, uint32_t start, uint32_t size);
+    ByteBuffer *BB_GetByteBuffer(ByteBuffer *const me, uint32_t size);
+    ByteBuffer *BB_PeekByteBuffer(ByteBuffer *const me, uint32_t start, uint32_t size);
 
-#define ByteBuffer_Available(ptr_) ((ptr_)->limit - (ptr_)->position)
+#define BB_Available(ptr_) ((ptr_)->limit - (ptr_)->position)
 
-    uint8_t ByteBuffer_PeekUInt8(ByteBuffer *const me, uint8_t *val);
-    uint8_t ByteBuffer_PeekUInt8At(ByteBuffer *const me, uint8_t index, uint8_t *val);
+    uint8_t BB_PeekUInt8(ByteBuffer *const me, uint8_t *val);
+    uint8_t BB_PeekUInt8At(ByteBuffer *const me, uint8_t index, uint8_t *val);
 
-    uint8_t ByteBuffer_BE_PeekUInt(ByteBuffer *const me, void *val, uint8_t size);
-    uint8_t ByteBuffer_LE_PeekUInt(ByteBuffer *const me, void *val, uint8_t size);
-    uint8_t ByteBuffer_BE_PeekUIntAt(ByteBuffer *const me, uint8_t index, void *val, uint8_t size);
-    uint8_t ByteBuffer_LE_PeekUIntAt(ByteBuffer *const me, uint8_t index, void *val, uint8_t size);
-    uint8_t ByteBuffer_BE_PeekUInt16At(ByteBuffer *const me, uint8_t index, uint16_t *val);
+    uint8_t BB_BE_PeekUInt(ByteBuffer *const me, void *val, uint8_t size);
+    uint8_t BB_LE_PeekUInt(ByteBuffer *const me, void *val, uint8_t size);
+    uint8_t BB_BE_PeekUIntAt(ByteBuffer *const me, uint8_t index, void *val, uint8_t size);
+    uint8_t BB_LE_PeekUIntAt(ByteBuffer *const me, uint8_t index, void *val, uint8_t size);
+    uint8_t BB_BE_PeekUInt16(ByteBuffer *const me, uint16_t *val);
+    uint8_t BB_BE_PeekUInt16At(ByteBuffer *const me, uint8_t index, uint16_t *val);
 
-    uint8_t ByteBuffer_BE_GetUInt(ByteBuffer *const me, void *val, uint8_t size);
-    uint8_t ByteBuffer_LE_GetUInt(ByteBuffer *const me, void *val, uint8_t size);
+    uint8_t BB_BE_GetUInt(ByteBuffer *const me, void *val, uint8_t size);
+    uint8_t BB_LE_GetUInt(ByteBuffer *const me, void *val, uint8_t size);
 
-    uint8_t ByteBuffer_GetUInt8(ByteBuffer *const me, uint8_t *val);
-    uint8_t ByteBuffer_PutUInt8(ByteBuffer *const me, uint8_t val);
+    uint8_t BB_GetUInt8(ByteBuffer *const me, uint8_t *val);
+    uint8_t BB_PutUInt8(ByteBuffer *const me, uint8_t val);
 
-    uint8_t ByteBuffer_BE_GetUInt16(ByteBuffer *const me, uint16_t *val);
-    uint8_t ByteBuffer_BE_GetUInt32(ByteBuffer *const me, uint32_t *val);
-    uint8_t ByteBuffer_BE_GetUInt64(ByteBuffer *const me, uint64_t *val);
-    uint8_t ByteBuffer_LE_GetUInt16(ByteBuffer *const me, uint16_t *val);
-    uint8_t ByteBuffer_LE_GetUInt32(ByteBuffer *const me, uint32_t *val);
-    uint8_t ByteBuffer_LE_GetUInt64(ByteBuffer *const me, uint64_t *val);
-    uint8_t ByteBuffer_BE_PutUInt16(ByteBuffer *const me, uint16_t val);
-    uint8_t ByteBuffer_BE_PutUInt32(ByteBuffer *const me, uint32_t val);
-    uint8_t ByteBuffer_BE_PutUInt64(ByteBuffer *const me, uint64_t val);
-    uint8_t ByteBuffer_LE_PutUInt16(ByteBuffer *const me, uint16_t val);
-    uint8_t ByteBuffer_LE_PutUInt32(ByteBuffer *const me, uint32_t val);
-    uint8_t ByteBuffer_LE_PutUInt64(ByteBuffer *const me, uint64_t val);
+    uint8_t BB_BE_GetUInt16(ByteBuffer *const me, uint16_t *val);
+    uint8_t BB_BE_GetUInt32(ByteBuffer *const me, uint32_t *val);
+    uint8_t BB_BE_GetUInt64(ByteBuffer *const me, uint64_t *val);
+    uint8_t BB_LE_GetUInt16(ByteBuffer *const me, uint16_t *val);
+    uint8_t BB_LE_GetUInt32(ByteBuffer *const me, uint32_t *val);
+    uint8_t BB_LE_GetUInt64(ByteBuffer *const me, uint64_t *val);
+    uint8_t BB_BE_PutUInt16(ByteBuffer *const me, uint16_t val);
+    uint8_t BB_BE_PutUInt32(ByteBuffer *const me, uint32_t val);
+    uint8_t BB_BE_PutUInt64(ByteBuffer *const me, uint64_t val);
+    uint8_t BB_LE_PutUInt16(ByteBuffer *const me, uint16_t val);
+    uint8_t BB_LE_PutUInt32(ByteBuffer *const me, uint32_t val);
+    uint8_t BB_LE_PutUInt64(ByteBuffer *const me, uint64_t val);
     // BCD
-    uint8_t ByteBuffer_BCDGetUInt(ByteBuffer *const me, void *val, uint8_t size);
-    uint8_t ByteBuffer_BCDGetUInt8(ByteBuffer *const me, uint8_t *val);
+    uint8_t BB_BCDGetUInt(ByteBuffer *const me, void *val, uint8_t size);
+    uint8_t BB_BCDGetUInt8(ByteBuffer *const me, uint8_t *val);
 
 #ifdef __cplusplus
 }

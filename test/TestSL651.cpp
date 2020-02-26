@@ -4,46 +4,42 @@
 
 GTEST_TEST(Definition, package)
 {
-    Head *head = NewInstance(Head);           // 创建空实例
-    Head_ctor(head);                          // 调用构造，Head的构造实际上是个空实现
-    (*head).addrPair.downAddr.centerAddr = 0; // 调用方法，或者直接访问，必要的功能可以封装起来，简单赋值直接访问
-    (*head).direction = Up;                   //
-    Package *pkg = NewInstance(Package);      // 同样的步骤，创建空实例
-    Package_ctor(pkg, head);                  // 构造函数，带有参数
-    ASSERT_EQ(Package_Direction(pkg), Up);    //
-    Head_dtor(pkg);                           // 倒序析构，用来释放实例所 管理 的指针，管理：包括实例在其封装方法中创建的内存指针，或接口中约定的传入的代管内存指针
-    Package_dtor(pkg);                        // 析构
-    DelInstance(head);                        // 释放实例，与析构分开调用；如果不是New，则不需要释放实例
-    DelInstance(pkg);                         // 同上
+    //
+    Package *pkg = NewInstance(Package);   // 同样的步骤，创建空实例
+    Package_ctor(pkg);                     // 构造函数，带有参数
+    pkg->head.centerAddr = 0;              // 调用方法，或者直接访问，必要的功能可以封装起来，简单赋值直接访问
+    pkg->head.direction = Up;              //
+    ASSERT_EQ(Package_Direction(pkg), Up); //
+    Package_dtor(pkg);                     // 析构
+    DelInstance(pkg);                      // 同上
 }
 
 GTEST_TEST(DecodeElement, decodeCustomeElement)
 {
-    Element *el = decodeElement(NULL);
-    ByteBuffer *hexBuff = NewInstance(ByteBuffer);
-    ByteBuffer_ctor_fromHexStr(hexBuff, "FFFFFFFFFF", 10);
-    el = decodeElement(hexBuff);
+    Element *el = NULL;
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "FFFFFFFFFF", 10);
+    el = decodeElement(byteBuff);
     ASSERT_TRUE(el == NULL);
-    ByteBuffer_dtor(hexBuff);
-    DelInstance(hexBuff);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
 }
 
 GTEST_TEST(DecodeElement, decodeObserveTimeElement)
 {
-    Element *el = decodeElement(NULL);
-    ASSERT_TRUE(el == NULL);
+    Element *el = NULL;
 
-    ByteBuffer *hexBuff = NewInstance(ByteBuffer);
-    ByteBuffer_ctor_copy(hexBuff, (uint8_t *)"a", 2);
-    el = decodeElement(hexBuff);
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_copy(byteBuff, (uint8_t *)"a", 2);
+    el = decodeElement(byteBuff);
     ASSERT_TRUE(el == NULL);
-    ByteBuffer_dtor(hexBuff);
-    DelInstance(hexBuff);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
 
-    hexBuff = NewInstance(ByteBuffer);
-    ByteBuffer_ctor_fromHexStr(hexBuff, "F0F0200222222211", 16);
-    ByteBuffer_Flip(hexBuff);
-    el = decodeElement(hexBuff);
+    byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "F0F0200222222211", 16);
+    BB_Flip(byteBuff);
+    el = decodeElement(byteBuff);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, DATETIME);
     ASSERT_EQ(el->dataDef, DATETIME);
@@ -54,19 +50,18 @@ GTEST_TEST(DecodeElement, decodeObserveTimeElement)
 
     ObserveTimeElement_dtor(otel);
     DelInstance(otel);
-    ByteBuffer_dtor(hexBuff);
-    DelInstance(hexBuff);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
 }
 
 GTEST_TEST(DecodeElement, decodeRemoteStationAddrElement)
 {
-    Element *el = decodeElement(NULL);
-    ASSERT_TRUE(el == NULL);
+    Element *el = NULL;
 
-    ByteBuffer *hexBuff = NewInstance(ByteBuffer);
-    ByteBuffer_ctor_fromHexStr(hexBuff, "F1F12002222222", 14); // 其他遥测站  != A5_HYDROLOGICAL_TELEMETRY_STATION
-    ByteBuffer_Flip(hexBuff);
-    el = decodeElement(hexBuff);
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "F1F12002222222", 14); // 其他遥测站  != A5_HYDROLOGICAL_TELEMETRY_STATION
+    BB_Flip(byteBuff);
+    el = decodeElement(byteBuff);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, ADDRESS);
     ASSERT_EQ(el->dataDef, ADDRESS);
@@ -77,13 +72,13 @@ GTEST_TEST(DecodeElement, decodeRemoteStationAddrElement)
 
     RemoteStationAddrElement_dtor(rsael);
     DelInstance(rsael);
-    ByteBuffer_dtor(hexBuff);
-    DelInstance(hexBuff);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
 
-    hexBuff = NewInstance(ByteBuffer);
-    ByteBuffer_ctor_fromHexStr(hexBuff, "F1F10002222222", 14); // 水文遥测站 A5_HYDROLOGICAL_TELEMETRY_STATION
-    ByteBuffer_Flip(hexBuff);
-    el = decodeElement(hexBuff);
+    byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "F1F10002222222", 14); // 水文遥测站 A5_HYDROLOGICAL_TELEMETRY_STATION
+    BB_Flip(byteBuff);
+    el = decodeElement(byteBuff);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, ADDRESS);
     ASSERT_EQ(el->dataDef, ADDRESS);
@@ -95,19 +90,18 @@ GTEST_TEST(DecodeElement, decodeRemoteStationAddrElement)
 
     RemoteStationAddrElement_dtor(rsael);
     DelInstance(rsael);
-    ByteBuffer_dtor(hexBuff);
-    DelInstance(hexBuff);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
 }
 
 GTEST_TEST(DecodeElement, decodePictureElement)
 {
-    Element *el = decodeElement(NULL);
-    ASSERT_TRUE(el == NULL);
+    Element *el = NULL;
 
-    ByteBuffer *hexBuff = NewInstance(ByteBuffer);
-    ByteBuffer_ctor_fromHexStr(hexBuff, "F3F3200222222211", 16);
-    ByteBuffer_Flip(hexBuff);
-    el = decodeElement(hexBuff);
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "F3F3200222222211", 16);
+    BB_Flip(byteBuff);
+    el = decodeElement(byteBuff);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, PICTURE_IL);
     ASSERT_EQ(el->dataDef, PICTURE_IL);
@@ -117,19 +111,18 @@ GTEST_TEST(DecodeElement, decodePictureElement)
 
     PictureElement_dtor(pel);
     DelInstance(pel);
-    ByteBuffer_dtor(hexBuff);
-    DelInstance(hexBuff);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
 }
 
 GTEST_TEST(DecodeElement, decodeArtificialElement)
 {
-    Element *el = decodeElement(NULL);
-    ASSERT_TRUE(el == NULL);
+    Element *el = NULL;
 
-    ByteBuffer *hexBuff = NewInstance(ByteBuffer);
-    ByteBuffer_ctor_fromHexStr(hexBuff, "F2F279616E7975313938383A59435A2D32412D313031212121", 50);
-    ByteBuffer_Flip(hexBuff);
-    el = decodeElement(hexBuff);
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "F2F279616E7975313938383A59435A2D32412D313031212121", 50);
+    BB_Flip(byteBuff);
+    el = decodeElement(byteBuff);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, ARTIFICIAL_IL);
     ASSERT_EQ(el->dataDef, ARTIFICIAL_IL);
@@ -139,22 +132,21 @@ GTEST_TEST(DecodeElement, decodeArtificialElement)
 
     ArtificialElement_dtor(aiel);
     DelInstance(aiel);
-    ByteBuffer_dtor(hexBuff);
-    DelInstance(hexBuff);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
 }
 
 GTEST_TEST(DecodeElement, decodeDRP5MINElement)
 {
-    Element *el = decodeElement(NULL);
-    ASSERT_TRUE(el == NULL);
+    Element *el = NULL;
 
-    ByteBuffer *hexBuff = NewInstance(ByteBuffer);
-    ByteBuffer_ctor_fromHexStr(hexBuff,
-                               "F460"
-                               "000100000000000000000000",
-                               28);
-    ByteBuffer_Flip(hexBuff);
-    el = decodeElement(hexBuff);
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff,
+                       "F460"
+                       "000100000000000000000000",
+                       28);
+    BB_Flip(byteBuff);
+    el = decodeElement(byteBuff);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, DRP5MIN);
     ASSERT_EQ(el->dataDef, DRP5MIN_DATADEF);
@@ -169,19 +161,18 @@ GTEST_TEST(DecodeElement, decodeDRP5MINElement)
 
     DRP5MINElement_dtor(drp5el);
     DelInstance(drp5el);
-    ByteBuffer_dtor(hexBuff);
-    DelInstance(hexBuff);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
 }
 
 GTEST_TEST(DecodeElement, decodeFlowRateDataElement)
 {
-    Element *el = decodeElement(NULL);
-    ASSERT_TRUE(el == NULL);
+    Element *el = NULL;
 
-    ByteBuffer *hexBuff = NewInstance(ByteBuffer);
-    ByteBuffer_ctor_fromHexStr(hexBuff, "FDF6200222222211", 16);
-    ByteBuffer_Flip(hexBuff);
-    el = decodeElement(hexBuff);
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "FDF6200222222211", 16);
+    BB_Flip(byteBuff);
+    el = decodeElement(byteBuff);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, FLOW_RATE_DATA);
     ASSERT_EQ(el->dataDef, FLOW_RATE_DATA_DATADEF);
@@ -190,22 +181,21 @@ GTEST_TEST(DecodeElement, decodeFlowRateDataElement)
     ASSERT_EQ(flel->super.dataDef, FLOW_RATE_DATA_DATADEF);
     FlowRateDataElement_dtor(flel);
     DelInstance(flel);
-    ByteBuffer_dtor(hexBuff);
-    DelInstance(hexBuff);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
 }
 
 GTEST_TEST(DecodeElement, decodeRelativeWaterLevelElement)
 {
-    Element *el = decodeElement(NULL);
-    ASSERT_TRUE(el == NULL);
+    Element *el = NULL;
 
-    ByteBuffer *hexBuff = NewInstance(ByteBuffer);
-    ByteBuffer_ctor_fromHexStr(hexBuff,
-                               "F5C0"
-                               "0AAA0AAAFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-                               52);
-    ByteBuffer_Flip(hexBuff);
-    el = decodeElement(hexBuff);
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff,
+                       "F5C0"
+                       "0AAA0AAAFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+                       52);
+    BB_Flip(byteBuff);
+    el = decodeElement(byteBuff);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, RELATIVE_WATER_LEVEL_5MIN1);
     ASSERT_EQ(el->dataDef, RELATIVE_WATER_LEVEL_5MIN1_DATADEF);
@@ -220,24 +210,23 @@ GTEST_TEST(DecodeElement, decodeRelativeWaterLevelElement)
 
     RelativeWaterLevelElement_dtor(rwl5el);
     DelInstance(rwl5el);
-    ByteBuffer_dtor(hexBuff);
-    DelInstance(hexBuff);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
 }
 
 GTEST_TEST(DecodeElement, decodeNumberElement)
 {
-    Element *el = decodeElement(NULL);
-    ASSERT_TRUE(el == NULL);
+    Element *el = NULL;
 
-    ByteBuffer *hexBuff = NewInstance(ByteBuffer);
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
     // 28 23
     // 水位基值1标识符
     // 00 01 11 10
     // 11.110米
     // N(7,3) ，数据单位：米
-    ByteBuffer_ctor_fromHexStr(hexBuff, "282300011110", 12);
-    ByteBuffer_Flip(hexBuff);
-    el = decodeElement(hexBuff);
+    BB_ctor_fromHexStr(byteBuff, "282300011110", 12);
+    BB_Flip(byteBuff);
+    el = decodeElement(byteBuff);
     ASSERT_TRUE(el != NULL);
     NumberElement *nel = (NumberElement *)el;
     ASSERT_EQ(nel->super.identifierLeader, 0x28);
@@ -253,19 +242,18 @@ GTEST_TEST(DecodeElement, decodeNumberElement)
 
     NumberElement_dtor(nel);
     DelInstance(nel);
-    ByteBuffer_dtor(hexBuff);
-    DelInstance(hexBuff);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
 }
 
 GTEST_TEST(DecodeElement, decodeTimeStepCodeElement)
 {
-    Element *el = decodeElement(NULL);
-    ASSERT_TRUE(el == NULL);
+    Element *el = NULL;
 
-    ByteBuffer *hexBuff = NewInstance(ByteBuffer);
-    ByteBuffer_ctor_fromHexStr(hexBuff, "0418200222", 10);
-    ByteBuffer_Flip(hexBuff);
-    el = decodeElement(hexBuff);
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "0418200222", 10);
+    BB_Flip(byteBuff);
+    el = decodeElement(byteBuff);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, TIME_STEP_CODE);
     ASSERT_EQ(el->dataDef, TIME_STEP_CODE_DATADEF);
@@ -276,19 +264,18 @@ GTEST_TEST(DecodeElement, decodeTimeStepCodeElement)
 
     TimeStepCodeElement_dtor(tscel);
     DelInstance(tscel);
-    ByteBuffer_dtor(hexBuff);
-    DelInstance(hexBuff);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
 }
 
 GTEST_TEST(DecodeElement, decodeStationStatusElement)
 {
-    Element *el = decodeElement(NULL);
-    ASSERT_TRUE(el == NULL);
+    Element *el = NULL;
 
-    ByteBuffer *hexBuff = NewInstance(ByteBuffer);
-    ByteBuffer_ctor_fromHexStr(hexBuff, "452020022211", 12);
-    ByteBuffer_Flip(hexBuff);
-    el = decodeElement(hexBuff);
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "452020022211", 12);
+    BB_Flip(byteBuff);
+    el = decodeElement(byteBuff);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, STATION_STATUS);
     ASSERT_EQ(el->dataDef, STATION_STATUS_DATADEF);
@@ -299,19 +286,18 @@ GTEST_TEST(DecodeElement, decodeStationStatusElement)
 
     StationStatusElement_dtor(ssel);
     DelInstance(ssel);
-    ByteBuffer_dtor(hexBuff);
-    DelInstance(hexBuff);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
 }
 
 GTEST_TEST(DecodeElement, decodeDurationElement)
 {
-    Element *el = decodeElement(NULL);
-    ASSERT_TRUE(el == NULL);
+    Element *el = NULL;
 
-    ByteBuffer *hexBuff = NewInstance(ByteBuffer);
-    ByteBuffer_ctor_fromHexStr(hexBuff, "052831312e3031", 14);
-    ByteBuffer_Flip(hexBuff);
-    el = decodeElement(hexBuff);
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "052831312e3031", 14);
+    BB_Flip(byteBuff);
+    el = decodeElement(byteBuff);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, DURATION_OF_XX);
     ASSERT_EQ(el->dataDef, DURATION_OF_XX_DATADEF);
@@ -323,8 +309,40 @@ GTEST_TEST(DecodeElement, decodeDurationElement)
 
     DurationElement_dtor(duel);
     DelInstance(duel);
-    ByteBuffer_dtor(hexBuff);
-    DelInstance(hexBuff);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, decodeKeepAliveUplinkMessage)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E"
+                                 "01"
+                                 "0012345678"
+                                 "1234"
+                                 "2F"
+                                 "0008"
+                                 "02"
+                                 "0003"
+                                 "59"
+                                 "1011155111"
+                                 "03"
+                                 "6BCA",
+                       50);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0x6B);
+    ASSERT_EQ(crc & 0xFF, 0xCA);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_EQ(pkg->head.funcCode, 0x2F);
+    ASSERT_EQ(pkg->tail.etxFlag, 03);
+    ASSERT_EQ(pkg->tail.crc, 0x6BCA);
+    ASSERT_TRUE(pkg != NULL);
 }
 
 int main(int argc, char *argv[])
