@@ -1,7 +1,6 @@
 {
     "editor.tokenColorCustomizations": {
-        "textMateRules": [
-            {
+        "textMateRules": [{
                 "scope": "googletest.failed",
                 "settings": {
                     "foreground": "#f00"
@@ -21,9 +20,7 @@
             }
         ]
     },
-    "gtest-adapter.debugConfig": [
-        "Unit Test Debug"
-    ],
+    "gtest-adapter.debugConfig": "Unit Test Debug",
     "gtest-adapter.supportLocation": true,
     "files.associations": {
         "*.nj": "html",

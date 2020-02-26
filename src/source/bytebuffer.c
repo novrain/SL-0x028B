@@ -247,13 +247,61 @@ ByteBuffer *ByteBuffer_PeekByteBuffer(ByteBuffer *const me, uint32_t start, uint
     return val;
 }
 
-uint8_t ByteBuffer_PeekUInt8(ByteBuffer *const me, uint8_t *val)
+uint8_t ByteBuffer_BE_PeekUIntAt(ByteBuffer *const me, uint8_t index, void *val, uint8_t size)
 {
-    if (me == NULL || me->position >= me->limit)
+    if (me == NULL || val == NULL || size < 0 || index < 0 || index + size >= me->limit)
     {
         return 0;
     }
-    *val = me->buff[me->position];
+    uint8_t usedLen = binToBeUInt(me->buff + index, val, size);
+    if (usedLen == size)
+    {
+        return usedLen;
+    }
+    return 0;
+}
+
+uint8_t ByteBuffer_LE_PeekUIntAt(ByteBuffer *const me, uint8_t index, void *val, uint8_t size)
+{
+    if (me == NULL || val == NULL || size < 0 || index < 0 || index + size >= me->limit)
+    {
+        return 0;
+    }
+    uint8_t usedLen = binToBeUInt(me->buff + me->position, val, size);
+    if (usedLen == size)
+    {
+        return usedLen;
+    }
+    return 0;
+}
+
+uint8_t ByteBuffer_BE_PeekUInt(ByteBuffer *const me, void *val, uint8_t size)
+{
+    return ByteBuffer_BE_PeekUIntAt(me, 0, val, 2);
+}
+
+uint8_t ByteBuffer_BE_PeekUInt16At(ByteBuffer *const me, uint8_t index, uint16_t *val)
+{
+    return ByteBuffer_BE_PeekUIntAt(me, index, val, 2);
+}
+
+uint8_t ByteBuffer_LE_PeekUInt(ByteBuffer *const me, void *val, uint8_t size)
+{
+    return ByteBuffer_LE_PeekUIntAt(me, 0, val, 2);
+}
+
+uint8_t ByteBuffer_PeekUInt8(ByteBuffer *const me, uint8_t *val)
+{
+    return ByteBuffer_PeekUInt8At(me, me->position, val);
+}
+
+uint8_t ByteBuffer_PeekUInt8At(ByteBuffer *const me, uint8_t index, uint8_t *val)
+{
+    if (me == NULL || val == NULL || index >= me->limit || index < 0)
+    {
+        return 0;
+    }
+    *val = me->buff[index];
     return 1;
 }
 

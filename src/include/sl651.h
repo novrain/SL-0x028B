@@ -147,24 +147,24 @@ extern "C"
         // 图片信息
         PICTURE_IL = 0xF3,
         // 1小时内每5min时段雨量
-        DPR = 0xF4,
+        DRP5MIN = 0xF4,
         // 1小时内每5min间隔相对水位1, 以下相同
-        DRZ1 = 0xF5,
-        DRZ2 = 0xF6,
-        DRZ3 = 0xF7,
-        DRZ4 = 0xF8,
-        DRZ5 = 0xF9,
-        DRZ6 = 0xFA,
-        DRZ7 = 0xFB,
-        DRZ8 = 0xFC,
+        RELATIVE_WATER_LEVEL_5MIN1 = 0xF5,
+        RELATIVE_WATER_LEVEL_5MIN2 = 0xF6,
+        RELATIVE_WATER_LEVEL_5MIN3 = 0xF7,
+        RELATIVE_WATER_LEVEL_5MIN4 = 0xF8,
+        RELATIVE_WATER_LEVEL_5MIN5 = 0xF9,
+        RELATIVE_WATER_LEVEL_5MIN6 = 0xFA,
+        RELATIVE_WATER_LEVEL_5MIN7 = 0xFB,
+        RELATIVE_WATER_LEVEL_5MIN8 = 0xFC,
         // 流速批量数据
         FLOW_RATE_DATA = 0xFD,
         // 时间步长码
-        DRXNN = 0x04,
+        TIME_STEP_CODE = 0x04,
         // 时段长，降水，引排水，抽水历时
         DURATION_OF_XX = 0x05,
         // 遥测站状态及报警信息
-        STAION_STATUS = 0x45,
+        STATION_STATUS = 0x45,
         // 用户自定义引导符，暂不支持
         CUSTOM_IDENTIFIER = 0xFF
     };
@@ -269,9 +269,9 @@ extern "C"
     typedef struct ElementVtbl
     {
         // pure virtual
-        bool (*encode2Hex)(Element const *const me, ByteBuffer *const hexBuff);
-        bool (*decodeFromHex)(Element *const me, ByteBuffer *const hexBuff);
-        size_t (*sizeInHex)(Element const *const me);
+        bool (*encode)(Element const *const me, ByteBuffer *const hexBuff);
+        bool (*decode)(Element *const me, ByteBuffer *const hexBuff);
+        size_t (*size)(Element const *const me);
     } ElementVtbl;
 
     void Element_ctor(Element *me, uint8_t identifierLeader, uint8_t dataDef);
@@ -338,18 +338,18 @@ extern "C"
     typedef struct PackageVtbl
     {
         // pure virtual
-        bool (*encode2Hex)(Package const *const me, ByteBuffer *const hexBuff);
-        bool (*decodeFromHex)(Package *const me, ByteBuffer *const hexBuff);
+        bool (*encode)(Package const *const me, ByteBuffer *const hexBuff);
+        bool (*decode)(Package *const me, ByteBuffer *const hexBuff);
         size_t (*size)();
     } PackageVtbl;
 
     /* Package Construtor & Destrucor */
     void Package_ctor(Package *const me, Head *head);
     /* Public methods */
-    bool Package_Head2Hex(Package const *const me, ByteBuffer *const hexBuff);
-    bool Package_Tail2Hex(Package const *const me, ByteBuffer *const hexBuff);
-    bool Package_Hex2Head(Package *const me, ByteBuffer *const hexBuff);
-    bool Package_Hex2Tail(Package *const me, ByteBuffer *const hexBuff);
+    bool Package_EncodeHead(Package const *const me, ByteBuffer *const hexBuff);
+    bool Package_EncodeTail(Package const *const me, ByteBuffer *const hexBuff);
+    bool Package_DecodeHead(Package *const me, ByteBuffer *const hexBuff);
+    bool Package_DecodeTail(Package *const me, ByteBuffer *const hexBuff);
     /* Public Helper*/
 #define PACAKAGE_UPCAST(ptr_) ((Package *)(ptr_))
 #define Package_dtor(ptr_)
@@ -369,11 +369,11 @@ extern "C"
     void LinkMessage_ctor(LinkMessage *const me, Head *head, uint16_t elementCount);
     void LinkMessage_dtor(LinkMessage *const me);
     /* Public methods */
-    bool LinkMessage_Elements2Hex(LinkMessage const *const me, ByteBuffer *const hexBuff);
-    bool LinkMessage_Hex2Elements(LinkMessage *const me, ByteBuffer *const hexBuff);
-    bool LinkMessage_putElement(LinkMessage *const me, uint16_t index, Element *element);
-    bool LinkMessage_setElement(LinkMessage *const me, uint16_t index, Element *element);
-    Element *LinkMessage_getElement(LinkMessage const *const me, uint16_t index);
+    bool LinkMessage_EncodeElements(LinkMessage const *const me, ByteBuffer *const hexBuff);
+    bool LinkMessage_DecodeElements(LinkMessage *const me, ByteBuffer *const hexBuff);
+    bool LinkMessage_PutElement(LinkMessage *const me, uint16_t index, Element *element);
+    bool LinkMessage_SetElement(LinkMessage *const me, uint16_t index, Element *element);
+    Element *LinkMessage_GetElement(LinkMessage const *const me, uint16_t index);
     /* Public Helper*/
 #define LINKMESSAGE_UPCAST(ptr_) ((Package *)(ptr_))
 #define LinkMessage_ElementCount(me_) (LINKMESSAGE_UPCAST(me_)->elementCount)
@@ -391,10 +391,10 @@ extern "C"
     void UplinkMessage_ctor(UplinkMessage *const me, Head *head, UplinkMessageHead *upLinkHead, uint16_t elementCount);
     void UplinkMessage_dtor(UplinkMessage *const me);
     /* Public methods */
-    bool UplinkMessage_Head2Hex(UplinkMessage const *const me, ByteBuffer *const hexBuff);
-    // void UplinkMessage_Tail2Hex(UplinkMessage const *const me, ByteBuffer* hexBuff, size_t len);
-    bool UplinkMessage_Hex2Head(UplinkMessage const *me, ByteBuffer *const hexBuff);
-    // void UplinkMessage_Hex2Tail(UplinkMessage const *me, ByteBuffer* hexBuff, size_t len);
+    bool UplinkMessage_EncodeHead(UplinkMessage const *const me, ByteBuffer *const hexBuff);
+    // void UplinkMessage_EncodeTail(UplinkMessage const *const me, ByteBuffer* hexBuff, size_t len);
+    bool UplinkMessage_DecodeHead(UplinkMessage const *me, ByteBuffer *const hexBuff);
+    // void UplinkMessage_DecodeTail(UplinkMessage const *me, ByteBuffer* hexBuff, size_t len);
     // "AbstractUpClass" UplinkMessage END
 
     // "AbstractUpClass" DownlinkMessage
@@ -408,10 +408,10 @@ extern "C"
     void DownlinkMessage_ctor(DownlinkMessage *const me, Head *head, DownlinkMessageHead *downLinkHead, uint16_t elementCount);
     void DownlinkMessage_dtor(DownlinkMessage *const me);
     /* Public methods */
-    bool DownlinkMessage_Head2Hex(DownlinkMessage const *const me, ByteBuffer *const hexBuff);
-    // void DownlinkMessage_Tail2Hex(DownlinkMessage const *const me, ByteBuffer* hexBuff, size_t len);
-    bool DownlinkMessage_Hex2Head(DownlinkMessage const *me, ByteBuffer *const hexBuff);
-    // void DownlinkMessage_Hex2Tail(DownlinkMessage const *me, ByteBuffer* hexBuff, size_t len);
+    bool DownlinkMessage_EncodeHead(DownlinkMessage const *const me, ByteBuffer *const hexBuff);
+    // void DownlinkMessage_EncodeTail(DownlinkMessage const *const me, ByteBuffer* hexBuff, size_t len);
+    bool DownlinkMessage_DecodeHead(DownlinkMessage const *me, ByteBuffer *const hexBuff);
+    // void DownlinkMessage_DecodeTail(DownlinkMessage const *me, ByteBuffer* hexBuff, size_t len);
     // "AbstractUpClass" DownlinkMessage END
 
     // Elements
@@ -419,12 +419,12 @@ extern "C"
     static bool inline isNumberElement(uint8_t identifierLeader)
     {
         return identifierLeader >= 0x01 && identifierLeader <= 0x75 &&
-               identifierLeader != DRXNN &&
-               identifierLeader != STAION_STATUS &&
+               identifierLeader != TIME_STEP_CODE &&
+               identifierLeader != STATION_STATUS &&
                identifierLeader != DURATION_OF_XX;
     }
 
-    Element *decodeElementFromHex(ByteBuffer *const hexBuff);
+    Element *decodeElement(ByteBuffer *const hexBuff);
 
     // Element Class
     // PictureElement
@@ -437,6 +437,111 @@ extern "C"
     void PictureElement_ctor(PictureElement *const me);
     void PictureElement_dtor(PictureElement *const me);
     // PictureElement END
+
+    // DRP5MINElement
+    typedef struct
+    {
+        Element super;
+        ByteBuffer *buff;
+    } DRP5MINElement;
+
+    void DRP5MINElement_ctor(DRP5MINElement *const me);
+    void DRP5MINElement_dtor(DRP5MINElement *const me);
+    uint8_t DRP5MINElement_ValueAt(DRP5MINElement *const me, uint8_t index, float *val);
+
+#define DRP5MIN_LEN 12
+#define DRP5MIN_DATADEF 0x60
+    // DRP5MINElement END
+
+    // FlowRateDataElement
+    typedef struct
+    {
+        Element super;
+        ByteBuffer *buff;
+    } FlowRateDataElement;
+
+    void FlowRateDataElement_ctor(FlowRateDataElement *const me);
+    void FlowRateDataElement_dtor(FlowRateDataElement *const me);
+#define FLOW_RATE_DATA_DATADEF 0xF6
+    // FlowRateDataElement END
+
+    // ArtificialElement
+    typedef struct
+    {
+        Element super;
+        ByteBuffer *buff;
+    } ArtificialElement;
+
+    void ArtificialElement_ctor(ArtificialElement *const me);
+    void ArtificialElement_dtor(ArtificialElement *const me);
+    // ArtificialElement END
+
+    // RelativeWaterLevelElement
+    typedef struct
+    {
+        Element super;
+        ByteBuffer *buff;
+    } RelativeWaterLevelElement;
+
+    void RelativeWaterLevelElement_ctor(RelativeWaterLevelElement *const me, uint8_t identifierLeader);
+    void RelativeWaterLevelElement_dtor(RelativeWaterLevelElement *const me);
+    uint8_t RelativeWaterLevelElement_ValueAt(RelativeWaterLevelElement *const me, uint8_t index, float *val);
+
+#define RELATIVE_WATER_LEVEL_LEN 24
+#define RELATIVE_WATER_LEVEL_5MIN1_DATADEF 0xC0
+    // RelativeWaterLevelElement END
+
+    // TimeStepCodeElement
+    typedef struct
+    {
+        // 3字节BCD码
+        uint8_t day;
+        uint8_t hour;
+        uint8_t minute;
+    } TimeStepCode;
+
+    typedef struct
+    {
+        // it is fixed value, 0x0418
+        Element super;
+        TimeStepCode timeStepCode;
+    } TimeStepCodeElement;
+
+    void TimeStepCodeElement_ctor(TimeStepCodeElement *const me);
+#define TimeStepCodeElement_dtor(ptr_) // empty implements
+#define TIME_STEP_CODE_LEN 3
+#define TIME_STEP_CODE_DATADEF 0x18
+    // TimeStepCodeElement END
+
+    // StationStatusElement
+    typedef struct
+    {
+        // it is fixed value, 0x0418
+        Element super;
+        uint32_t status;
+    } StationStatusElement;
+
+    void StationStatusElement_ctor(StationStatusElement *const me);
+    uint8_t StationStatusElement_StatusAt(StationStatusElement const *const me, uint8_t index);
+#define StationStatusElement_dtor(ptr_) // empty implements
+#define STATION_STATUS_LEN 4
+#define STATION_STATUS_DATADEF 0x20
+    // StationStatusElement END
+
+    // DurationElement
+    typedef struct
+    {
+        // it is fixed value, 0x05 ?
+        Element super;
+        uint8_t hour;
+        uint8_t minute;
+    } DurationElement;
+
+    void DurationElement_ctor(DurationElement *const me);
+#define DurationElement_dtor(ptr_)  // empty implements
+#define DURATION_OF_XX_LEN 5        // 5 字节 ASCII OR 1BCD + . + 1BCD = 3?
+#define DURATION_OF_XX_DATADEF 0x28 // 同上  0x18?
+    // StationStatusElement END
 
     // All NumberElement
     typedef struct
