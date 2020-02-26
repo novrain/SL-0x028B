@@ -10,10 +10,6 @@ extern "C"
 
 #include "class.h"
 
-    static uint16_t ENDIAN_MAGIC = 0xFEEF;
-    static uint8_t ENDIAN_MAGIC_HIGH_BYTE = 0xFE;
-    static uint8_t ENDIAN_MAGIC_LOW_BYTE = 0xEF;
-
     typedef enum
     {
         LittleEndian,
@@ -50,6 +46,9 @@ extern "C"
 
     inline ByteOrder hostEndian()
     {
+        uint16_t ENDIAN_MAGIC = 0xFEEF;
+        uint8_t ENDIAN_MAGIC_HIGH_BYTE = 0xFE;
+        uint8_t ENDIAN_MAGIC_LOW_BYTE = 0xEF;
         return *(int8_t *)&ENDIAN_MAGIC == ENDIAN_MAGIC_HIGH_BYTE ? BigEndian : LittleEndian;
     }
 

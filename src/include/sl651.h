@@ -269,9 +269,9 @@ extern "C"
     typedef struct ElementVtbl
     {
         // pure virtual
-        bool (*encode2Hex)(Element const *const me, ByteBuffer *const hexBuff);
-        bool (*decodeFromHex)(Element *const me, ByteBuffer *const hexBuff);
-        size_t (*sizeInHex)(Element const *const me);
+        bool (*encode)(Element const *const me, ByteBuffer *const hexBuff);
+        bool (*decode)(Element *const me, ByteBuffer *const hexBuff);
+        size_t (*size)(Element const *const me);
     } ElementVtbl;
 
     void Element_ctor(Element *me, uint8_t identifierLeader, uint8_t dataDef);
@@ -338,18 +338,18 @@ extern "C"
     typedef struct PackageVtbl
     {
         // pure virtual
-        bool (*encode2Hex)(Package const *const me, ByteBuffer *const hexBuff);
-        bool (*decodeFromHex)(Package *const me, ByteBuffer *const hexBuff);
+        bool (*encode)(Package const *const me, ByteBuffer *const hexBuff);
+        bool (*decode)(Package *const me, ByteBuffer *const hexBuff);
         size_t (*size)();
     } PackageVtbl;
 
     /* Package Construtor & Destrucor */
     void Package_ctor(Package *const me, Head *head);
     /* Public methods */
-    bool Package_Head2Hex(Package const *const me, ByteBuffer *const hexBuff);
-    bool Package_Tail2Hex(Package const *const me, ByteBuffer *const hexBuff);
-    bool Package_Hex2Head(Package *const me, ByteBuffer *const hexBuff);
-    bool Package_Hex2Tail(Package *const me, ByteBuffer *const hexBuff);
+    bool Package_EncodeHead(Package const *const me, ByteBuffer *const hexBuff);
+    bool Package_EncodeTail(Package const *const me, ByteBuffer *const hexBuff);
+    bool Package_DecodeHead(Package *const me, ByteBuffer *const hexBuff);
+    bool Package_DecodeTail(Package *const me, ByteBuffer *const hexBuff);
     /* Public Helper*/
 #define PACAKAGE_UPCAST(ptr_) ((Package *)(ptr_))
 #define Package_dtor(ptr_)
@@ -369,11 +369,11 @@ extern "C"
     void LinkMessage_ctor(LinkMessage *const me, Head *head, uint16_t elementCount);
     void LinkMessage_dtor(LinkMessage *const me);
     /* Public methods */
-    bool LinkMessage_Elements2Hex(LinkMessage const *const me, ByteBuffer *const hexBuff);
-    bool LinkMessage_Hex2Elements(LinkMessage *const me, ByteBuffer *const hexBuff);
-    bool LinkMessage_putElement(LinkMessage *const me, uint16_t index, Element *element);
-    bool LinkMessage_setElement(LinkMessage *const me, uint16_t index, Element *element);
-    Element *LinkMessage_getElement(LinkMessage const *const me, uint16_t index);
+    bool LinkMessage_EncodeElements(LinkMessage const *const me, ByteBuffer *const hexBuff);
+    bool LinkMessage_DecodeElements(LinkMessage *const me, ByteBuffer *const hexBuff);
+    bool LinkMessage_PutElement(LinkMessage *const me, uint16_t index, Element *element);
+    bool LinkMessage_SetElement(LinkMessage *const me, uint16_t index, Element *element);
+    Element *LinkMessage_GetElement(LinkMessage const *const me, uint16_t index);
     /* Public Helper*/
 #define LINKMESSAGE_UPCAST(ptr_) ((Package *)(ptr_))
 #define LinkMessage_ElementCount(me_) (LINKMESSAGE_UPCAST(me_)->elementCount)
@@ -391,10 +391,10 @@ extern "C"
     void UplinkMessage_ctor(UplinkMessage *const me, Head *head, UplinkMessageHead *upLinkHead, uint16_t elementCount);
     void UplinkMessage_dtor(UplinkMessage *const me);
     /* Public methods */
-    bool UplinkMessage_Head2Hex(UplinkMessage const *const me, ByteBuffer *const hexBuff);
-    // void UplinkMessage_Tail2Hex(UplinkMessage const *const me, ByteBuffer* hexBuff, size_t len);
-    bool UplinkMessage_Hex2Head(UplinkMessage const *me, ByteBuffer *const hexBuff);
-    // void UplinkMessage_Hex2Tail(UplinkMessage const *me, ByteBuffer* hexBuff, size_t len);
+    bool UplinkMessage_EncodeHead(UplinkMessage const *const me, ByteBuffer *const hexBuff);
+    // void UplinkMessage_EncodeTail(UplinkMessage const *const me, ByteBuffer* hexBuff, size_t len);
+    bool UplinkMessage_DecodeHead(UplinkMessage const *me, ByteBuffer *const hexBuff);
+    // void UplinkMessage_DecodeTail(UplinkMessage const *me, ByteBuffer* hexBuff, size_t len);
     // "AbstractUpClass" UplinkMessage END
 
     // "AbstractUpClass" DownlinkMessage
@@ -408,10 +408,10 @@ extern "C"
     void DownlinkMessage_ctor(DownlinkMessage *const me, Head *head, DownlinkMessageHead *downLinkHead, uint16_t elementCount);
     void DownlinkMessage_dtor(DownlinkMessage *const me);
     /* Public methods */
-    bool DownlinkMessage_Head2Hex(DownlinkMessage const *const me, ByteBuffer *const hexBuff);
-    // void DownlinkMessage_Tail2Hex(DownlinkMessage const *const me, ByteBuffer* hexBuff, size_t len);
-    bool DownlinkMessage_Hex2Head(DownlinkMessage const *me, ByteBuffer *const hexBuff);
-    // void DownlinkMessage_Hex2Tail(DownlinkMessage const *me, ByteBuffer* hexBuff, size_t len);
+    bool DownlinkMessage_EncodeHead(DownlinkMessage const *const me, ByteBuffer *const hexBuff);
+    // void DownlinkMessage_EncodeTail(DownlinkMessage const *const me, ByteBuffer* hexBuff, size_t len);
+    bool DownlinkMessage_DecodeHead(DownlinkMessage const *me, ByteBuffer *const hexBuff);
+    // void DownlinkMessage_DecodeTail(DownlinkMessage const *me, ByteBuffer* hexBuff, size_t len);
     // "AbstractUpClass" DownlinkMessage END
 
     // Elements
@@ -424,7 +424,7 @@ extern "C"
                identifierLeader != DURATION_OF_XX;
     }
 
-    Element *decodeElementFromHex(ByteBuffer *const hexBuff);
+    Element *decodeElement(ByteBuffer *const hexBuff);
 
     // Element Class
     // PictureElement
