@@ -5,12 +5,12 @@
 
 // "AbstractClass" Package
 /* purely-virtual */
-static bool Package_Virtual_Encode(Package const *const me, ByteBuffer *const hexBuff)
+static bool Package_Virtual_Encode(Package const *const me, ByteBuffer *const byteBuff)
 {
     assert(0);
     return true;
 }
-static bool Package_Virtual_Decode(Package *const me, ByteBuffer *const hexBuff)
+static bool Package_Virtual_Decode(Package *const me, ByteBuffer *const byteBuff)
 {
     assert(0);
     return true;
@@ -34,22 +34,22 @@ void Package_ctor(Package *me, Head *head)
 }
 
 /* Methods  & Destrucor */
-bool Package_EncodeHead(Package const *const me, ByteBuffer *const hexBuff)
+bool Package_EncodeHead(Package const *const me, ByteBuffer *const byteBuff)
 {
     return true;
 }
 
-bool Package_EncodeTail(Package const *const me, ByteBuffer *const hexBuff)
+bool Package_EncodeTail(Package const *const me, ByteBuffer *const byteBuff)
 {
     return true;
 }
 
-bool Package_DecodeHead(Package *const me, ByteBuffer *const hexBuff)
+bool Package_DecodeHead(Package *const me, ByteBuffer *const byteBuff)
 {
     return true;
 }
 
-bool Package_DecodeTail(Package *const me, ByteBuffer *const hexBuff)
+bool Package_DecodeTail(Package *const me, ByteBuffer *const byteBuff)
 {
     return true;
 }
@@ -65,12 +65,12 @@ void LinkMessage_dtor(LinkMessage *const me)
 }
 
 /* Public methods */
-bool LinkMessage_EncodeElements(LinkMessage const *const me, ByteBuffer *const hexBuff)
+bool LinkMessage_EncodeElements(LinkMessage const *const me, ByteBuffer *const byteBuff)
 {
     return true;
 }
 
-bool LinkMessage_DecodeElements(LinkMessage *const me, ByteBuffer *const hexBuff)
+bool LinkMessage_DecodeElements(LinkMessage *const me, ByteBuffer *const byteBuff)
 {
     return true;
 }
@@ -99,11 +99,11 @@ void UplinkMessage_dtor(UplinkMessage *const me)
 {
 }
 /* Public methods */
-bool UplinkMessage_EncodeHead(UplinkMessage const *const me, ByteBuffer *const hexBuff)
+bool UplinkMessage_EncodeHead(UplinkMessage const *const me, ByteBuffer *const byteBuff)
 {
     return true;
 }
-bool UplinkMessage_DecodeHead(UplinkMessage const *me, ByteBuffer *const hexBuff)
+bool UplinkMessage_DecodeHead(UplinkMessage const *me, ByteBuffer *const byteBuff)
 {
     return true;
 }
@@ -119,11 +119,11 @@ void DownlinkMessage_dtor(DownlinkMessage *const me)
 {
 }
 /* Public methods */
-bool DownlinkMessage_EncodeHead(DownlinkMessage const *const me, ByteBuffer *const hexBuff)
+bool DownlinkMessage_EncodeHead(DownlinkMessage const *const me, ByteBuffer *const byteBuff)
 {
     return true;
 }
-bool DownlinkMessage_DecodeHead(DownlinkMessage const *me, ByteBuffer *const hexBuff)
+bool DownlinkMessage_DecodeHead(DownlinkMessage const *me, ByteBuffer *const byteBuff)
 {
     return true;
 }
@@ -131,13 +131,13 @@ bool DownlinkMessage_DecodeHead(DownlinkMessage const *me, ByteBuffer *const hex
 
 // Elements
 // "AbstractorClass" Element
-static bool Element_Virtual_Encode(Element const *const me, ByteBuffer *const hexBuff)
+static bool Element_Virtual_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(0);
     return true;
 }
 
-static bool Element_Virtual_Decode(Element *const me, ByteBuffer *const hexBuff)
+static bool Element_Virtual_Decode(Element *const me, ByteBuffer *const byteBuff)
 {
     assert(0);
     return true;
@@ -162,32 +162,32 @@ void Element_ctor(Element *const me, uint8_t identifierLeader, uint8_t dataDef)
 // "AbstractorClass" Element END
 
 // RemoteStationAddrElement
-static bool RemoteStationAddrElement_Encode(Element const *const me, ByteBuffer *const hexBuff)
+static bool RemoteStationAddrElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
     return true;
 }
 
-static bool RemoteStationAddrElement_Decode(Element *const me, ByteBuffer *const hexBuff)
+static bool RemoteStationAddrElement_Decode(Element *const me, ByteBuffer *const byteBuff)
 {
-    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < REMOTE_STATION_ADDR_LEN)
+    if (me == NULL || byteBuff == NULL || ByteBuffer_Available(byteBuff) < REMOTE_STATION_ADDR_LEN)
     {
         return false;
     }
     RemoteStationAddrElement *self = (RemoteStationAddrElement *)me;
     uint8_t usedLen = 0;
-    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->stationAddr.A5);
-    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->stationAddr.A4);
-    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->stationAddr.A3);
+    usedLen += ByteBuffer_BCDGetUInt8(byteBuff, &self->stationAddr.A5);
+    usedLen += ByteBuffer_BCDGetUInt8(byteBuff, &self->stationAddr.A4);
+    usedLen += ByteBuffer_BCDGetUInt8(byteBuff, &self->stationAddr.A3);
     if (self->stationAddr.A5 == A5_HYDROLOGICAL_TELEMETRY_STATION)
     {
-        usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->stationAddr.A2);
-        usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->stationAddr.A1);
+        usedLen += ByteBuffer_BCDGetUInt8(byteBuff, &self->stationAddr.A2);
+        usedLen += ByteBuffer_BCDGetUInt8(byteBuff, &self->stationAddr.A1);
     }
     else
     {
         uint16_t u16A2A1 = 0;
-        uint8_t len = ByteBuffer_BE_GetUInt16(hexBuff, &u16A2A1);
+        uint8_t len = ByteBuffer_BE_GetUInt16(byteBuff, &u16A2A1);
         if (len == 2) // 2 byte
         {
             self->stationAddr.A2 = u16A2A1 / 10000;
@@ -222,26 +222,26 @@ void RemoteStationAddrElement_ctor(RemoteStationAddrElement *const me)
 // RemoteStationAddrElement END
 
 // ObserveTimeElement
-static bool ObserveTimeElement_Encode(Element const *const me, ByteBuffer *const hexBuff)
+static bool ObserveTimeElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
     return true;
 }
 
-static bool ObserveTimeElement_Decode(Element *const me, ByteBuffer *const hexBuff)
+static bool ObserveTimeElement_Decode(Element *const me, ByteBuffer *const byteBuff)
 {
-    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < DATETIME_LEN)
+    if (me == NULL || byteBuff == NULL || ByteBuffer_Available(byteBuff) < DATETIME_LEN)
     {
         return false;
     }
     ObserveTimeElement *self = (ObserveTimeElement *)me;
     uint8_t usedLen = 0;
-    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->observeTime.year);
-    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->observeTime.month);
-    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->observeTime.day);
-    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->observeTime.hour);
-    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->observeTime.minute);
-    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->observeTime.second);
+    usedLen += ByteBuffer_BCDGetUInt8(byteBuff, &self->observeTime.year);
+    usedLen += ByteBuffer_BCDGetUInt8(byteBuff, &self->observeTime.month);
+    usedLen += ByteBuffer_BCDGetUInt8(byteBuff, &self->observeTime.day);
+    usedLen += ByteBuffer_BCDGetUInt8(byteBuff, &self->observeTime.hour);
+    usedLen += ByteBuffer_BCDGetUInt8(byteBuff, &self->observeTime.minute);
+    usedLen += ByteBuffer_BCDGetUInt8(byteBuff, &self->observeTime.second);
     return usedLen == DATETIME_LEN;
 }
 
@@ -264,20 +264,20 @@ void ObserveTimeElement_ctor(ObserveTimeElement *const me)
 // ObserveTimeElement END
 
 // PictureElement
-static bool PictureElement_Encode(Element const *const me, ByteBuffer *const hexBuff)
+static bool PictureElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
     return true;
 }
 
-static bool PictureElement_Decode(Element *const me, ByteBuffer *const hexBuff)
+static bool PictureElement_Decode(Element *const me, ByteBuffer *const byteBuff)
 {
-    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < 0) // 截取所有
+    if (me == NULL || byteBuff == NULL || ByteBuffer_Available(byteBuff) < 0) // 截取所有
     {
         return false;
     }
     PictureElement *self = (PictureElement *)me;
-    self->buff = ByteBuffer_GetByteBuffer(hexBuff, ByteBuffer_Available(hexBuff));
+    self->buff = ByteBuffer_GetByteBuffer(byteBuff, ByteBuffer_Available(byteBuff));
     ByteBuffer_Flip(self->buff);
     return true;
 }
@@ -315,20 +315,20 @@ void PictureElement_dtor(PictureElement *const me)
 
 // ArtificialElement ARTIFICIAL_IL
 
-static bool ArtificialElement_Encode(Element const *const me, ByteBuffer *const hexBuff)
+static bool ArtificialElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
     return true;
 }
 
-static bool ArtificialElement_Decode(Element *const me, ByteBuffer *const hexBuff)
+static bool ArtificialElement_Decode(Element *const me, ByteBuffer *const byteBuff)
 {
-    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < 0) // 截取所有
+    if (me == NULL || byteBuff == NULL || ByteBuffer_Available(byteBuff) < 0) // 截取所有
     {
         return false;
     }
     ArtificialElement *self = (ArtificialElement *)me;
-    self->buff = ByteBuffer_GetByteBuffer(hexBuff, ByteBuffer_Available(hexBuff));
+    self->buff = ByteBuffer_GetByteBuffer(byteBuff, ByteBuffer_Available(byteBuff));
     ByteBuffer_Flip(self->buff);
     // @Todo decode to ArtificialItem
     // @See SL 330 2011
@@ -368,20 +368,20 @@ void ArtificialElement_dtor(ArtificialElement *const me)
 
 // DRP5MINElement
 
-static bool DRP5MINElement_Encode(Element const *const me, ByteBuffer *const hexBuff)
+static bool DRP5MINElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
     return true;
 }
 
-static bool DRP5MINElement_Decode(Element *const me, ByteBuffer *const hexBuff)
+static bool DRP5MINElement_Decode(Element *const me, ByteBuffer *const byteBuff)
 {
-    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < DRP5MIN_LEN)
+    if (me == NULL || byteBuff == NULL || ByteBuffer_Available(byteBuff) < DRP5MIN_LEN)
     {
         return false;
     }
     DRP5MINElement *self = (DRP5MINElement *)me;
-    self->buff = ByteBuffer_GetByteBuffer(hexBuff, DRP5MIN_LEN);
+    self->buff = ByteBuffer_GetByteBuffer(byteBuff, DRP5MIN_LEN);
     ByteBuffer_Flip(self->buff);
     return true;
 }
@@ -433,20 +433,20 @@ uint8_t DRP5MINElement_ValueAt(DRP5MINElement *const me, uint8_t index, float *v
 // DRP5MINElement END
 
 // FlowRateDataElement
-static bool FlowRateDataElement_Encode(Element const *const me, ByteBuffer *const hexBuff)
+static bool FlowRateDataElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
     return true;
 }
 
-static bool FlowRateDataElement_Decode(Element *const me, ByteBuffer *const hexBuff)
+static bool FlowRateDataElement_Decode(Element *const me, ByteBuffer *const byteBuff)
 {
-    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < 0) // 截取所有
+    if (me == NULL || byteBuff == NULL || ByteBuffer_Available(byteBuff) < 0) // 截取所有
     {
         return false;
     }
     FlowRateDataElement *self = (FlowRateDataElement *)me;
-    self->buff = ByteBuffer_GetByteBuffer(hexBuff, ByteBuffer_Available(hexBuff));
+    self->buff = ByteBuffer_GetByteBuffer(byteBuff, ByteBuffer_Available(byteBuff));
     ByteBuffer_Flip(self->buff);
     return true;
 }
@@ -483,20 +483,20 @@ void FlowRateDataElement_dtor(FlowRateDataElement *const me)
 // FlowRateDataElement END
 
 // RelativeWaterLevelElement
-static bool RelativeWaterLevelElement_Encode(Element const *const me, ByteBuffer *const hexBuff)
+static bool RelativeWaterLevelElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
     return true;
 }
 
-static bool RelativeWaterLevelElement_Decode(Element *const me, ByteBuffer *const hexBuff)
+static bool RelativeWaterLevelElement_Decode(Element *const me, ByteBuffer *const byteBuff)
 {
-    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < RELATIVE_WATER_LEVEL_LEN)
+    if (me == NULL || byteBuff == NULL || ByteBuffer_Available(byteBuff) < RELATIVE_WATER_LEVEL_LEN)
     {
         return false;
     }
     RelativeWaterLevelElement *self = (RelativeWaterLevelElement *)me;
-    self->buff = ByteBuffer_GetByteBuffer(hexBuff, RELATIVE_WATER_LEVEL_LEN);
+    self->buff = ByteBuffer_GetByteBuffer(byteBuff, RELATIVE_WATER_LEVEL_LEN);
     ByteBuffer_Flip(self->buff);
     return true;
 }
@@ -548,23 +548,23 @@ uint8_t RelativeWaterLevelElement_ValueAt(RelativeWaterLevelElement *const me, u
 // RelativeWaterLevelElement END
 
 // TimeStepCodeElement
-static bool TimeStepCodeElement_Encode(Element const *const me, ByteBuffer *const hexBuff)
+static bool TimeStepCodeElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
     return true;
 }
 
-static bool TimeStepCodeElement_Decode(Element *const me, ByteBuffer *const hexBuff)
+static bool TimeStepCodeElement_Decode(Element *const me, ByteBuffer *const byteBuff)
 {
-    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < TIME_STEP_CODE_LEN)
+    if (me == NULL || byteBuff == NULL || ByteBuffer_Available(byteBuff) < TIME_STEP_CODE_LEN)
     {
         return false;
     }
     TimeStepCodeElement *self = (TimeStepCodeElement *)me;
     uint8_t usedLen = 0;
-    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->timeStepCode.day);
-    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->timeStepCode.hour);
-    usedLen += ByteBuffer_BCDGetUInt8(hexBuff, &self->timeStepCode.minute);
+    usedLen += ByteBuffer_BCDGetUInt8(byteBuff, &self->timeStepCode.day);
+    usedLen += ByteBuffer_BCDGetUInt8(byteBuff, &self->timeStepCode.hour);
+    usedLen += ByteBuffer_BCDGetUInt8(byteBuff, &self->timeStepCode.minute);
     return usedLen == TIME_STEP_CODE_LEN;
 }
 
@@ -587,20 +587,20 @@ void TimeStepCodeElement_ctor(TimeStepCodeElement *const me)
 // TimeStepCodeElement END
 
 // StationStatusElement
-static bool StationStatusElement_Encode(Element const *const me, ByteBuffer *const hexBuff)
+static bool StationStatusElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
     return true;
 }
 
-static bool StationStatusElement_Decode(Element *const me, ByteBuffer *const hexBuff)
+static bool StationStatusElement_Decode(Element *const me, ByteBuffer *const byteBuff)
 {
-    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < STATION_STATUS_LEN)
+    if (me == NULL || byteBuff == NULL || ByteBuffer_Available(byteBuff) < STATION_STATUS_LEN)
     {
         return false;
     }
     StationStatusElement *self = (StationStatusElement *)me;
-    uint8_t usedLen = ByteBuffer_BE_GetUInt32(hexBuff, &self->status);
+    uint8_t usedLen = ByteBuffer_BE_GetUInt32(byteBuff, &self->status);
     return usedLen == STATION_STATUS_LEN;
 }
 
@@ -632,28 +632,28 @@ uint8_t StationStatusElement_StatusAt(StationStatusElement const *const me, uint
 // StationStatusElement END
 
 // DurationElement
-static bool DurationElement_Encode(Element const *const me, ByteBuffer *const hexBuff)
+static bool DurationElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
     return true;
 }
 
-static bool DurationElement_Decode(Element *const me, ByteBuffer *const hexBuff)
+static bool DurationElement_Decode(Element *const me, ByteBuffer *const byteBuff)
 {
-    if (me == NULL || hexBuff == NULL || ByteBuffer_Available(hexBuff) < DURATION_OF_XX_LEN)
+    if (me == NULL || byteBuff == NULL || ByteBuffer_Available(byteBuff) < DURATION_OF_XX_LEN)
     {
         return false;
     }
     DurationElement *self = (DurationElement *)me;
     uint8_t byte = 0;
     // @Todo ASCII TO INT atoi with end.
-    uint8_t usedLen = ByteBuffer_GetUInt8(hexBuff, &self->hour);
-    usedLen += ByteBuffer_GetUInt8(hexBuff, &byte);
+    uint8_t usedLen = ByteBuffer_GetUInt8(byteBuff, &self->hour);
+    usedLen += ByteBuffer_GetUInt8(byteBuff, &byte);
     self->hour = (self->hour - 0x30) * 10 + (byte - 0x30);
-    usedLen += ByteBuffer_GetUInt8(hexBuff, &byte); // a dot in ascii.
-    usedLen += ByteBuffer_GetUInt8(hexBuff, &self->minute);
+    usedLen += ByteBuffer_GetUInt8(byteBuff, &byte); // a dot in ascii.
+    usedLen += ByteBuffer_GetUInt8(byteBuff, &self->minute);
     byte = 0;
-    usedLen += ByteBuffer_GetUInt8(hexBuff, &byte);
+    usedLen += ByteBuffer_GetUInt8(byteBuff, &byte);
     self->minute = (self->minute - 0x30) * 10 + (byte - 0x30);
     return usedLen == DURATION_OF_XX_LEN;
 }
@@ -677,25 +677,25 @@ void DurationElement_ctor(DurationElement *const me)
 // DurationElement END
 
 // NumberElement
-static bool NumberElement_Encode(Element const *const me, ByteBuffer *const hexBuff)
+static bool NumberElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
     return true;
 }
 
-static bool NumberElement_Decode(Element *const me, ByteBuffer *const hexBuff)
+static bool NumberElement_Decode(Element *const me, ByteBuffer *const byteBuff)
 {
-    if (me == NULL || hexBuff == NULL)
+    if (me == NULL || byteBuff == NULL)
     {
         return false;
     }
     uint8_t size = me->dataDef >> 3;
-    if (ByteBuffer_Available(hexBuff) < size)
+    if (ByteBuffer_Available(byteBuff) < size)
     {
         return false;
     }
     NumberElement *self = (NumberElement *)me;
-    self->buff = ByteBuffer_GetByteBuffer(hexBuff, size); //read all bcd
+    self->buff = ByteBuffer_GetByteBuffer(byteBuff, size); //read all bcd
     if (self->buff == NULL)
     {
         return false;
@@ -765,16 +765,16 @@ uint8_t NumberElement_GetFloat(NumberElement *const me, float *val)
 // NumberElement END
 
 // ByteBuffer should be in read mode
-Element *decodeElement(ByteBuffer *const hexBuff)
+Element *decodeElement(ByteBuffer *const byteBuff)
 {
-    if (hexBuff == NULL || ByteBuffer_Available(hexBuff) < ELEMENT_IDENTIFER_LEN)
+    if (byteBuff == NULL || ByteBuffer_Available(byteBuff) < ELEMENT_IDENTIFER_LEN)
     {
         return NULL;
     }                                                      // 至少包含标识符
     uint8_t identifierLeader = 0;                          //
-    ByteBuffer_GetUInt8(hexBuff, &identifierLeader);       // 解析一个字节的 标识符引导符 ， 同时位移
+    ByteBuffer_GetUInt8(byteBuff, &identifierLeader);      // 解析一个字节的 标识符引导符 ， 同时位移
     uint8_t dataDef = 0;                                   //
-    ByteBuffer_GetUInt8(hexBuff, &dataDef);                // 解析一个字节的 数据定义符，同时位移
+    ByteBuffer_GetUInt8(byteBuff, &dataDef);               // 解析一个字节的 数据定义符，同时位移
     Element *el = NULL;                                    // 根据标识符引导符，开始解析 Element
     bool decoded = false;                                  //
     void (*dtor)(void *) = NULL;                           // 统一的析构函数形式；但具体实现和构造函数无法统一
@@ -866,15 +866,15 @@ Element *decodeElement(ByteBuffer *const hexBuff)
     }
     if (el != NULL)
     {
-        decoded = el->vptr->decode(el, hexBuff); // 解析
-        if (!decoded)                            // 解析失败，需要手动删除指针
-        {                                        //
-            if (dtor != NULL)                    // 实现了析构函数
-            {                                    //
-                dtor((ArtificialElement *)el);   // 调用析构，规范步骤
-            }                                    //
-            DelInstance(el);                     // 删除指针
-            return NULL;                         //
+        decoded = el->vptr->decode(el, byteBuff); // 解析
+        if (!decoded)                             // 解析失败，需要手动删除指针
+        {                                         //
+            if (dtor != NULL)                     // 实现了析构函数
+            {                                     //
+                dtor((ArtificialElement *)el);    // 调用析构，规范步骤
+            }                                     //
+            DelInstance(el);                      // 删除指针
+            return NULL;                          //
         }
     }
     return el;

@@ -269,8 +269,8 @@ extern "C"
     typedef struct ElementVtbl
     {
         // pure virtual
-        bool (*encode)(Element const *const me, ByteBuffer *const hexBuff);
-        bool (*decode)(Element *const me, ByteBuffer *const hexBuff);
+        bool (*encode)(Element const *const me, ByteBuffer *const byteBuff);
+        bool (*decode)(Element *const me, ByteBuffer *const byteBuff);
         size_t (*size)(Element const *const me);
     } ElementVtbl;
 
@@ -338,18 +338,18 @@ extern "C"
     typedef struct PackageVtbl
     {
         // pure virtual
-        bool (*encode)(Package const *const me, ByteBuffer *const hexBuff);
-        bool (*decode)(Package *const me, ByteBuffer *const hexBuff);
+        bool (*encode)(Package const *const me, ByteBuffer *const byteBuff);
+        bool (*decode)(Package *const me, ByteBuffer *const byteBuff);
         size_t (*size)();
     } PackageVtbl;
 
     /* Package Construtor & Destrucor */
     void Package_ctor(Package *const me, Head *head);
     /* Public methods */
-    bool Package_EncodeHead(Package const *const me, ByteBuffer *const hexBuff);
-    bool Package_EncodeTail(Package const *const me, ByteBuffer *const hexBuff);
-    bool Package_DecodeHead(Package *const me, ByteBuffer *const hexBuff);
-    bool Package_DecodeTail(Package *const me, ByteBuffer *const hexBuff);
+    bool Package_EncodeHead(Package const *const me, ByteBuffer *const byteBuff);
+    bool Package_EncodeTail(Package const *const me, ByteBuffer *const byteBuff);
+    bool Package_DecodeHead(Package *const me, ByteBuffer *const byteBuff);
+    bool Package_DecodeTail(Package *const me, ByteBuffer *const byteBuff);
     /* Public Helper*/
 #define PACAKAGE_UPCAST(ptr_) ((Package *)(ptr_))
 #define Package_dtor(ptr_)
@@ -369,8 +369,8 @@ extern "C"
     void LinkMessage_ctor(LinkMessage *const me, Head *head, uint16_t elementCount);
     void LinkMessage_dtor(LinkMessage *const me);
     /* Public methods */
-    bool LinkMessage_EncodeElements(LinkMessage const *const me, ByteBuffer *const hexBuff);
-    bool LinkMessage_DecodeElements(LinkMessage *const me, ByteBuffer *const hexBuff);
+    bool LinkMessage_EncodeElements(LinkMessage const *const me, ByteBuffer *const byteBuff);
+    bool LinkMessage_DecodeElements(LinkMessage *const me, ByteBuffer *const byteBuff);
     bool LinkMessage_PutElement(LinkMessage *const me, uint16_t index, Element *element);
     bool LinkMessage_SetElement(LinkMessage *const me, uint16_t index, Element *element);
     Element *LinkMessage_GetElement(LinkMessage const *const me, uint16_t index);
@@ -391,10 +391,10 @@ extern "C"
     void UplinkMessage_ctor(UplinkMessage *const me, Head *head, UplinkMessageHead *upLinkHead, uint16_t elementCount);
     void UplinkMessage_dtor(UplinkMessage *const me);
     /* Public methods */
-    bool UplinkMessage_EncodeHead(UplinkMessage const *const me, ByteBuffer *const hexBuff);
-    // void UplinkMessage_EncodeTail(UplinkMessage const *const me, ByteBuffer* hexBuff, size_t len);
-    bool UplinkMessage_DecodeHead(UplinkMessage const *me, ByteBuffer *const hexBuff);
-    // void UplinkMessage_DecodeTail(UplinkMessage const *me, ByteBuffer* hexBuff, size_t len);
+    bool UplinkMessage_EncodeHead(UplinkMessage const *const me, ByteBuffer *const byteBuff);
+    // void UplinkMessage_EncodeTail(UplinkMessage const *const me, ByteBuffer* byteBuff, size_t len);
+    bool UplinkMessage_DecodeHead(UplinkMessage const *me, ByteBuffer *const byteBuff);
+    // void UplinkMessage_DecodeTail(UplinkMessage const *me, ByteBuffer* byteBuff, size_t len);
     // "AbstractUpClass" UplinkMessage END
 
     // "AbstractUpClass" DownlinkMessage
@@ -408,24 +408,13 @@ extern "C"
     void DownlinkMessage_ctor(DownlinkMessage *const me, Head *head, DownlinkMessageHead *downLinkHead, uint16_t elementCount);
     void DownlinkMessage_dtor(DownlinkMessage *const me);
     /* Public methods */
-    bool DownlinkMessage_EncodeHead(DownlinkMessage const *const me, ByteBuffer *const hexBuff);
-    // void DownlinkMessage_EncodeTail(DownlinkMessage const *const me, ByteBuffer* hexBuff, size_t len);
-    bool DownlinkMessage_DecodeHead(DownlinkMessage const *me, ByteBuffer *const hexBuff);
-    // void DownlinkMessage_DecodeTail(DownlinkMessage const *me, ByteBuffer* hexBuff, size_t len);
+    bool DownlinkMessage_EncodeHead(DownlinkMessage const *const me, ByteBuffer *const byteBuff);
+    // void DownlinkMessage_EncodeTail(DownlinkMessage const *const me, ByteBuffer* byteBuff, size_t len);
+    bool DownlinkMessage_DecodeHead(DownlinkMessage const *me, ByteBuffer *const byteBuff);
+    // void DownlinkMessage_DecodeTail(DownlinkMessage const *me, ByteBuffer* byteBuff, size_t len);
     // "AbstractUpClass" DownlinkMessage END
 
     // Elements
-    // Util Functions.
-    static bool inline isNumberElement(uint8_t identifierLeader)
-    {
-        return identifierLeader >= 0x01 && identifierLeader <= 0x75 &&
-               identifierLeader != TIME_STEP_CODE &&
-               identifierLeader != STATION_STATUS &&
-               identifierLeader != DURATION_OF_XX;
-    }
-
-    Element *decodeElement(ByteBuffer *const hexBuff);
-
     // Element Class
     // PictureElement
     typedef struct
@@ -568,6 +557,19 @@ extern "C"
     } ExtendNumberElement;
 
     // Elements END
+
+    // Decode & Encode
+    // Util Functions.
+    static bool inline isNumberElement(uint8_t identifierLeader)
+    {
+        return identifierLeader >= 0x01 && identifierLeader <= 0x75 &&
+               identifierLeader != TIME_STEP_CODE &&
+               identifierLeader != STATION_STATUS &&
+               identifierLeader != DURATION_OF_XX;
+    }
+
+    Element *decodeElement(ByteBuffer *const byteBuff);
+    // Decode & Encode END
     // #pragma pack()
 #ifdef __cplusplus
 }
