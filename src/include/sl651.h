@@ -391,6 +391,8 @@ extern "C"
     {
         return;
     }
+#define Element_SetDirection(ptr_, direction) (ptr_)->direction = (direction)
+#define Element_GetDirection(ptr_) (ptr_)->direction
     // "AbstractorClass" Element END
 
     // RemoteStationAddrElement
@@ -689,7 +691,7 @@ extern "C"
      *        ByteBuffer should flip to read mode.
      * @return: An Instance of Element.
      */
-    Element *decodeElement(ByteBuffer *const byteBuff);
+    Element *decodeElement(ByteBuffer *const byteBuff, Direction direction);
 
     /**
      * @description: Decode a Package from ByteBuffer

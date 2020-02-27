@@ -233,7 +233,7 @@ static bool UplinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff)
     {
         while (BB_Available(byteBuff) > ELEMENT_IDENTIFER_LEN + PACKAGE_TAIL_LEN)
         {
-            Element *el = decodeElement(byteBuff);
+            Element *el = decodeElement(byteBuff, Up);
             if (el != NULL)
             {
                 vec_push(&((UplinkMessage *const)me)->super.elements, el);
@@ -345,7 +345,7 @@ static bool DownlinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff
     {
         while (BB_Available(byteBuff) > ELEMENT_IDENTIFER_LEN + PACKAGE_TAIL_LEN)
         {
-            Element *el = decodeElement(byteBuff);
+            Element *el = decodeElement(byteBuff, Down);
             if (el != NULL)
             {
                 vec_push(&((DownlinkMessage *const)me)->super.elements, el);
@@ -438,6 +438,7 @@ size_t Element_Virtual_Size(Element const *const me)
     assert(0);
     return 0;
 }
+
 void Element_ctor(Element *const me, uint8_t identifierLeader, uint8_t dataDef)
 {
     assert(me);
@@ -449,6 +450,7 @@ void Element_ctor(Element *const me, uint8_t identifierLeader, uint8_t dataDef)
     me->vptr = &vtbl;
     me->identifierLeader = identifierLeader;
     me->dataDef = dataDef;
+    me->direction = Up;
 }
 // "AbstractorClass" Element END
 
@@ -1088,7 +1090,7 @@ uint8_t NumberElement_GetFloat(NumberElement *const me, float *val)
 // Decode & Encode
 // Util Functions
 // ByteBuffer should be in read mode
-Element *decodeElement(ByteBuffer *const byteBuff)
+Element *decodeElement(ByteBuffer *const byteBuff, Direction direction)
 {
     assert(byteBuff);
     if (BB_Available(byteBuff) < ELEMENT_IDENTIFER_LEN)
@@ -1178,6 +1180,7 @@ Element *decodeElement(ByteBuffer *const byteBuff)
     }
     if (el != NULL)
     {
+        Element_SetDirection(el, direction);
         decoded = el->vptr->decode(el, byteBuff); // 解析
         if (!decoded)                             // 解析失败，需要手动删除指针
         {                                         //
