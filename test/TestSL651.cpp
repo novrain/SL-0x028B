@@ -350,6 +350,42 @@ GTEST_TEST(Package, decodeKeepAliveUplinkMessage)
     DelInstance(pkg);
 }
 
+GTEST_TEST(Package, decodeRainfallStationHourlyDownlinkMessage)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E"
+                                 "0012345678"
+                                 "10"
+                                 "1234"
+                                 "34"
+                                 "8008"
+                                 "02"
+                                 "0001"
+                                 "140613143853"
+                                 "04"
+                                 "696E",
+                       50);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0x69);
+    ASSERT_EQ(crc & 0xFF, 0x6E);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, HOUR);
+    ASSERT_EQ(pkg->head.direction, Down);
+    ASSERT_EQ(pkg->tail.etxFlag, 04);
+    ASSERT_EQ(pkg->tail.crc, 0x696e);
+
+    pkg->vptr->dtor(pkg);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
 GTEST_TEST(Package, decodeRainfallStationHourlyUplinkMessage)
 {
     Package *pkg = NULL;
@@ -393,9 +429,9 @@ GTEST_TEST(Package, decodeRainfallStationHourlyUplinkMessage)
     ASSERT_TRUE(pkg != NULL);
     ASSERT_EQ(pkg->head.funcCode, HOUR);
     ASSERT_EQ(pkg->head.direction, Up);
-    ElementPtrVector elements = ((UplinkMessage *)pkg)->super.elements;
-    ASSERT_EQ(elements.length, 5);
-    Element *el = elements.data[0];
+    ElementPtrVector *elements = &((UplinkMessage *)pkg)->super.elements;
+    ASSERT_EQ(elements->length, 5);
+    Element *el = elements->data[0];
     ASSERT_EQ(el->identifierLeader, DRP5MIN);
     ASSERT_EQ(el->dataDef, 0x60);
     // it is a DRP5MINElement
@@ -410,7 +446,7 @@ GTEST_TEST(Package, decodeRainfallStationHourlyUplinkMessage)
 
     NumberElement *nel = NULL;
 
-    el = elements.data[1];
+    el = elements->data[1];
     // it is a NumberElement
     nel = (NumberElement *)el;
     ASSERT_EQ(nel->super.identifierLeader, 0x26);
@@ -418,7 +454,7 @@ GTEST_TEST(Package, decodeRainfallStationHourlyUplinkMessage)
     ASSERT_EQ(3, NumberElement_GetFloat(nel, &fv));
     ASSERT_EQ(0, fv);
 
-    el = elements.data[2];
+    el = elements->data[2];
     // it is a NumberElement
     nel = (NumberElement *)el;
     ASSERT_EQ(nel->super.identifierLeader, 0x20);
@@ -426,7 +462,7 @@ GTEST_TEST(Package, decodeRainfallStationHourlyUplinkMessage)
     ASSERT_EQ(3, NumberElement_GetFloat(nel, &fv));
     ASSERT_EQ(0, fv);
 
-    el = elements.data[3];
+    el = elements->data[3];
     // it is a NumberElement
     nel = (NumberElement *)el;
     ASSERT_EQ(nel->super.identifierLeader, 0x1A);
@@ -434,7 +470,7 @@ GTEST_TEST(Package, decodeRainfallStationHourlyUplinkMessage)
     ASSERT_EQ(3, NumberElement_GetFloat(nel, &fv));
     ASSERT_EQ(0, fv);
 
-    el = elements.data[4];
+    el = elements->data[4];
     // it is a NumberElement
     nel = (NumberElement *)el;
     ASSERT_EQ(nel->super.identifierLeader, 0x38);
@@ -447,6 +483,383 @@ GTEST_TEST(Package, decodeRainfallStationHourlyUplinkMessage)
 
     pkg->vptr->dtor(pkg);
     DelInstance(pkg);
+}
+
+GTEST_TEST(Package, decodeWaterRainStationHourlyDownlinkMessage)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E"
+                                 "0012345678"
+                                 "10"
+                                 "1234"
+                                 "34"
+                                 "8008"
+                                 "02"
+                                 "0003"
+                                 "140613144304"
+                                 "04"
+                                 "99A1",
+                       50);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0x99);
+    ASSERT_EQ(crc & 0xFF, 0xA1);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, HOUR);
+    ASSERT_EQ(pkg->head.direction, Down);
+    ASSERT_EQ(pkg->tail.etxFlag, 04);
+    ASSERT_EQ(pkg->tail.crc, 0x99A1);
+
+    pkg->vptr->dtor(pkg);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, decodeWaterRainStationHourlyUplinkMessage)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E"
+                                 "10"
+                                 "0012345678"
+                                 "1234"
+                                 "34"
+                                 "0057"
+                                 "02"
+                                 "0003"
+                                 "140612020000"
+                                 "F1F1"
+                                 "0012345678"
+                                 "48"
+                                 "F0F0"
+                                 "1406120200"
+                                 "F460"
+                                 "000000000000000000000000"
+                                 "F5C0"
+                                 "0AAA0AAAFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+                                 "2619"
+                                 "000000"
+                                 "2019"
+                                 "000000"
+                                 "1A19"
+                                 "000000"
+                                 "391A"
+                                 "002730"
+                                 "3812"
+                                 "1290"
+                                 "03"
+                                 "DD4e",
+                       208);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0xdd);
+    ASSERT_EQ(crc & 0xFF, 0x4e);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, HOUR);
+    ASSERT_EQ(pkg->head.direction, Up);
+    ASSERT_EQ(pkg->tail.etxFlag, 03);
+    ASSERT_EQ(pkg->tail.crc, 0xdd4e);
+
+    ElementPtrVector *elements = &((UplinkMessage *)pkg)->super.elements;
+    ASSERT_EQ(elements->length, 7);
+
+    Element *el = elements->data[1];
+    ASSERT_EQ(el->identifierLeader, RELATIVE_WATER_LEVEL_5MIN1);
+    ASSERT_EQ(el->dataDef, 0xc0);
+    // it is a RelativeWaterLevelElement
+    RelativeWaterLevelElement *rwlel = (RelativeWaterLevelElement *)el;
+    ASSERT_EQ(rwlel->super.identifierLeader, RELATIVE_WATER_LEVEL_5MIN1);
+    ASSERT_EQ(rwlel->super.dataDef, 0xc0);
+    float fv = 0;
+    ASSERT_EQ(2, RelativeWaterLevelElement_ValueAt(rwlel, 0, &fv));
+    ASSERT_EQ(27.3f, fv);
+    ASSERT_EQ(2, RelativeWaterLevelElement_ValueAt(rwlel, 1, &fv));
+    ASSERT_EQ(27.3f, fv);
+    ASSERT_EQ(2, RelativeWaterLevelElement_ValueAt(rwlel, 11, &fv));
+    ASSERT_EQ(0xffff, fv);
+
+    pkg->vptr->dtor(pkg);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, decodeRainStationAddRPTDownlinkMessage)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E"
+                                 "0012345678"
+                                 "10"
+                                 "1234"
+                                 "33"
+                                 "8008"
+                                 "02"
+                                 "0002"
+                                 "140612021525"
+                                 "04"
+                                 "DAAA",
+                       50);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0xDA);
+    ASSERT_EQ(crc & 0xFF, 0xAA);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, ADDED);
+    ASSERT_EQ(pkg->head.direction, Down);
+    ASSERT_EQ(pkg->tail.etxFlag, 04);
+    ASSERT_EQ(pkg->tail.crc, 0xDAAA);
+
+    pkg->vptr->dtor(pkg);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, decodeRainStationAddRPTUplinkMessage)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E"
+                                 "10"
+                                 "0012345678"
+                                 "1234"
+                                 "33"
+                                 "0038"
+                                 "02"
+                                 "0002"
+                                 "140612021500"
+                                 "F1F1"
+                                 "0012345678"
+                                 "50"
+                                 "F0F0"
+                                 "1406120215"
+                                 "F460"
+                                 "000000000000000000000000"
+                                 "2619"
+                                 "000020"
+                                 "2019"
+                                 "000010"
+                                 "1A19"
+                                 "000010"
+                                 "3812"
+                                 "1209"
+                                 "03"
+                                 "7c62",
+                       146);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0x7c);
+    ASSERT_EQ(crc & 0xFF, 0x62);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, ADDED);
+    ASSERT_EQ(pkg->head.direction, Up);
+    ASSERT_EQ(pkg->tail.etxFlag, 03);
+    ASSERT_EQ(pkg->tail.crc, 0x7c62);
+
+    ElementPtrVector *elements = &((UplinkMessage *)pkg)->super.elements;
+    ASSERT_EQ(elements->length, 5);
+
+    Element *el = elements->data[4];
+    ASSERT_EQ(el->identifierLeader, 0x38);
+    ASSERT_EQ(el->dataDef, 0x12);
+
+    NumberElement *nel = (NumberElement *)elements->data[4];
+    float fv = 0;
+    ASSERT_EQ(2, NumberElement_GetFloat(nel, &fv));
+    ASSERT_EQ(12.09f, fv);
+
+    pkg->vptr->dtor(pkg);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, decodeTestDownlinkMessage1)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E"
+                                 "0012345678"
+                                 "10"
+                                 "1234"
+                                 "30"
+                                 "8008"
+                                 "02"
+                                 "0002"
+                                 "140612021525"
+                                 "04"
+                                 "19af",
+                       50);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0x19);
+    ASSERT_EQ(crc & 0xFF, 0xAf);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, 0x30); // enum TEST CONFLICT WITH GTEST
+    ASSERT_EQ(pkg->head.direction, Down);
+    ASSERT_EQ(pkg->tail.etxFlag, 04);
+    ASSERT_EQ(pkg->tail.crc, 0x19AF);
+
+    pkg->vptr->dtor(pkg);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, decodeTestDownlinkMessage)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E"
+                                 "0012345678"
+                                 "01"
+                                 "1234"
+                                 "30"
+                                 "8008"
+                                 "02"
+                                 "0003"
+                                 "591011154947"
+                                 "1B"
+                                 "75D4",
+                       50);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0x75);
+    ASSERT_EQ(crc & 0xFF, 0xD4);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, 0x30); // enum TEST CONFLICT WITH GTEST
+    ASSERT_EQ(pkg->head.direction, Down);
+    ASSERT_EQ(pkg->tail.etxFlag, ESC);
+    ASSERT_EQ(pkg->tail.crc, 0x75D4);
+
+    pkg->vptr->dtor(pkg);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, decodeTestUplinkMessage)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E"
+                                 "01"
+                                 "0012345678"
+                                 "1234"
+                                 "30"
+                                 "002B"
+                                 "02"
+                                 "0003"
+                                 "591011154947"
+                                 "F1F1"
+                                 "0012345678"
+                                 "48"
+                                 "F0F0"
+                                 "5910111549"
+                                 "2019"
+                                 "000005"
+                                 "2619"
+                                 "000005"
+                                 "3923"
+                                 "00000127"
+                                 "3812"
+                                 "1115"
+                                 "03"
+                                 "20FA",
+                       120);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0x20);
+    ASSERT_EQ(crc & 0xFF, 0xFA);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, 0x30); // enum TEST CONFLICT WITH GTEST
+    ASSERT_EQ(pkg->head.direction, Up);
+    ASSERT_EQ(pkg->tail.etxFlag, 03);
+    ASSERT_EQ(pkg->tail.crc, 0x20FA);
+
+    ElementPtrVector *elements = &((UplinkMessage *)pkg)->super.elements;
+    ASSERT_EQ(elements->length, 4);
+
+    Element *el = elements->data[2];
+    ASSERT_EQ(el->identifierLeader, 0x39);
+    ASSERT_EQ(el->dataDef, 0x23);
+
+    NumberElement *nel = (NumberElement *)el;
+    float fv = 0;
+    ASSERT_EQ(4, NumberElement_GetFloat(nel, &fv));
+    ASSERT_EQ(0.127f, fv);
+
+    pkg->vptr->dtor(pkg);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, decodeEvenTimeDownlinkMessage)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E"
+                                 "0011223344"
+                                 "05"
+                                 "03E8"
+                                 "31"
+                                 "8008"
+                                 "02"
+                                 "0031"
+                                 "170718110005"
+                                 "1B"
+                                 "291C",
+                       50);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0x29);
+    ASSERT_EQ(crc & 0xFF, 0x1C);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, EVEN_TIME);
+    ASSERT_EQ(pkg->head.direction, Down);
+    ASSERT_EQ(pkg->tail.etxFlag, ESC);
+    ASSERT_EQ(pkg->tail.crc, 0x291C);
+
+    pkg->vptr->dtor(pkg);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
 }
 
 int main(int argc, char *argv[])
