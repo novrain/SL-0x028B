@@ -136,24 +136,14 @@ extern "C"
         QUERY_CLOCK
     };
 
-    /**
-     * @description: 根据功能码判断报文头是否包含RemoteStationAddrElement
-     * @param {type} 
-     * @return: 
-     */
-    static bool inline isContainRemoteStationAddrElement(uint8_t functionCode)
+    typedef enum
     {
-        switch (functionCode)
-        {
-        case HOUR:
-            return true;
-        default:
-            return false;
-        }
-    }
+        Down = 1 << 3, // 4 bit: 1000
+        Up = 0         // 4 bit: 0000
+    } Direction;
 
     /**
-     * @description: 根据功能码判断报文头是否包含StationCategory
+     * @description: 根据功能码判断上行报文头是否包含StationCategory
      * @param {type} 
      * @return: 
      */
@@ -162,6 +152,8 @@ extern "C"
         switch (functionCode)
         {
         case HOUR:
+        case ADDED:
+        case TEST:
             return true;
         default:
             return false;
@@ -169,7 +161,7 @@ extern "C"
     }
 
     /**
-     * @description: 根据功能码判断报文头是否包含ObserveTimeElement
+     * @description: 根据功能码判断上行报文头是否包含ObserveTimeElement
      * @param {type} 
      * @return: 
      */
@@ -178,6 +170,8 @@ extern "C"
         switch (functionCode)
         {
         case HOUR:
+        case ADDED:
+        case TEST:
             return true;
         default:
             return false;
@@ -189,12 +183,58 @@ extern "C"
      * @param {type} 
      * @return: 
      */
-    static bool inline isMessageCombinedByElements(uint8_t functionCode)
+    static bool inline isMessageCombinedByElements(Direction direction, uint8_t functionCode)
     {
-        switch (functionCode)
+        switch (direction)
         {
-        case HOUR:
-            return true;
+        case Up:
+            switch (functionCode)
+            {
+            case HOUR:
+            case ADDED:
+            case TEST:
+                return true;
+            default:
+                return false;
+            }
+        case Down:
+            switch (functionCode)
+            {
+            default:
+                return false;
+            }
+        default:
+            return false;
+        }
+    }
+
+    /**
+     * @description: 根据功能码判断报文头是否包含RemoteStationAddrElement
+     * @param {type} 
+     * @return: 
+     */
+    static bool inline isContainRemoteStationAddrElement(Direction direction, uint8_t functionCode)
+    {
+        switch (direction)
+        {
+        case Up:
+            switch (functionCode)
+            {
+            case HOUR:
+            case TEST:
+            case ADDED:
+                return true;
+            default:
+                return false;
+            }
+            break;
+        case Down:
+            switch (functionCode)
+            {
+            default:
+                return false;
+            }
+            break;
         default:
             return false;
         }
@@ -268,12 +308,6 @@ extern "C"
 #define A5_HYDROLOGICAL_TELEMETRY_STATION 0
 #define REMOTE_STATION_ADDR_LEN 5
 
-    typedef enum
-    {
-        Down = 1 << 3, // 4 bit: 1000
-        Up = 0         // 4 bit: 0000
-    } Direction;
-
     typedef struct
     {
         // 6字节BCD码
@@ -323,13 +357,13 @@ extern "C"
 #define PACKAGE_HEAD_STX_LEN 14
 #define PACKAGE_HEAD_SNY_LEN 17
 #define PACKAGE_HEAD_STX_DIRECTION_INDEX 11
-#define PACKAGE_HEAD_STX_DIRECTION_INDEX_MASK_BIT 12
+#define PACKAGE_HEAD_STX_DIRECTION_INDEX_MASK_BIT 4 // u16: 12 u8: 4
 #define PACKAGE_HEAD_STX_BODY_LEN_MASK 0xFFF
 #define PACKAGE_HEAD_SEQUENCE_COUNT_BIT_MASK_LEN 12
 #define PACKAGE_HEAD_SEQUENCE_SEQ_MASK 0xFFF
 #define PACKAGE_HEAD_SEQUENCE_COUNT_MASK 0xFFF
 
-    // oop
+// oop
 #define Head_ctor(ptr_)
 #define Head_dtor(ptr_)
     // "AbstractorClass" Element
@@ -339,6 +373,7 @@ extern "C"
         struct ElementVtbl const *vptr;
         uint8_t identifierLeader;
         uint8_t dataDef;
+        uint8_t direction;
     } Element;
 
     typedef struct ElementVtbl
@@ -422,7 +457,7 @@ extern "C"
         // pure virtual
         bool (*encode)(Package const *const me, ByteBuffer *const byteBuff);
         bool (*decode)(Package *const me, ByteBuffer *const byteBuff);
-        size_t (*size)();
+        size_t (*size)(Package const *const me);
         // to call the subclass's desctrutor as a superclass.
         void (*dtor)(Package *const me);
     } PackageVtbl;
@@ -439,7 +474,7 @@ extern "C"
     {
         return;
     }
-    /* Public Helper*/
+/* Public Helper*/
 #define PACAKAGE_UPCAST(ptr_) ((Package *)(ptr_))
 #define Package_Direction(me_) (PACAKAGE_UPCAST(me_)->head.direction)
     // "AbstractClass" Package END
@@ -663,8 +698,8 @@ extern "C"
      * @return: An Instance of Package: DownlinkMessage Or UplinkMessage
      */
     Package *decodePackage(ByteBuffer *const byteBuff);
-    // Decode & Encode END
-    // #pragma pack()
+// Decode & Encode END
+// #pragma pack()
 #ifdef __cplusplus
 }
 #endif

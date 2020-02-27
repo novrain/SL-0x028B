@@ -69,12 +69,14 @@ static bool Package_Virtual_Encode(Package const *const me, ByteBuffer *const by
     assert(0);
     return true;
 }
+
 static bool Package_Virtual_Decode(Package *const me, ByteBuffer *const byteBuff)
 {
     assert(0);
     return true;
 }
-static size_t Package_Virtual_Size()
+
+static size_t Package_Virtual_Size(Package const *const me)
 {
     assert(0);
     return 0;
@@ -227,7 +229,7 @@ static bool UplinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff)
     {
         return false;
     }
-    if (isMessageCombinedByElements(me->head.funcCode)) // 按照要素解码
+    if (isMessageCombinedByElements(Up, me->head.funcCode)) // 按照要素解码
     {
         while (BB_Available(byteBuff) > ELEMENT_IDENTIFER_LEN + PACKAGE_TAIL_LEN)
         {
@@ -249,9 +251,10 @@ static bool UplinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff)
     res = BB_Available(byteBuff) == 3 && Package_DecodeTail(me, byteBuff);
     return res;
 }
-static size_t UplinkMessage_Size()
+
+static size_t UplinkMessage_Size(Package const *const me)
 {
-    assert(0);
+    assert(me);
     return 0;
 }
 
@@ -280,6 +283,7 @@ bool UplinkMessage_EncodeHead(UplinkMessage const *const me, ByteBuffer *const b
     assert(byteBuff);
     return true;
 }
+
 bool UplinkMessage_DecodeHead(UplinkMessage *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
@@ -289,7 +293,7 @@ bool UplinkMessage_DecodeHead(UplinkMessage *const me, ByteBuffer *const byteBuf
     {
         return false;
     }
-    if (isContainRemoteStationAddrElement(me->super.super.head.funcCode))
+    if (isContainRemoteStationAddrElement(Up, me->super.super.head.funcCode))
     {
         BB_GetUInt8(byteBuff, &me->messageHead.stationAddrElement.super.identifierLeader);
         BB_GetUInt8(byteBuff, &me->messageHead.stationAddrElement.super.dataDef);
@@ -323,10 +327,60 @@ bool UplinkMessage_DecodeHead(UplinkMessage *const me, ByteBuffer *const byteBuf
 // "AbstractUpClass" DownlinkMessage
 
 /* DownlinkMessage Construtor  & Destrucor */
+static bool DownlinkMessage_Encode(Package const *const me, ByteBuffer *const byteBuff)
+{
+    assert(0);
+    return true;
+}
+static bool DownlinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff)
+{
+    assert(me);
+    assert(byteBuff);
+    bool res = Package_DecodeHead(me, byteBuff) && DownlinkMessage_DecodeHead((DownlinkMessage *)me, byteBuff);
+    if (!res)
+    {
+        return false;
+    }
+    if (isMessageCombinedByElements(Down, me->head.funcCode)) // 按照要素解码
+    {
+        while (BB_Available(byteBuff) > ELEMENT_IDENTIFER_LEN + PACKAGE_TAIL_LEN)
+        {
+            Element *el = decodeElement(byteBuff);
+            if (el != NULL)
+            {
+                vec_push(&((DownlinkMessage *const)me)->super.elements, el);
+            }
+            else
+            {
+                break;
+            }
+        }
+    }
+    else // 否则交给具体功能码去处理
+    {
+    }
+    // decode tail
+    res = BB_Available(byteBuff) == 3 && Package_DecodeTail(me, byteBuff);
+    return res;
+}
+
+static size_t DownlinkMessage_Size(Package const *const me)
+{
+    assert(me);
+    return 0;
+}
+
 void DownlinkMessage_ctor(DownlinkMessage *const me, uint16_t initElementCount)
 {
     assert(me);
+    static PackageVtbl const vtbl = {
+        &DownlinkMessage_Encode,
+        &DownlinkMessage_Decode,
+        &DownlinkMessage_Size,
+        &DownlinkMessage_dtor};
     LinkMessage_ctor(&me->super, initElementCount);
+    // me->super.super.vptr = &vtbl;  // or -->
+    ((Package *)me)->vptr = &vtbl; // single inheritance
 }
 
 void DownlinkMessage_dtor(Package *const me)
@@ -345,6 +399,22 @@ bool DownlinkMessage_DecodeHead(DownlinkMessage *const me, ByteBuffer *const byt
 {
     assert(me);
     assert(byteBuff);
+    uint8_t usedLen = BB_BE_GetUInt16(byteBuff, &me->messageHead.seq);
+    if (!DateTime_Decode(&me->messageHead.sendTime, byteBuff))
+    {
+        return false;
+    }
+    if (isContainRemoteStationAddrElement(Down, me->super.super.head.funcCode))
+    {
+        BB_GetUInt8(byteBuff, &me->messageHead.stationAddrElement.super.identifierLeader);
+        BB_GetUInt8(byteBuff, &me->messageHead.stationAddrElement.super.dataDef);
+        if (me->messageHead.stationAddrElement.super.identifierLeader != ADDRESS ||
+            me->messageHead.stationAddrElement.super.dataDef != ADDRESS ||
+            !RemoteStationAddr_Decode(&me->messageHead.stationAddrElement.stationAddr, byteBuff))
+        {
+            return false;
+        }
+    }
     return true;
 }
 // "AbstractUpClass" DownlinkMessage END
@@ -724,17 +794,6 @@ static size_t RelativeWaterLevelElement_Size(Element const *const me)
     return ELEMENT_IDENTIFER_LEN + RELATIVE_WATER_LEVEL_LEN;
 }
 
-void RelativeWaterLevelElement_ctor(RelativeWaterLevelElement *const me, uint8_t identifierLeader)
-{
-    // override
-    static ElementVtbl const vtbl = {
-        &RelativeWaterLevelElement_Encode,
-        &RelativeWaterLevelElement_Decode,
-        &RelativeWaterLevelElement_Size};
-    Element_ctor(&me->super, identifierLeader, RELATIVE_WATER_LEVEL_5MIN1_DATADEF);
-    me->super.vptr = &vtbl;
-}
-
 void RelativeWaterLevelElement_dtor(Element *const me)
 {
     assert(me);
@@ -745,6 +804,18 @@ void RelativeWaterLevelElement_dtor(Element *const me)
         BB_dtor(self->buff);
         DelInstance(self->buff);
     }
+}
+
+void RelativeWaterLevelElement_ctor(RelativeWaterLevelElement *const me, uint8_t identifierLeader)
+{
+    // override
+    static ElementVtbl const vtbl = {
+        &RelativeWaterLevelElement_Encode,
+        &RelativeWaterLevelElement_Decode,
+        &RelativeWaterLevelElement_Size,
+        &RelativeWaterLevelElement_dtor};
+    Element_ctor(&me->super, identifierLeader, RELATIVE_WATER_LEVEL_5MIN1_DATADEF);
+    me->super.vptr = &vtbl;
 }
 
 uint8_t RelativeWaterLevelElement_ValueAt(RelativeWaterLevelElement *const me, uint8_t index, float *val)
