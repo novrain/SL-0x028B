@@ -145,6 +145,8 @@ extern "C"
     {
         switch (functionCode)
         {
+        case HOUR:
+            return true;
         default:
             return false;
         }
@@ -159,6 +161,8 @@ extern "C"
     {
         switch (functionCode)
         {
+        case HOUR:
+            return true;
         default:
             return false;
         }
@@ -173,6 +177,8 @@ extern "C"
     {
         switch (functionCode)
         {
+        case HOUR:
+            return true;
         default:
             return false;
         }
@@ -187,6 +193,8 @@ extern "C"
     {
         switch (functionCode)
         {
+        case HOUR:
+            return true;
         default:
             return false;
         }
@@ -205,7 +213,7 @@ extern "C"
         * F0 - FD && 04 && 05 && 45
         */
         // 观测时间引导符
-        DATETIME = 0xF0,
+        OBSERVETIME = 0xF0,
         // 遥测站编码引导符
         ADDRESS = 0xF1,
         // 人工置数
@@ -281,6 +289,18 @@ extern "C"
 
     typedef struct
     {
+        // 5字节BCD码
+        uint8_t year;
+        uint8_t month;
+        uint8_t day;
+        uint8_t hour;
+        uint8_t minute;
+    } ObserveTime;
+
+#define OBSERVETIME_LEN 5
+
+    typedef struct
+    {
         uint16_t count;
         uint16_t seq;
     } Sequence;
@@ -327,10 +347,15 @@ extern "C"
         bool (*encode)(Element const *const me, ByteBuffer *const byteBuff);
         bool (*decode)(Element *const me, ByteBuffer *const byteBuff);
         size_t (*size)(Element const *const me);
+        void (*dtor)(Element *const me);
     } ElementVtbl;
 
     void Element_ctor(Element *me, uint8_t identifierLeader, uint8_t dataDef);
-#define Element_dtor(ptr_) // empty implements
+    // an empty desctrutor implements
+    static inline void Element_dtor(Element *const me)
+    {
+        return;
+    }
     // "AbstractorClass" Element END
 
     // RemoteStationAddrElement
@@ -341,7 +366,7 @@ extern "C"
         RemoteStationAddr stationAddr;
     } RemoteStationAddrElement;
     void RemoteStationAddrElement_ctor(RemoteStationAddrElement *const me);
-#define RemoteStationAddrElement_dtor(ptr_) // empty implements
+    void RemoteStationAddrElement_dtor(Element *me);
     // RemoteStationAddrElement END
 
     // ObserveTimeElement
@@ -349,11 +374,11 @@ extern "C"
     {
         // it is fixed value, 0xF1F1
         Element super;
-        DateTime observeTime;
+        ObserveTime observeTime;
     } ObserveTimeElement;
 
     void ObserveTimeElement_ctor(ObserveTimeElement *const me);
-#define ObserveTimeElement_dtor(ptr_) // empty implements
+    void ObserveTimeElement_dtor(Element *me); // empty implements
     // ObserveTimeElement END
 
     typedef struct
@@ -362,7 +387,7 @@ extern "C"
         DateTime sendTime;
         RemoteStationAddrElement stationAddrElement;
         uint8_t stationCategory;
-        ObserveTimeElement ObserveTimeElement;
+        ObserveTimeElement observeTimeElement;
     } UplinkMessageHead;
 
 #define UPLINK_MESSAGE_HEAD_LEN 22
@@ -398,6 +423,8 @@ extern "C"
         bool (*encode)(Package const *const me, ByteBuffer *const byteBuff);
         bool (*decode)(Package *const me, ByteBuffer *const byteBuff);
         size_t (*size)();
+        // to call the subclass's desctrutor as a superclass.
+        void (*dtor)(Package *const me);
     } PackageVtbl;
 
     /* Package Construtor & Destrucor */
@@ -407,9 +434,13 @@ extern "C"
     bool Package_EncodeTail(Package const *const me, ByteBuffer *const byteBuff);
     bool Package_DecodeHead(Package *const me, ByteBuffer *const byteBuff);
     bool Package_DecodeTail(Package *const me, ByteBuffer *const byteBuff);
+    // an empty desctrutor implements
+    static inline void Package_dtor(Package *const me)
+    {
+        return;
+    }
     /* Public Helper*/
 #define PACAKAGE_UPCAST(ptr_) ((Package *)(ptr_))
-#define Package_dtor(ptr_)
 #define Package_Direction(me_) (PACAKAGE_UPCAST(me_)->head.direction)
     // "AbstractClass" Package END
 
@@ -426,17 +457,7 @@ extern "C"
 
     /* LinkMessage Construtor & Destrucor */
     void LinkMessage_ctor(LinkMessage *const me, uint16_t initElementCount);
-    void LinkMessage_dtor(LinkMessage *const me);
-    /* Public methods */
-    bool LinkMessage_EncodeElements(LinkMessage const *const me, ByteBuffer *const byteBuff);
-    bool LinkMessage_DecodeElements(LinkMessage *const me, ByteBuffer *const byteBuff);
-    bool LinkMessage_PutElement(LinkMessage *const me, uint16_t index, Element *element);
-    bool LinkMessage_SetElement(LinkMessage *const me, uint16_t index, Element *element);
-    Element *LinkMessage_GetElement(LinkMessage const *const me, uint16_t index);
-    /* Public Helper*/
-#define LINKMESSAGE_UPCAST(ptr_) ((Package *)(ptr_))
-#define LinkMessage_ElementCount(me_) (LINKMESSAGE_UPCAST(me_)->initElementCount)
-#define LinkMessage_rewind(me_) (LINKMESSAGE_UPCAST(me_)->elementCursor = 0)
+    void LinkMessage_dtor(Package *const me);
     // "Basic" LinkMessage END
 
     // "AbstractUpClass" UplinkMessage
@@ -448,7 +469,7 @@ extern "C"
 
     /* UplinkMessage Construtor & Destrucor */
     void UplinkMessage_ctor(UplinkMessage *const me, uint16_t initElementCount);
-    void UplinkMessage_dtor(UplinkMessage *const me);
+    void UplinkMessage_dtor(Package *const me);
     /* Public methods */
     bool UplinkMessage_EncodeHead(UplinkMessage const *const me, ByteBuffer *const byteBuff);
     // void UplinkMessage_EncodeTail(UplinkMessage const *const me, ByteBuffer* byteBuff, size_t len);
@@ -465,7 +486,7 @@ extern "C"
 
     /* DownlinkMessage Construtor  & Destrucor */
     void DownlinkMessage_ctor(DownlinkMessage *const me, uint16_t initElementCount);
-    void DownlinkMessage_dtor(DownlinkMessage *const me);
+    void DownlinkMessage_dtor(Package *const me);
     /* Public methods */
     bool DownlinkMessage_EncodeHead(DownlinkMessage const *const me, ByteBuffer *const byteBuff);
     // void DownlinkMessage_EncodeTail(DownlinkMessage const *const me, ByteBuffer* byteBuff, size_t len);
@@ -483,7 +504,7 @@ extern "C"
     } PictureElement;
 
     void PictureElement_ctor(PictureElement *const me);
-    void PictureElement_dtor(PictureElement *const me);
+    void PictureElement_dtor(Element *const me);
     // PictureElement END
 
     // DRP5MINElement
@@ -494,7 +515,7 @@ extern "C"
     } DRP5MINElement;
 
     void DRP5MINElement_ctor(DRP5MINElement *const me);
-    void DRP5MINElement_dtor(DRP5MINElement *const me);
+    void DRP5MINElement_dtor(Element *const me);
     uint8_t DRP5MINElement_ValueAt(DRP5MINElement *const me, uint8_t index, float *val);
 
 #define DRP5MIN_LEN 12
@@ -509,7 +530,7 @@ extern "C"
     } FlowRateDataElement;
 
     void FlowRateDataElement_ctor(FlowRateDataElement *const me);
-    void FlowRateDataElement_dtor(FlowRateDataElement *const me);
+    void FlowRateDataElement_dtor(Element *const me);
 #define FLOW_RATE_DATA_DATADEF 0xF6
     // FlowRateDataElement END
 
@@ -521,7 +542,7 @@ extern "C"
     } ArtificialElement;
 
     void ArtificialElement_ctor(ArtificialElement *const me);
-    void ArtificialElement_dtor(ArtificialElement *const me);
+    void ArtificialElement_dtor(Element *const me);
     // ArtificialElement END
 
     // RelativeWaterLevelElement
@@ -532,7 +553,7 @@ extern "C"
     } RelativeWaterLevelElement;
 
     void RelativeWaterLevelElement_ctor(RelativeWaterLevelElement *const me, uint8_t identifierLeader);
-    void RelativeWaterLevelElement_dtor(RelativeWaterLevelElement *const me);
+    void RelativeWaterLevelElement_dtor(Element *const me);
     uint8_t RelativeWaterLevelElement_ValueAt(RelativeWaterLevelElement *const me, uint8_t index, float *val);
 
 #define RELATIVE_WATER_LEVEL_LEN 24
@@ -556,7 +577,7 @@ extern "C"
     } TimeStepCodeElement;
 
     void TimeStepCodeElement_ctor(TimeStepCodeElement *const me);
-#define TimeStepCodeElement_dtor(ptr_) // empty implements
+    void TimeStepCodeElement_dtor(Element *me);
 #define TIME_STEP_CODE_LEN 3
 #define TIME_STEP_CODE_DATADEF 0x18
     // TimeStepCodeElement END
@@ -570,8 +591,8 @@ extern "C"
     } StationStatusElement;
 
     void StationStatusElement_ctor(StationStatusElement *const me);
+    void StationStatusElement_dtor(Element *me);
     uint8_t StationStatusElement_StatusAt(StationStatusElement const *const me, uint8_t index);
-#define StationStatusElement_dtor(ptr_) // empty implements
 #define STATION_STATUS_LEN 4
 #define STATION_STATUS_DATADEF 0x20
     // StationStatusElement END
@@ -586,7 +607,7 @@ extern "C"
     } DurationElement;
 
     void DurationElement_ctor(DurationElement *const me);
-#define DurationElement_dtor(ptr_)  // empty implements
+    void DurationElement_dtor(Element *me);
 #define DURATION_OF_XX_LEN 5        // 5 字节 ASCII OR 1BCD + . + 1BCD = 3?
 #define DURATION_OF_XX_DATADEF 0x28 // 同上  0x18?
     // StationStatusElement END
@@ -599,7 +620,7 @@ extern "C"
     } NumberElement;
 
     void NumberElement_ctor(NumberElement *const me, uint8_t identifierLeader, uint8_t dataDef);
-    void NumberElement_dtor(NumberElement *const me);
+    void NumberElement_dtor(Element *const me);
     uint8_t NumberElement_GetFloat(NumberElement *const me, float *val);
     uint8_t NumberElement_GetInteger(NumberElement *const me, uint64_t *val);
     // All NumberElement END
