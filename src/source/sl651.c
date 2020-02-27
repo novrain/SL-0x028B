@@ -3,12 +3,6 @@
 
 #include "sl651.h"
 
-// fowarding define
-static bool RemoteStationAddrElement_Encode(Element const *const me, ByteBuffer *const byteBuff);
-static bool RemoteStationAddrElement_Decode(Element *const me, ByteBuffer *const byteBuff);
-static bool ObserveTimeElement_Encode(Element const *const me, ByteBuffer *const byteBuff);
-static bool ObserveTimeElement_Decode(Element *const me, ByteBuffer *const byteBuff);
-
 static bool RemoteStationAddr_Decode(RemoteStationAddr *me, ByteBuffer *const byteBuff)
 {
     assert(me);
@@ -55,6 +49,19 @@ static DateTime_Decode(DateTime *me, ByteBuffer *byteBuff)
     return usedLen == DATETIME_LEN;
 }
 
+static ObserveTime_Decode(ObserveTime *me, ByteBuffer *byteBuff)
+{
+    assert(me);
+    assert(byteBuff);
+    uint8_t usedLen = 0;
+    usedLen += BB_BCDGetUInt8(byteBuff, &me->year);
+    usedLen += BB_BCDGetUInt8(byteBuff, &me->month);
+    usedLen += BB_BCDGetUInt8(byteBuff, &me->day);
+    usedLen += BB_BCDGetUInt8(byteBuff, &me->hour);
+    usedLen += BB_BCDGetUInt8(byteBuff, &me->minute);
+    return usedLen == OBSERVETIME_LEN;
+}
+
 // "AbstractClass" Package
 /* purely-virtual */
 static bool Package_Virtual_Encode(Package const *const me, ByteBuffer *const byteBuff)
@@ -80,7 +87,8 @@ void Package_ctor(Package *me)
     static PackageVtbl const vtbl = {
         &Package_Virtual_Encode,
         &Package_Virtual_Decode,
-        &Package_Virtual_Size};
+        &Package_Virtual_Size,
+        &Package_dtor};
     me->vptr = &vtbl;
 }
 
@@ -163,11 +171,35 @@ bool Package_DecodeTail(Package *const me, ByteBuffer *const byteBuff)
 // "AbstractClass" Package END
 
 /* LinkMessage Construtor & Destrucor */
+void LinkMessage_dtor(Package *const me)
+{
+    assert(me);
+    Package_dtor(me);
+    // release elements and elementvector
+    LinkMessage *const self = (LinkMessage *const)me;
+    int i;
+    Element *el;
+    vec_foreach(&self->elements, el, i)
+    {
+        if (el != NULL)
+        {
+            el->vptr->dtor(el);
+            DelInstance(el);
+        }
+    }
+}
+
 void LinkMessage_ctor(LinkMessage *const me, uint16_t initElementCount)
 {
     assert(me);
     Package_ctor(&me->super);
     // keep virtual function inherit from Package.
+    // overwrite the dtor
+    static PackageVtbl const vtbl = {
+        &Package_Virtual_Encode,
+        &Package_Virtual_Decode,
+        &Package_Virtual_Size,
+        &LinkMessage_dtor};
     if (initElementCount < 0 || initElementCount > MAX_ELEMENT_NUMBER)
     {
         initElementCount = DEFAULT_ELEMENT_NUMBER;
@@ -177,43 +209,6 @@ void LinkMessage_ctor(LinkMessage *const me, uint16_t initElementCount)
     vec_reserve(&me->elements, initElementCount);
 }
 
-void LinkMessage_dtor(LinkMessage *const me)
-{
-    assert(me);
-    Package_dtor(&me->super)
-}
-
-/* Public methods */
-bool LinkMessage_EncodeElements(LinkMessage const *const me, ByteBuffer *const byteBuff)
-{
-    assert(me);
-    assert(byteBuff);
-    return true;
-}
-
-bool LinkMessage_DecodeElements(LinkMessage *const me, ByteBuffer *const byteBuff)
-{
-    assert(me);
-    assert(byteBuff);
-    return true;
-}
-
-bool LinkMessage_PutElement(LinkMessage *const me, uint16_t index, Element *element)
-{
-    assert(me);
-    return true;
-}
-
-bool LinkMessage_SetElement(LinkMessage *const me, uint16_t index, Element *element)
-{
-    assert(me);
-    return true;
-}
-Element *LinkMessage_GetElement(LinkMessage const *const me, uint16_t index)
-{
-    assert(me);
-    return NULL;
-}
 // "Basic" LinkMessage END
 
 // "AbstractUpClass" UplinkMessage
@@ -228,14 +223,30 @@ static bool UplinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff)
     assert(me);
     assert(byteBuff);
     bool res = Package_DecodeHead(me, byteBuff) && UplinkMessage_DecodeHead((UplinkMessage *)me, byteBuff);
-    if (isMessageCombinedByElements(me->head.funcCode)) // 按照要素节码
+    if (!res)
     {
+        return false;
+    }
+    if (isMessageCombinedByElements(me->head.funcCode)) // 按照要素解码
+    {
+        while (BB_Available(byteBuff) > ELEMENT_IDENTIFER_LEN + PACKAGE_TAIL_LEN)
+        {
+            Element *el = decodeElement(byteBuff);
+            if (el != NULL)
+            {
+                vec_push(&((UplinkMessage *const)me)->super.elements, el);
+            }
+            else
+            {
+                break;
+            }
+        }
     }
     else // 否则交给具体功能码去处理
     {
     }
     // decode tail
-    res = Package_DecodeTail(me, byteBuff);
+    res = BB_Available(byteBuff) == 3 && Package_DecodeTail(me, byteBuff);
     return res;
 }
 static size_t UplinkMessage_Size()
@@ -244,24 +255,24 @@ static size_t UplinkMessage_Size()
     return 0;
 }
 
+void UplinkMessage_dtor(Package *const me)
+{
+    assert(me);
+    LinkMessage_dtor(me);
+}
+
 void UplinkMessage_ctor(UplinkMessage *const me, uint16_t initElementCount)
 {
     assert(me);
     static PackageVtbl const vtbl = {
         &UplinkMessage_Encode,
         &UplinkMessage_Decode,
-        &UplinkMessage_Size};
+        &UplinkMessage_Size,
+        &UplinkMessage_dtor};
     LinkMessage_ctor(&me->super, initElementCount);
     // me->super.super.vptr = &vtbl;  // or -->
     ((Package *)me)->vptr = &vtbl; // single inheritance
 }
-
-void UplinkMessage_dtor(UplinkMessage *const me)
-{
-    assert(me);
-    LinkMessage_dtor(&me->super);
-}
-
 /* Public methods */
 bool UplinkMessage_EncodeHead(UplinkMessage const *const me, ByteBuffer *const byteBuff)
 {
@@ -278,20 +289,32 @@ bool UplinkMessage_DecodeHead(UplinkMessage *const me, ByteBuffer *const byteBuf
     {
         return false;
     }
-    if (isContainRemoteStationAddrElement(me->super.super.head.funcCode) &&
-        !RemoteStationAddrElement_Decode((Element *)&me->messageHead.stationAddrElement, byteBuff))
+    if (isContainRemoteStationAddrElement(me->super.super.head.funcCode))
     {
-        return false;
+        BB_GetUInt8(byteBuff, &me->messageHead.stationAddrElement.super.identifierLeader);
+        BB_GetUInt8(byteBuff, &me->messageHead.stationAddrElement.super.dataDef);
+        if (me->messageHead.stationAddrElement.super.identifierLeader != ADDRESS ||
+            me->messageHead.stationAddrElement.super.dataDef != ADDRESS ||
+            !RemoteStationAddr_Decode(&me->messageHead.stationAddrElement.stationAddr, byteBuff))
+        {
+            return false;
+        }
     }
     bool containCategroyField = isContainStationCategoryField(me->super.super.head.funcCode);
     if (containCategroyField)
     {
         usedLen += BB_GetUInt8(byteBuff, &me->messageHead.stationCategory);
     }
-    if (isContainObserveTimeElement(me->super.super.head.funcCode) &&
-        !ObserveTimeElement_Decode((Element *)&me->messageHead.ObserveTimeElement, byteBuff))
+    if (isContainObserveTimeElement(me->super.super.head.funcCode))
     {
-        return false;
+        BB_GetUInt8(byteBuff, &me->messageHead.observeTimeElement.super.identifierLeader);
+        BB_GetUInt8(byteBuff, &me->messageHead.observeTimeElement.super.dataDef);
+        if (me->messageHead.observeTimeElement.super.identifierLeader != OBSERVETIME ||
+            me->messageHead.observeTimeElement.super.dataDef != OBSERVETIME ||
+            !ObserveTime_Decode(&me->messageHead.observeTimeElement.observeTime, byteBuff))
+        {
+            return false;
+        }
     }
     return usedLen == containCategroyField ? 3 : 2;
 }
@@ -306,9 +329,10 @@ void DownlinkMessage_ctor(DownlinkMessage *const me, uint16_t initElementCount)
     LinkMessage_ctor(&me->super, initElementCount);
 }
 
-void DownlinkMessage_dtor(DownlinkMessage *const me)
+void DownlinkMessage_dtor(Package *const me)
 {
     assert(me);
+    LinkMessage_dtor(me);
 }
 /* Public methods */
 bool DownlinkMessage_EncodeHead(DownlinkMessage const *const me, ByteBuffer *const byteBuff)
@@ -350,7 +374,8 @@ void Element_ctor(Element *const me, uint8_t identifierLeader, uint8_t dataDef)
     static ElementVtbl const vtbl = {
         &Element_Virtual_Encode,
         &Element_Virtual_Decode,
-        &Element_Virtual_Size};
+        &Element_Virtual_Size,
+        &Element_dtor};
     me->vptr = &vtbl;
     me->identifierLeader = identifierLeader;
     me->dataDef = dataDef;
@@ -382,13 +407,20 @@ static size_t RemoteStationAddrElement_Size(Element const *const me)
     return REMOTE_STATION_ADDR_LEN + ELEMENT_IDENTIFER_LEN;
 }
 
+void RemoteStationAddrElement_dtor(Element *me)
+{
+    assert(me);
+    Element_dtor(me);
+}
+
 void RemoteStationAddrElement_ctor(RemoteStationAddrElement *const me)
 {
     // override
     static ElementVtbl const vtbl = {
         &RemoteStationAddrElement_Encode,
         &RemoteStationAddrElement_Decode,
-        &RemoteStationAddrElement_Size};
+        &RemoteStationAddrElement_Size,
+        &RemoteStationAddrElement_dtor};
     Element_ctor(&me->super, ADDRESS, ADDRESS);
     me->super.vptr = &vtbl;
 }
@@ -405,18 +437,24 @@ static bool ObserveTimeElement_Decode(Element *const me, ByteBuffer *const byteB
 {
     assert(me);
     assert(byteBuff);
-    if (BB_Available(byteBuff) < DATETIME_LEN)
+    if (BB_Available(byteBuff) < OBSERVETIME_LEN)
     {
         return false;
     }
     ObserveTimeElement *self = (ObserveTimeElement *)me;
-    return DateTime_Decode(&self->observeTime, byteBuff);
+    return ObserveTime_Decode(&self->observeTime, byteBuff);
 }
 
 static size_t ObserveTimeElement_Size(Element const *const me)
 {
     assert(me);
-    return DATETIME_LEN + ELEMENT_IDENTIFER_LEN;
+    return OBSERVETIME_LEN + ELEMENT_IDENTIFER_LEN;
+}
+
+void ObserveTimeElement_dtor(Element *me)
+{
+    assert(me);
+    Element_dtor(me);
 }
 
 void ObserveTimeElement_ctor(ObserveTimeElement *const me)
@@ -425,8 +463,9 @@ void ObserveTimeElement_ctor(ObserveTimeElement *const me)
     static ElementVtbl const vtbl = {
         &ObserveTimeElement_Encode,
         &ObserveTimeElement_Decode,
-        &ObserveTimeElement_Size};
-    Element_ctor(&me->super, DATETIME, DATETIME);
+        &ObserveTimeElement_Size,
+        &Element_dtor};
+    Element_ctor(&me->super, OBSERVETIME, OBSERVETIME);
     me->super.vptr = &vtbl;
 }
 // ObserveTimeElement END
@@ -458,25 +497,28 @@ static size_t PictureElement_Size(Element const *const me)
     return ELEMENT_IDENTIFER_LEN + ((PictureElement *)me)->buff->size;
 }
 
+void PictureElement_dtor(Element *const me)
+{
+    assert(me);
+    Element_dtor(me);
+    PictureElement *self = (PictureElement *)me;
+    if (self->buff)
+    {
+        BB_dtor(self->buff);
+        DelInstance(self->buff);
+    }
+}
+
 void PictureElement_ctor(PictureElement *const me)
 {
     // override
     static ElementVtbl const vtbl = {
         &PictureElement_Encode,
         &PictureElement_Decode,
-        &PictureElement_Size};
+        &PictureElement_Size,
+        &PictureElement_dtor};
     Element_ctor(&me->super, PICTURE_IL, PICTURE_IL);
     me->super.vptr = &vtbl;
-}
-
-void PictureElement_dtor(PictureElement *const me)
-{
-    assert(me);
-    if (me->buff)
-    {
-        BB_dtor(me->buff);
-        DelInstance(me->buff);
-    }
 }
 // PictureElement END
 
@@ -510,25 +552,28 @@ static size_t ArtificialElement_Size(Element const *const me)
     return ELEMENT_IDENTIFER_LEN + ((ArtificialElement *)me)->buff->size;
 }
 
+void ArtificialElement_dtor(Element *const me)
+{
+    assert(me);
+    Element_dtor(me);
+    ArtificialElement *self = (ArtificialElement *)me;
+    if (self->buff)
+    {
+        BB_dtor(self->buff);
+        DelInstance(self->buff);
+    }
+}
+
 void ArtificialElement_ctor(ArtificialElement *const me)
 {
     // override
     static ElementVtbl const vtbl = {
         &ArtificialElement_Encode,
         &ArtificialElement_Decode,
-        &ArtificialElement_Size};
+        &ArtificialElement_Size,
+        &ArtificialElement_dtor};
     Element_ctor(&me->super, ARTIFICIAL_IL, ARTIFICIAL_IL);
     me->super.vptr = &vtbl;
-}
-
-void ArtificialElement_dtor(ArtificialElement *const me)
-{
-    assert(me);
-    if (me->buff)
-    {
-        BB_dtor(me->buff);
-        DelInstance(me->buff);
-    }
 }
 // ArtificialElement ARTIFICIAL_IL END
 
@@ -560,25 +605,28 @@ static size_t DRP5MINElement_Size(Element const *const me)
     return ELEMENT_IDENTIFER_LEN + DRP5MIN_LEN;
 }
 
+void DRP5MINElement_dtor(Element *const me)
+{
+    assert(me);
+    Element_dtor(me);
+    DRP5MINElement *self = (DRP5MINElement *)me;
+    if (self->buff)
+    {
+        BB_dtor(self->buff);
+        DelInstance(self->buff);
+    }
+}
+
 void DRP5MINElement_ctor(DRP5MINElement *const me)
 {
     // override
     static ElementVtbl const vtbl = {
         &DRP5MINElement_Encode,
         &DRP5MINElement_Decode,
-        &DRP5MINElement_Size};
+        &DRP5MINElement_Size,
+        &DRP5MINElement_dtor};
     Element_ctor(&me->super, DRP5MIN, DRP5MIN_DATADEF);
     me->super.vptr = &vtbl;
-}
-
-void DRP5MINElement_dtor(DRP5MINElement *const me)
-{
-    assert(me);
-    if (me->buff)
-    {
-        BB_dtor(me->buff);
-        DelInstance(me->buff);
-    }
 }
 
 uint8_t DRP5MINElement_ValueAt(DRP5MINElement *const me, uint8_t index, float *val)
@@ -636,13 +684,15 @@ void FlowRateDataElement_ctor(FlowRateDataElement *const me)
     me->super.vptr = &vtbl;
 }
 
-void FlowRateDataElement_dtor(FlowRateDataElement *const me)
+void FlowRateDataElement_dtor(Element *const me)
 {
     assert(me);
-    if (me->buff)
+    Element_dtor(me);
+    FlowRateDataElement *self = (FlowRateDataElement *)me;
+    if (self->buff)
     {
-        BB_dtor(me->buff);
-        DelInstance(me->buff);
+        BB_dtor(self->buff);
+        DelInstance(self->buff);
     }
 }
 // FlowRateDataElement END
@@ -685,13 +735,15 @@ void RelativeWaterLevelElement_ctor(RelativeWaterLevelElement *const me, uint8_t
     me->super.vptr = &vtbl;
 }
 
-void RelativeWaterLevelElement_dtor(RelativeWaterLevelElement *const me)
+void RelativeWaterLevelElement_dtor(Element *const me)
 {
     assert(me);
-    if (me->buff)
+    Element_dtor(me);
+    RelativeWaterLevelElement *self = (RelativeWaterLevelElement *)me;
+    if (self->buff)
     {
-        BB_dtor(me->buff);
-        DelInstance(me->buff);
+        BB_dtor(self->buff);
+        DelInstance(self->buff);
     }
 }
 
@@ -741,6 +793,12 @@ static size_t TimeStepCodeElement_Size(Element const *const me)
     return TIME_STEP_CODE_LEN + ELEMENT_IDENTIFER_LEN;
 }
 
+void TimeStepCodeElement_dtor(Element *me)
+{
+    assert(me);
+    Element_dtor(me);
+}
+
 void TimeStepCodeElement_ctor(TimeStepCodeElement *const me)
 {
     // override
@@ -779,13 +837,19 @@ static size_t StationStatusElement_Size(Element const *const me)
     return STATION_STATUS_LEN + ELEMENT_IDENTIFER_LEN;
 }
 
+void StationStatusElement_dtor(Element *const me)
+{
+    Element_dtor(me);
+}
+
 void StationStatusElement_ctor(StationStatusElement *const me)
 {
     // override
     static ElementVtbl const vtbl = {
         &StationStatusElement_Encode,
         &StationStatusElement_Decode,
-        &StationStatusElement_Size};
+        &StationStatusElement_Size,
+        &StationStatusElement_dtor};
     Element_ctor(&me->super, STATION_STATUS, STATION_STATUS_DATADEF);
     me->super.vptr = &vtbl;
 }
@@ -836,13 +900,19 @@ static size_t DurationElement_Size(Element const *const me)
     return DURATION_OF_XX_LEN + ELEMENT_IDENTIFER_LEN;
 }
 
+void DurationElement_dtor(Element *const me)
+{
+    Element_dtor(me);
+}
+
 void DurationElement_ctor(DurationElement *const me)
 {
     // override
     static ElementVtbl const vtbl = {
         &DurationElement_Encode,
         &DurationElement_Decode,
-        &DurationElement_Size};
+        &DurationElement_Size,
+        &DurationElement_dtor};
     Element_ctor(&me->super, DURATION_OF_XX, DURATION_OF_XX_DATADEF);
     me->super.vptr = &vtbl;
 }
@@ -883,22 +953,27 @@ static size_t NumberElement_Size(Element const *const me)
     return ELEMENT_IDENTIFER_LEN + (me->dataDef >> NUMBER_ELEMENT_LEN_OFFSET);
 }
 
+void NumberElement_dtor(Element *const me)
+{
+    assert(me);
+    Element_dtor(me);
+    NumberElement *self = (NumberElement *)me;
+    if (self->buff != NULL)
+    {
+        BB_dtor(self->buff);
+        DelInstance(self->buff);
+    }
+}
+
 void NumberElement_ctor(NumberElement *const me, uint8_t identifierLeader, uint8_t dataDef)
 {
     static ElementVtbl const vtbl = {
         &NumberElement_Encode,
         &NumberElement_Decode,
-        &NumberElement_Size};
+        &NumberElement_Size,
+        &NumberElement_dtor};
     Element_ctor(&me->super, identifierLeader, dataDef);
     me->super.vptr = &vtbl;
-}
-
-void NumberElement_dtor(NumberElement *const me)
-{
-    if (me != NULL && me->buff != NULL)
-    {
-        DelInstance(me->buff);
-    }
 }
 
 uint8_t NumberElement_GetInteger(NumberElement *const me, uint64_t *val)
@@ -955,30 +1030,25 @@ Element *decodeElement(ByteBuffer *const byteBuff)
     BB_GetUInt8(byteBuff, &dataDef);                       // 解析一个字节的 数据定义符，同时位移
     Element *el = NULL;                                    // 根据标识符引导符，开始解析 Element
     bool decoded = false;                                  //
-    void (*dtor)(void *) = NULL;                           // 统一的析构函数形式；但具体实现和构造函数无法统一
     switch (identifierLeader)                              //
     {                                                      //
     case CUSTOM_IDENTIFIER:                                // unsupport
         return NULL;                                       // 返回NULL
-    case DATETIME:                                         // 观测时间 Element
+    case OBSERVETIME:                                      // 观测时间 Element
         el = (Element *)(NewInstance(ObserveTimeElement)); // 创建指针，需要转为Element*
         ObserveTimeElement_ctor((ObserveTimeElement *)el); // 构造函数
-        // dtor = &ObserveTimeElement_dtor;
         break;
     case ADDRESS:
         el = (Element *)(NewInstance(RemoteStationAddrElement));       // 创建指针，需要转为Element*
         RemoteStationAddrElement_ctor((RemoteStationAddrElement *)el); // 构造函数
-        // dtor = &RemoteStationAddrElement_dtor;
         break;
     case ARTIFICIAL_IL:
         el = (Element *)(NewInstance(ArtificialElement)); // 创建指针，需要转为Element*
         ArtificialElement_ctor((ArtificialElement *)el);  // 构造函数
-        dtor = (void (*)(void *))(&ArtificialElement_dtor);
         break;
     case PICTURE_IL:
         el = (Element *)(NewInstance(PictureElement)); // 创建指针，需要转为Element*
         PictureElement_ctor((PictureElement *)el);     // 构造函数
-        dtor = (void (*)(void *))(&PictureElement_dtor);
         break;
     case DRP5MIN:
         if (dataDef != DRP5MIN_DATADEF) //固定为 0x60
@@ -987,7 +1057,6 @@ Element *decodeElement(ByteBuffer *const byteBuff)
         }
         el = (Element *)(NewInstance(DRP5MINElement)); // 创建指针，需要转为Element*
         DRP5MINElement_ctor((DRP5MINElement *)el);     // 构造函数
-        dtor = (void (*)(void *))(&DRP5MINElement_dtor);
         break;
     case RELATIVE_WATER_LEVEL_5MIN1:
     case RELATIVE_WATER_LEVEL_5MIN2:
@@ -1003,7 +1072,6 @@ Element *decodeElement(ByteBuffer *const byteBuff)
         }
         el = (Element *)(NewInstance(RelativeWaterLevelElement));                          // 创建指针，需要转为Element*
         RelativeWaterLevelElement_ctor((RelativeWaterLevelElement *)el, identifierLeader); // 构造函数
-        dtor = (void (*)(void *))(&RelativeWaterLevelElement_dtor);
         break;
     case FLOW_RATE_DATA:
         if (dataDef != FLOW_RATE_DATA_DATADEF) //固定为 0xF6
@@ -1012,22 +1080,18 @@ Element *decodeElement(ByteBuffer *const byteBuff)
         }
         el = (Element *)(NewInstance(FlowRateDataElement));  // 创建指针，需要转为Element*
         FlowRateDataElement_ctor((FlowRateDataElement *)el); // 构造函数
-        dtor = (void (*)(void *))(&FlowRateDataElement_dtor);
         break;
     case TIME_STEP_CODE:
         el = (Element *)(NewInstance(TimeStepCodeElement));  // 创建指针，需要转为Element*
         TimeStepCodeElement_ctor((TimeStepCodeElement *)el); // 构造函数
-        // dtor = &TimeStepCodeElement_dtor;
         break;
     case STATION_STATUS:
         el = (Element *)(NewInstance(StationStatusElement));   // 创建指针，需要转为Element*
         StationStatusElement_ctor((StationStatusElement *)el); // 构造函数
-        // dtor = &TimeStepCodeElement_dtor;
         break;
     case DURATION_OF_XX:
         el = (Element *)(NewInstance(DurationElement)); // 创建指针，需要转为Element*
         DurationElement_ctor((DurationElement *)el);    // 构造函数
-        // dtor = &TimeStepCodeElement_dtor;
         break;
     default:
         // 按照数据类型解析
@@ -1035,7 +1099,6 @@ Element *decodeElement(ByteBuffer *const byteBuff)
         {
             el = (Element *)NewInstance(NumberElement);
             NumberElement_ctor((NumberElement *)el, identifierLeader, dataDef);
-            dtor = (void (*)(void *))(&NumberElement_dtor);
         }
         else
         {
@@ -1047,9 +1110,9 @@ Element *decodeElement(ByteBuffer *const byteBuff)
         decoded = el->vptr->decode(el, byteBuff); // 解析
         if (!decoded)                             // 解析失败，需要手动删除指针
         {                                         //
-            if (dtor != NULL)                     // 实现了析构函数
+            if (el->vptr->dtor != NULL)           // 实现了析构函数
             {                                     //
-                dtor(el);                         // 调用析构，规范步骤
+                el->vptr->dtor(el);               // 调用析构，规范步骤
             }                                     //
             DelInstance(el);                      // 删除指针
             return NULL;                          //
@@ -1084,19 +1147,16 @@ Package *decodePackage(ByteBuffer *const byteBuff)
     // @Todo ASCII 模式
     // DataTransMode transMode = TRANS_IN_BINARY;
     Package *pkg = NULL;
-    bool decoded = false;        //
-    void (*dtor)(void *) = NULL; // 统一的析构函数形式；但具体实现和构造函数无法统一
+    bool decoded = false; //
     switch (direction)
     {
     case Up:
         pkg = (Package *)NewInstance(UplinkMessage);
         UplinkMessage_ctor((UplinkMessage *)pkg, DEFAULT_ELEMENT_NUMBER);
-        dtor = (void (*)(void *))(&UplinkMessage_dtor);
         break;
     case Down:
         pkg = (Package *)NewInstance(DownlinkMessage);
         DownlinkMessage_ctor((DownlinkMessage *)pkg, DEFAULT_ELEMENT_NUMBER);
-        dtor = (void (*)(void *))(&DownlinkMessage_dtor);
         break;
     default:
         return NULL;
@@ -1106,9 +1166,9 @@ Package *decodePackage(ByteBuffer *const byteBuff)
         decoded = pkg->vptr->decode(pkg, byteBuff); // 解析
         if (!decoded)                               // 解析失败，需要手动删除指针
         {                                           //
-            if (dtor != NULL)                       // 实现了析构函数
+            if (pkg->vptr->dtor != NULL)            // 实现了析构函数
             {                                       //
-                dtor(pkg);                          // 调用析构，规范步骤
+                pkg->vptr->dtor(pkg);               // 调用析构，规范步骤
             }                                       //
             DelInstance(pkg);                       // 删除指针
             return NULL;                            //

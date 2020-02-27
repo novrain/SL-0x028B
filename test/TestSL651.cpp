@@ -10,7 +10,7 @@ GTEST_TEST(Definition, package)
     pkg->head.centerAddr = 0;              // 调用方法，或者直接访问，必要的功能可以封装起来，简单赋值直接访问
     pkg->head.direction = Up;              //
     ASSERT_EQ(Package_Direction(pkg), Up); //
-    Package_dtor(pkg);                     // 析构
+    Package_dtor(pkg);                     // 析构 or pkg->vtbl->dtor(pkg)?
     DelInstance(pkg);                      // 同上
 }
 
@@ -37,18 +37,18 @@ GTEST_TEST(DecodeElement, decodeObserveTimeElement)
     DelInstance(byteBuff);
 
     byteBuff = NewInstance(ByteBuffer);
-    BB_ctor_fromHexStr(byteBuff, "F0F0200222222211", 16);
+    BB_ctor_fromHexStr(byteBuff, "F0F02002222222", 14);
     BB_Flip(byteBuff);
     el = decodeElement(byteBuff);
     ASSERT_TRUE(el != NULL);
-    ASSERT_EQ(el->identifierLeader, DATETIME);
-    ASSERT_EQ(el->dataDef, DATETIME);
+    ASSERT_EQ(el->identifierLeader, OBSERVETIME);
+    ASSERT_EQ(el->dataDef, OBSERVETIME);
     ObserveTimeElement *otel = (ObserveTimeElement *)el; // 类型转换要小心，因为没有严格的类型匹配
-    ASSERT_EQ(otel->super.identifierLeader, DATETIME);
-    ASSERT_EQ(otel->super.dataDef, DATETIME);
+    ASSERT_EQ(otel->super.identifierLeader, OBSERVETIME);
+    ASSERT_EQ(otel->super.dataDef, OBSERVETIME);
     ASSERT_EQ(otel->observeTime.day, 22);
 
-    ObserveTimeElement_dtor(otel);
+    ObserveTimeElement_dtor(el);
     DelInstance(otel);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -70,7 +70,7 @@ GTEST_TEST(DecodeElement, decodeRemoteStationAddrElement)
     ASSERT_EQ(rsael->super.dataDef, ADDRESS);
     ASSERT_EQ(rsael->stationAddr.A1, 87); // 0x2222  8738  =>  00 87 38
 
-    RemoteStationAddrElement_dtor(rsael);
+    RemoteStationAddrElement_dtor(el);
     DelInstance(rsael);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -88,7 +88,7 @@ GTEST_TEST(DecodeElement, decodeRemoteStationAddrElement)
     ASSERT_EQ(rsael->stationAddr.A5, A5_HYDROLOGICAL_TELEMETRY_STATION);
     ASSERT_EQ(rsael->stationAddr.A1, 22);
 
-    RemoteStationAddrElement_dtor(rsael);
+    RemoteStationAddrElement_dtor(el);
     DelInstance(rsael);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -109,7 +109,7 @@ GTEST_TEST(DecodeElement, decodePictureElement)
     ASSERT_EQ(pel->super.identifierLeader, PICTURE_IL);
     ASSERT_EQ(pel->super.dataDef, PICTURE_IL);
 
-    PictureElement_dtor(pel);
+    PictureElement_dtor(el);
     DelInstance(pel);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -130,7 +130,7 @@ GTEST_TEST(DecodeElement, decodeArtificialElement)
     ASSERT_EQ(aiel->super.identifierLeader, ARTIFICIAL_IL);
     ASSERT_EQ(aiel->super.dataDef, ARTIFICIAL_IL);
 
-    ArtificialElement_dtor(aiel);
+    ArtificialElement_dtor(el);
     DelInstance(aiel);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -159,7 +159,7 @@ GTEST_TEST(DecodeElement, decodeDRP5MINElement)
     ASSERT_EQ(1, DRP5MINElement_ValueAt(drp5el, 1, &fv));
     ASSERT_EQ(0.1f, fv);
 
-    DRP5MINElement_dtor(drp5el);
+    DRP5MINElement_dtor(el);
     DelInstance(drp5el);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -179,7 +179,7 @@ GTEST_TEST(DecodeElement, decodeFlowRateDataElement)
     FlowRateDataElement *flel = (FlowRateDataElement *)el;
     ASSERT_EQ(flel->super.identifierLeader, FLOW_RATE_DATA);
     ASSERT_EQ(flel->super.dataDef, FLOW_RATE_DATA_DATADEF);
-    FlowRateDataElement_dtor(flel);
+    FlowRateDataElement_dtor(el);
     DelInstance(flel);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -208,7 +208,7 @@ GTEST_TEST(DecodeElement, decodeRelativeWaterLevelElement)
     ASSERT_EQ(2, RelativeWaterLevelElement_ValueAt(rwl5el, 1, &fv));
     ASSERT_EQ(0x0AAA / 100.0f, fv);
 
-    RelativeWaterLevelElement_dtor(rwl5el);
+    RelativeWaterLevelElement_dtor(el);
     DelInstance(rwl5el);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -240,7 +240,7 @@ GTEST_TEST(DecodeElement, decodeNumberElement)
     NumberElement_GetFloat(nel, &f);
     ASSERT_EQ(f, 11.11f);
 
-    NumberElement_dtor(nel);
+    NumberElement_dtor(el);
     DelInstance(nel);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -262,7 +262,7 @@ GTEST_TEST(DecodeElement, decodeTimeStepCodeElement)
     ASSERT_EQ(tscel->super.dataDef, TIME_STEP_CODE_DATADEF);
     ASSERT_EQ(tscel->timeStepCode.hour, 2);
 
-    TimeStepCodeElement_dtor(tscel);
+    TimeStepCodeElement_dtor(el);
     DelInstance(tscel);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -284,7 +284,7 @@ GTEST_TEST(DecodeElement, decodeStationStatusElement)
     ASSERT_EQ(ssel->super.dataDef, STATION_STATUS_DATADEF);
     ASSERT_EQ(ssel->status, 0x20022211);
 
-    StationStatusElement_dtor(ssel);
+    StationStatusElement_dtor(el);
     DelInstance(ssel);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -307,7 +307,7 @@ GTEST_TEST(DecodeElement, decodeDurationElement)
     ASSERT_EQ(duel->hour, 11);
     ASSERT_EQ(duel->minute, 1);
 
-    DurationElement_dtor(duel);
+    DurationElement_dtor(el);
     DelInstance(duel);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -326,8 +326,7 @@ GTEST_TEST(Package, decodeKeepAliveUplinkMessage)
                                  "0008"
                                  "02"
                                  "0003"
-                                 "59"
-                                 "1011155111"
+                                 "591011155111"
                                  "03"
                                  "6BCA",
                        50);
@@ -339,10 +338,115 @@ GTEST_TEST(Package, decodeKeepAliveUplinkMessage)
     ASSERT_EQ(crc & 0xFF, 0xCA);
 
     pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
     ASSERT_EQ(pkg->head.funcCode, 0x2F);
     ASSERT_EQ(pkg->tail.etxFlag, 03);
     ASSERT_EQ(pkg->tail.crc, 0x6BCA);
+
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+
+    pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
+}
+
+GTEST_TEST(Package, decodeRainfallStationHourlyUplinkMessage)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E"
+                                 "10"
+                                 "0012345678"
+                                 "1234"
+                                 "34"
+                                 "0038"
+                                 "02"
+                                 "0001"
+                                 "140612020000"
+                                 "F1F1"
+                                 "0012345678"
+                                 "50"
+                                 "F0F0"
+                                 "1406120200"
+                                 "F460"
+                                 "000000000000000000000000"
+                                 "2619"
+                                 "000000"
+                                 "2019"
+                                 "000000"
+                                 "1A19"
+                                 "000000"
+                                 "3812"
+                                 "1290"
+                                 "03"
+                                 "4383",
+                       146);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0x43);
+    ASSERT_EQ(crc & 0xFF, 0x83);
+
+    pkg = decodePackage(byteBuff);
     ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, HOUR);
+    ASSERT_EQ(pkg->head.direction, Up);
+    ElementPtrVector elements = ((UplinkMessage *)pkg)->super.elements;
+    ASSERT_EQ(elements.length, 5);
+    Element *el = elements.data[0];
+    ASSERT_EQ(el->identifierLeader, DRP5MIN);
+    ASSERT_EQ(el->dataDef, 0x60);
+    // it is a DRP5MINElement
+    DRP5MINElement *drp5el = (DRP5MINElement *)el;
+    ASSERT_EQ(drp5el->super.identifierLeader, DRP5MIN);
+    ASSERT_EQ(drp5el->super.dataDef, DRP5MIN_DATADEF);
+    float fv = 1;
+    ASSERT_EQ(1, DRP5MINElement_ValueAt(drp5el, 0, &fv));
+    ASSERT_TRUE(0 == fv);
+    ASSERT_EQ(1, DRP5MINElement_ValueAt(drp5el, 1, &fv));
+    ASSERT_EQ(0, fv);
+
+    NumberElement *nel = NULL;
+
+    el = elements.data[1];
+    // it is a NumberElement
+    nel = (NumberElement *)el;
+    ASSERT_EQ(nel->super.identifierLeader, 0x26);
+    ASSERT_EQ(nel->super.dataDef, 0x19);
+    ASSERT_EQ(3, NumberElement_GetFloat(nel, &fv));
+    ASSERT_EQ(0, fv);
+
+    el = elements.data[2];
+    // it is a NumberElement
+    nel = (NumberElement *)el;
+    ASSERT_EQ(nel->super.identifierLeader, 0x20);
+    ASSERT_EQ(nel->super.dataDef, 0x19);
+    ASSERT_EQ(3, NumberElement_GetFloat(nel, &fv));
+    ASSERT_EQ(0, fv);
+
+    el = elements.data[3];
+    // it is a NumberElement
+    nel = (NumberElement *)el;
+    ASSERT_EQ(nel->super.identifierLeader, 0x1A);
+    ASSERT_EQ(nel->super.dataDef, 0x19);
+    ASSERT_EQ(3, NumberElement_GetFloat(nel, &fv));
+    ASSERT_EQ(0, fv);
+
+    el = elements.data[4];
+    // it is a NumberElement
+    nel = (NumberElement *)el;
+    ASSERT_EQ(nel->super.identifierLeader, 0x38);
+    ASSERT_EQ(nel->super.dataDef, 0x12);
+    ASSERT_EQ(2, NumberElement_GetFloat(nel, &fv));
+    ASSERT_EQ(12.9f, fv);
+
+    ASSERT_EQ(pkg->tail.etxFlag, 03);
+    ASSERT_EQ(pkg->tail.crc, 0x4383);
+
+    pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
 }
 
 int main(int argc, char *argv[])
