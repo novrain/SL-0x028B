@@ -121,6 +121,7 @@ void BB_ctor(ByteBuffer *const me, uint32_t size)
 void BB_ctor_wrapped(ByteBuffer *const me, uint8_t *buff, uint32_t size)
 {
     assert(me);
+    assert(buff);
     if (buff == NULL || size < 0)
     {
         return;
@@ -132,10 +133,27 @@ void BB_ctor_wrapped(ByteBuffer *const me, uint8_t *buff, uint32_t size)
     me->buff = buff;
 }
 
+void BB_ctor_wrappedAnother(ByteBuffer *const me, ByteBuffer *const another, uint32_t start, uint32_t end)
+{
+    assert(me);
+    assert(another);
+    assert(another->buff);
+    if (start < 0 || end <= start || end > another->limit)
+    {
+        return;
+    }
+    me->buff = another->buff + start;
+    me->size = end - start;
+    me->position = me->size;
+    me->limit = me->size;
+    me->wrapped = true;
+}
+
 void BB_ctor_copy(ByteBuffer *const me, uint8_t *buff, uint32_t size)
 {
     assert(me);
-    if (buff == NULL || size < 0)
+    assert(buff);
+    if (size < 0)
     {
         return;
     }
@@ -150,7 +168,8 @@ void BB_ctor_copy(ByteBuffer *const me, uint8_t *buff, uint32_t size)
 void BB_ctor_fromHexStr(ByteBuffer *const me, char const *const hexStr, uint32_t size)
 {
     assert(me);
-    if (hexStr == NULL || size < 0 || size & 1 == 1)
+    assert(hexStr);
+    if (size < 0 || size & 1 == 1)
     {
         return;
     }
@@ -175,6 +194,7 @@ void BB_dtor(ByteBuffer *const me)
 void BB_Flip(ByteBuffer *const me)
 {
     assert(me);
+    assert(me->buff);
     me->limit = me->position;
     me->position = 0;
 }
@@ -182,6 +202,7 @@ void BB_Flip(ByteBuffer *const me)
 void BB_Clear(ByteBuffer *const me)
 {
     assert(me);
+    assert(me->buff);
     if (me->wrapped)
     {
         return;
@@ -193,7 +214,20 @@ void BB_Clear(ByteBuffer *const me)
 
 void BB_Rewind(ByteBuffer *const me)
 {
+    assert(me);
+    assert(me->buff);
     me->position = 0;
+}
+
+void BB_Skip(ByteBuffer *const me, uint32_t size)
+{
+    assert(me);
+    assert(me->buff);
+    if (size <= 0 || me->position + size > me->limit)
+    {
+        return;
+    }
+    me->position += size;
 }
 
 #define CRC_POLY_VALUE 0xA001
@@ -218,6 +252,7 @@ static void CRC16(const uint8_t *bin, uint16_t *crc16, uint32_t size)
 uint8_t BB_CRC16(ByteBuffer *const me, uint16_t *crc16, uint32_t start, uint32_t size)
 {
     assert(me);
+    assert(me->buff);
     if (start < 0 || size < 0 || start + size > me->limit)
     {
         return 0;
@@ -239,6 +274,7 @@ ByteBuffer *BB_GetByteBuffer(ByteBuffer *const me, uint32_t size)
 ByteBuffer *BB_PeekByteBuffer(ByteBuffer *const me, uint32_t start, uint32_t size)
 {
     assert(me);
+    assert(me->buff);
     if (start < 0 || size < 0 || start + size > me->limit)
     {
         return NULL;
@@ -248,9 +284,10 @@ ByteBuffer *BB_PeekByteBuffer(ByteBuffer *const me, uint32_t start, uint32_t siz
     return val;
 }
 
-uint8_t BB_BE_PeekUIntAt(ByteBuffer *const me, uint8_t index, void *val, uint8_t size)
+uint8_t BB_BE_PeekUIntAt(ByteBuffer *const me, uint32_t index, void *val, uint8_t size)
 {
     assert(me);
+    assert(me->buff);
     if (val == NULL || size < 0 || index < 0 || index + size > me->limit)
     {
         return 0;
@@ -263,9 +300,10 @@ uint8_t BB_BE_PeekUIntAt(ByteBuffer *const me, uint8_t index, void *val, uint8_t
     return 0;
 }
 
-uint8_t BB_LE_PeekUIntAt(ByteBuffer *const me, uint8_t index, void *val, uint8_t size)
+uint8_t BB_LE_PeekUIntAt(ByteBuffer *const me, uint32_t index, void *val, uint8_t size)
 {
     assert(me);
+    assert(me->buff);
     if (val == NULL || size < 0 || index < 0 || index + size > me->limit)
     {
         return 0;
@@ -283,7 +321,7 @@ uint8_t BB_BE_PeekUInt(ByteBuffer *const me, void *val, uint8_t size)
     return BB_BE_PeekUIntAt(me, 0, val, 2);
 }
 
-uint8_t BB_BE_PeekUInt16At(ByteBuffer *const me, uint8_t index, uint16_t *val)
+uint8_t BB_BE_PeekUInt16At(ByteBuffer *const me, uint32_t index, uint16_t *val)
 {
     return BB_BE_PeekUIntAt(me, index, val, 2);
 }
@@ -298,7 +336,7 @@ uint8_t BB_PeekUInt8(ByteBuffer *const me, uint8_t *val)
     return BB_PeekUInt8At(me, me->position, val);
 }
 
-uint8_t BB_PeekUInt8At(ByteBuffer *const me, uint8_t index, uint8_t *val)
+uint8_t BB_PeekUInt8At(ByteBuffer *const me, uint32_t index, uint8_t *val)
 {
     assert(me);
     if (val == NULL || index >= me->limit || index < 0)
@@ -317,6 +355,7 @@ uint8_t BB_BE_PeekUInt16(ByteBuffer *const me, uint16_t *val)
 uint8_t BB_BE_GetUInt(ByteBuffer *const me, void *val, uint8_t size)
 {
     assert(me);
+    assert(me->buff);
     if (me->position + size - 1 >= me->limit)
     {
         return 0;
@@ -333,6 +372,7 @@ uint8_t BB_BE_GetUInt(ByteBuffer *const me, void *val, uint8_t size)
 uint8_t BB_LE_GetUInt(ByteBuffer *const me, void *val, uint8_t size)
 {
     assert(me);
+    assert(me->buff);
     if (me->position + size - 1 >= me->limit)
     {
         return 0;
@@ -359,6 +399,7 @@ uint8_t BB_GetUInt8(ByteBuffer *const me, uint8_t *val)
 uint8_t BB_PutUInt8(ByteBuffer *const me, uint8_t val)
 {
     assert(me);
+    assert(me->buff);
     if (me->wrapped || me->position >= me->limit)
     {
         return 0;
@@ -406,6 +447,7 @@ uint8_t BB_LE_GetUInt64(ByteBuffer *const me, uint64_t *val)
 uint8_t BB_BE_PutUInt16(ByteBuffer *const me, uint16_t val)
 {
     assert(me);
+    assert(me->buff);
     if (me->position + 1 >= me->limit)
     {
         return 0;
@@ -418,6 +460,7 @@ uint8_t BB_BE_PutUInt16(ByteBuffer *const me, uint16_t val)
 uint8_t BB_BE_PutUInt32(ByteBuffer *const me, uint32_t val)
 {
     assert(me);
+    assert(me->buff);
     if (me->position + 3 >= me->limit)
     {
         return 0;
@@ -432,6 +475,7 @@ uint8_t BB_BE_PutUInt32(ByteBuffer *const me, uint32_t val)
 uint8_t BB_BE_PutUInt64(ByteBuffer *const me, uint64_t val)
 {
     assert(me);
+    assert(me->buff);
     if (me->position + 7 >= me->limit)
     {
         return 0;
@@ -450,6 +494,7 @@ uint8_t BB_BE_PutUInt64(ByteBuffer *const me, uint64_t val)
 uint8_t BB_LE_PutUInt16(ByteBuffer *const me, uint16_t val)
 {
     assert(me);
+    assert(me->buff);
     if (me->position + 1 >= me->limit)
     {
         return 0;
@@ -462,6 +507,7 @@ uint8_t BB_LE_PutUInt16(ByteBuffer *const me, uint16_t val)
 uint8_t BB_LE_PutUInt32(ByteBuffer *const me, uint32_t val)
 {
     assert(me);
+    assert(me->buff);
     if (me->position + 3 >= me->limit)
     {
         return 0;
@@ -476,6 +522,7 @@ uint8_t BB_LE_PutUInt32(ByteBuffer *const me, uint32_t val)
 uint8_t BB_LE_PutUInt64(ByteBuffer *const me, uint64_t val)
 {
     assert(me);
+    assert(me->buff);
     if (me->position + 7 >= me->limit)
     {
         return 0;
@@ -491,9 +538,26 @@ uint8_t BB_LE_PutUInt64(ByteBuffer *const me, uint64_t val)
     return 8;
 }
 
+uint8_t BB_BCDPeekUIntAt(ByteBuffer *const me, uint32_t index, void *val, uint8_t size)
+{
+    assert(me);
+    assert(me->buff);
+    if (index < 0 || index + size - 1 >= me->limit)
+    {
+        return 0;
+    }
+    uint8_t usedLen = binToBCDUInt(me->buff + index, val, size);
+    if (usedLen == size)
+    {
+        return usedLen;
+    }
+    return 0;
+}
+
 uint8_t BB_BCDGetUInt(ByteBuffer *const me, void *val, uint8_t size)
 {
     assert(me);
+    assert(me->buff);
     if (me->position + size - 1 >= me->limit)
     {
         return 0;

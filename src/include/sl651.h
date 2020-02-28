@@ -154,6 +154,7 @@ extern "C"
         case HOUR:
         case ADDED:
         case TEST:
+        case EVEN_TIME:
             return true;
         default:
             return false;
@@ -172,6 +173,7 @@ extern "C"
         case HOUR:
         case ADDED:
         case TEST:
+        case EVEN_TIME:
             return true;
         default:
             return false;
@@ -193,6 +195,7 @@ extern "C"
             case HOUR:
             case ADDED:
             case TEST:
+            case EVEN_TIME:
                 return true;
             default:
                 return false;
@@ -223,6 +226,7 @@ extern "C"
             case HOUR:
             case TEST:
             case ADDED:
+            case EVEN_TIME:
                 return true;
             default:
                 return false;
@@ -391,6 +395,8 @@ extern "C"
     {
         return;
     }
+#define Element_SetDirection(ptr_, d) (ptr_)->direction = (d)
+#define Element_GetDirection(ptr_) (ptr_)->direction
     // "AbstractorClass" Element END
 
     // RemoteStationAddrElement
@@ -595,28 +601,6 @@ extern "C"
 #define RELATIVE_WATER_LEVEL_5MIN1_DATADEF 0xC0
     // RelativeWaterLevelElement END
 
-    // TimeStepCodeElement
-    typedef struct
-    {
-        // 3字节BCD码
-        uint8_t day;
-        uint8_t hour;
-        uint8_t minute;
-    } TimeStepCode;
-
-    typedef struct
-    {
-        // it is fixed value, 0x0418
-        Element super;
-        TimeStepCode timeStepCode;
-    } TimeStepCodeElement;
-
-    void TimeStepCodeElement_ctor(TimeStepCodeElement *const me);
-    void TimeStepCodeElement_dtor(Element *me);
-#define TIME_STEP_CODE_LEN 3
-#define TIME_STEP_CODE_DATADEF 0x18
-    // TimeStepCodeElement END
-
     // StationStatusElement
     typedef struct
     {
@@ -659,6 +643,41 @@ extern "C"
     uint8_t NumberElement_GetFloat(NumberElement *const me, float *val);
     uint8_t NumberElement_GetInteger(NumberElement *const me, uint64_t *val);
     // All NumberElement END
+
+    // TimeStepCodeElement
+    typedef struct
+    {
+        // 3字节BCD码
+        uint8_t day;
+        uint8_t hour;
+        uint8_t minute;
+    } TimeStepCode;
+
+    typedef struct
+    {
+        Element super;
+        uint8_t count;
+        ByteBuffer *buff;
+    } NumberListElement;
+
+    void NumberListElement_ctor(NumberListElement *const me, uint8_t identifierLeader, uint8_t dataDef);
+    void NumberListElement_dtor(Element *const me);
+    uint8_t NumberListElement_GetFloatAt(NumberListElement *const me, uint8_t index, float *val);
+    uint8_t NumberListElement_GetIntegerAt(NumberListElement *const me, uint8_t index, uint64_t *val);
+    typedef struct
+    {
+        // it is fixed value, 0x0418
+        Element super;
+        TimeStepCode timeStepCode;
+        NumberListElement numberListElement;
+    } TimeStepCodeElement;
+
+    void TimeStepCodeElement_ctor(TimeStepCodeElement *const me);
+    void TimeStepCodeElement_dtor(Element *me);
+#define TIME_STEP_CODE_LEN 3
+#define TIME_STEP_CODE_DATADEF 0x18
+    // TimeStepCodeElement END
+
     typedef struct
     {
         Element super;
@@ -689,7 +708,7 @@ extern "C"
      *        ByteBuffer should flip to read mode.
      * @return: An Instance of Element.
      */
-    Element *decodeElement(ByteBuffer *const byteBuff);
+    Element *decodeElement(ByteBuffer *const byteBuff, Direction direction);
 
     /**
      * @description: Decode a Package from ByteBuffer

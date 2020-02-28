@@ -19,7 +19,7 @@ GTEST_TEST(DecodeElement, decodeCustomeElement)
     Element *el = NULL;
     ByteBuffer *byteBuff = NewInstance(ByteBuffer);
     BB_ctor_fromHexStr(byteBuff, "FFFFFFFFFF", 10);
-    el = decodeElement(byteBuff);
+    el = decodeElement(byteBuff, Up);
     ASSERT_TRUE(el == NULL);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -31,7 +31,7 @@ GTEST_TEST(DecodeElement, decodeObserveTimeElement)
 
     ByteBuffer *byteBuff = NewInstance(ByteBuffer);
     BB_ctor_copy(byteBuff, (uint8_t *)"a", 2);
-    el = decodeElement(byteBuff);
+    el = decodeElement(byteBuff, Up);
     ASSERT_TRUE(el == NULL);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -39,7 +39,7 @@ GTEST_TEST(DecodeElement, decodeObserveTimeElement)
     byteBuff = NewInstance(ByteBuffer);
     BB_ctor_fromHexStr(byteBuff, "F0F02002222222", 14);
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff);
+    el = decodeElement(byteBuff, Up);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, OBSERVETIME);
     ASSERT_EQ(el->dataDef, OBSERVETIME);
@@ -61,7 +61,7 @@ GTEST_TEST(DecodeElement, decodeRemoteStationAddrElement)
     ByteBuffer *byteBuff = NewInstance(ByteBuffer);
     BB_ctor_fromHexStr(byteBuff, "F1F12002222222", 14); // 其他遥测站  != A5_HYDROLOGICAL_TELEMETRY_STATION
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff);
+    el = decodeElement(byteBuff, Up);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, ADDRESS);
     ASSERT_EQ(el->dataDef, ADDRESS);
@@ -78,7 +78,7 @@ GTEST_TEST(DecodeElement, decodeRemoteStationAddrElement)
     byteBuff = NewInstance(ByteBuffer);
     BB_ctor_fromHexStr(byteBuff, "F1F10002222222", 14); // 水文遥测站 A5_HYDROLOGICAL_TELEMETRY_STATION
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff);
+    el = decodeElement(byteBuff, Up);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, ADDRESS);
     ASSERT_EQ(el->dataDef, ADDRESS);
@@ -101,7 +101,7 @@ GTEST_TEST(DecodeElement, decodePictureElement)
     ByteBuffer *byteBuff = NewInstance(ByteBuffer);
     BB_ctor_fromHexStr(byteBuff, "F3F3200222222211", 16);
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff);
+    el = decodeElement(byteBuff, Up);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, PICTURE_IL);
     ASSERT_EQ(el->dataDef, PICTURE_IL);
@@ -122,7 +122,7 @@ GTEST_TEST(DecodeElement, decodeArtificialElement)
     ByteBuffer *byteBuff = NewInstance(ByteBuffer);
     BB_ctor_fromHexStr(byteBuff, "F2F279616E7975313938383A59435A2D32412D313031212121", 50);
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff);
+    el = decodeElement(byteBuff, Up);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, ARTIFICIAL_IL);
     ASSERT_EQ(el->dataDef, ARTIFICIAL_IL);
@@ -146,7 +146,7 @@ GTEST_TEST(DecodeElement, decodeDRP5MINElement)
                        "000100000000000000000000",
                        28);
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff);
+    el = decodeElement(byteBuff, Up);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, DRP5MIN);
     ASSERT_EQ(el->dataDef, DRP5MIN_DATADEF);
@@ -172,7 +172,7 @@ GTEST_TEST(DecodeElement, decodeFlowRateDataElement)
     ByteBuffer *byteBuff = NewInstance(ByteBuffer);
     BB_ctor_fromHexStr(byteBuff, "FDF6200222222211", 16);
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff);
+    el = decodeElement(byteBuff, Up);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, FLOW_RATE_DATA);
     ASSERT_EQ(el->dataDef, FLOW_RATE_DATA_DATADEF);
@@ -195,7 +195,7 @@ GTEST_TEST(DecodeElement, decodeRelativeWaterLevelElement)
                        "0AAA0AAAFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
                        52);
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff);
+    el = decodeElement(byteBuff, Up);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, RELATIVE_WATER_LEVEL_5MIN1);
     ASSERT_EQ(el->dataDef, RELATIVE_WATER_LEVEL_5MIN1_DATADEF);
@@ -226,7 +226,7 @@ GTEST_TEST(DecodeElement, decodeNumberElement)
     // N(7,3) ，数据单位：米
     BB_ctor_fromHexStr(byteBuff, "282300011110", 12);
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff);
+    el = decodeElement(byteBuff, Up);
     ASSERT_TRUE(el != NULL);
     NumberElement *nel = (NumberElement *)el;
     ASSERT_EQ(nel->super.identifierLeader, 0x28);
@@ -251,16 +251,37 @@ GTEST_TEST(DecodeElement, decodeTimeStepCodeElement)
     Element *el = NULL;
 
     ByteBuffer *byteBuff = NewInstance(ByteBuffer);
-    BB_ctor_fromHexStr(byteBuff, "0418200222", 10);
+    BB_ctor_fromHexStr(byteBuff, "0418"
+                                 "000005"
+                                 "3923"
+                                 "00000122"
+                                 "00000122"
+                                 "00000285"
+                                 "FFFFFFFF"
+                                 "00010490"
+                                 "00010490"
+                                 "FFFFFFFF",
+                       70);
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff);
+    el = decodeElement(byteBuff, Up);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, TIME_STEP_CODE);
     ASSERT_EQ(el->dataDef, TIME_STEP_CODE_DATADEF);
     TimeStepCodeElement *tscel = (TimeStepCodeElement *)el;
     ASSERT_EQ(tscel->super.identifierLeader, TIME_STEP_CODE);
     ASSERT_EQ(tscel->super.dataDef, TIME_STEP_CODE_DATADEF);
-    ASSERT_EQ(tscel->timeStepCode.hour, 2);
+    ASSERT_EQ(tscel->timeStepCode.hour, 0);
+    ASSERT_EQ(tscel->timeStepCode.minute, 5);
+
+    NumberListElement *nle = &tscel->numberListElement;
+    ASSERT_EQ(nle->count, 7);
+    float fv = 0;
+    ASSERT_EQ(4, NumberListElement_GetFloatAt(nle, 0, &fv));
+    ASSERT_EQ(0.122f, fv);
+    ASSERT_EQ(4, NumberListElement_GetFloatAt(nle, 5, &fv));
+    ASSERT_EQ(10.49f, fv);
+    ASSERT_EQ(0, NumberListElement_GetFloatAt(nle, 6, &fv));
+    ASSERT_EQ(7.20576e+13f, fv);
 
     TimeStepCodeElement_dtor(el);
     DelInstance(tscel);
@@ -275,7 +296,7 @@ GTEST_TEST(DecodeElement, decodeStationStatusElement)
     ByteBuffer *byteBuff = NewInstance(ByteBuffer);
     BB_ctor_fromHexStr(byteBuff, "452020022211", 12);
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff);
+    el = decodeElement(byteBuff, Up);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, STATION_STATUS);
     ASSERT_EQ(el->dataDef, STATION_STATUS_DATADEF);
@@ -297,7 +318,7 @@ GTEST_TEST(DecodeElement, decodeDurationElement)
     ByteBuffer *byteBuff = NewInstance(ByteBuffer);
     BB_ctor_fromHexStr(byteBuff, "052831312e3031", 14);
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff);
+    el = decodeElement(byteBuff, Up);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, DURATION_OF_XX);
     ASSERT_EQ(el->dataDef, DURATION_OF_XX_DATADEF);
@@ -340,7 +361,7 @@ GTEST_TEST(Package, decodeKeepAliveUplinkMessage)
     pkg = decodePackage(byteBuff);
     ASSERT_TRUE(pkg != NULL);
     ASSERT_EQ(pkg->head.funcCode, 0x2F);
-    ASSERT_EQ(pkg->tail.etxFlag, 03);
+    ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0x6BCA);
 
     BB_dtor(byteBuff);
@@ -478,7 +499,7 @@ GTEST_TEST(Package, decodeRainfallStationHourlyUplinkMessage)
     ASSERT_EQ(2, NumberElement_GetFloat(nel, &fv));
     ASSERT_EQ(12.9f, fv);
 
-    ASSERT_EQ(pkg->tail.etxFlag, 03);
+    ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0x4383);
 
     pkg->vptr->dtor(pkg);
@@ -568,7 +589,7 @@ GTEST_TEST(Package, decodeWaterRainStationHourlyUplinkMessage)
     ASSERT_TRUE(pkg != NULL);
     ASSERT_EQ(pkg->head.funcCode, HOUR);
     ASSERT_EQ(pkg->head.direction, Up);
-    ASSERT_EQ(pkg->tail.etxFlag, 03);
+    ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0xdd4e);
 
     ElementPtrVector *elements = &((UplinkMessage *)pkg)->super.elements;
@@ -673,7 +694,7 @@ GTEST_TEST(Package, decodeRainStationAddRPTUplinkMessage)
     ASSERT_TRUE(pkg != NULL);
     ASSERT_EQ(pkg->head.funcCode, ADDED);
     ASSERT_EQ(pkg->head.direction, Up);
-    ASSERT_EQ(pkg->tail.etxFlag, 03);
+    ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0x7c62);
 
     ElementPtrVector *elements = &((UplinkMessage *)pkg)->super.elements;
@@ -806,7 +827,7 @@ GTEST_TEST(Package, decodeTestUplinkMessage)
     ASSERT_TRUE(pkg != NULL);
     ASSERT_EQ(pkg->head.funcCode, 0x30); // enum TEST CONFLICT WITH GTEST
     ASSERT_EQ(pkg->head.direction, Up);
-    ASSERT_EQ(pkg->tail.etxFlag, 03);
+    ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0x20FA);
 
     ElementPtrVector *elements = &((UplinkMessage *)pkg)->super.elements;
@@ -856,6 +877,76 @@ GTEST_TEST(Package, decodeEvenTimeDownlinkMessage)
     ASSERT_EQ(pkg->head.direction, Down);
     ASSERT_EQ(pkg->tail.etxFlag, ESC);
     ASSERT_EQ(pkg->tail.crc, 0x291C);
+
+    pkg->vptr->dtor(pkg);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, decodeEvenTimeUplinkMessage)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E"
+                                 "05"
+                                 "0011223344"
+                                 "03E8"
+                                 "31"
+                                 "004E"
+                                 "02"
+                                 "0031"
+                                 "170718110005"
+                                 "F1F1"
+                                 "001122334448"
+                                 "F0F0"
+                                 "17071810"
+                                 "0504"
+                                 "18000005"
+                                 "3923"
+                                 "00000122"
+                                 "00000122"
+                                 "00000285"
+                                 "00010490"
+                                 "00010490"
+                                 "FFFFFFFF"
+                                 "FFFFFFFF"
+                                 "FFFFFFFF"
+                                 "FFFFFFFF"
+                                 "FFFFFFFF"
+                                 "00010490"
+                                 "00010490"
+                                 "03"
+                                 "7AC7",
+                       190);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0x7a);
+    ASSERT_EQ(crc & 0xFF, 0xC7);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, EVEN_TIME);
+    ASSERT_EQ(pkg->head.direction, Up);
+    ASSERT_EQ(pkg->tail.etxFlag, ETX);
+    ASSERT_EQ(pkg->tail.crc, 0x7AC7);
+
+    ElementPtrVector *elements = &((UplinkMessage *)pkg)->super.elements;
+    ASSERT_EQ(elements->length, 1);
+
+    Element *el = elements->data[0];
+    ASSERT_EQ(el->identifierLeader, TIME_STEP_CODE);
+    ASSERT_EQ(el->dataDef, TIME_STEP_CODE_DATADEF);
+
+    TimeStepCodeElement *tsel = (TimeStepCodeElement *)el;
+    ASSERT_EQ(tsel->super.identifierLeader, TIME_STEP_CODE);
+    ASSERT_EQ(tsel->super.dataDef, TIME_STEP_CODE_DATADEF);
+
+    ASSERT_EQ(0x39, tsel->numberListElement.super.identifierLeader);
+    ASSERT_EQ(0x23, tsel->numberListElement.super.dataDef);
+    ASSERT_EQ(12, tsel->numberListElement.count);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);

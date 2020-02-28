@@ -62,12 +62,18 @@ extern "C"
         bool wrapped;
     } ByteBuffer;
 
+#define BB_Position(ptr_) (ptr_)->position
+#define BB_Limit(ptr_) (ptr_)->limit
+#define BB_Size(ptr_) (ptr_)->size
+#define BB_Available(ptr_) ((ptr_)->limit - (ptr_)->position)
+
     /**
      * Construtor
      * @param size buffer 大小
      */
     void BB_ctor(ByteBuffer *const me, uint32_t size);
     void BB_ctor_wrapped(ByteBuffer *const me, uint8_t *buff, uint32_t len);
+    void BB_ctor_wrappedAnother(ByteBuffer *const me, ByteBuffer *another, uint32_t start, uint32_t end);
     void BB_ctor_copy(ByteBuffer *const me, uint8_t *buff, uint32_t len);
     // Test Only
     void BB_ctor_fromHexStr(ByteBuffer *const me, char const *const buff, uint32_t len);
@@ -99,6 +105,8 @@ extern "C"
      */
     void BB_Rewind(ByteBuffer *const me);
 
+    void BB_Skip(ByteBuffer *const me, uint32_t size);
+
     /**
      * CRC16
      */
@@ -107,17 +115,15 @@ extern "C"
     ByteBuffer *BB_GetByteBuffer(ByteBuffer *const me, uint32_t size);
     ByteBuffer *BB_PeekByteBuffer(ByteBuffer *const me, uint32_t start, uint32_t size);
 
-#define BB_Available(ptr_) ((ptr_)->limit - (ptr_)->position)
-
     uint8_t BB_PeekUInt8(ByteBuffer *const me, uint8_t *val);
-    uint8_t BB_PeekUInt8At(ByteBuffer *const me, uint8_t index, uint8_t *val);
+    uint8_t BB_PeekUInt8At(ByteBuffer *const me, uint32_t index, uint8_t *val);
 
     uint8_t BB_BE_PeekUInt(ByteBuffer *const me, void *val, uint8_t size);
     uint8_t BB_LE_PeekUInt(ByteBuffer *const me, void *val, uint8_t size);
-    uint8_t BB_BE_PeekUIntAt(ByteBuffer *const me, uint8_t index, void *val, uint8_t size);
-    uint8_t BB_LE_PeekUIntAt(ByteBuffer *const me, uint8_t index, void *val, uint8_t size);
+    uint8_t BB_BE_PeekUIntAt(ByteBuffer *const me, uint32_t index, void *val, uint8_t size);
+    uint8_t BB_LE_PeekUIntAt(ByteBuffer *const me, uint32_t index, void *val, uint8_t size);
     uint8_t BB_BE_PeekUInt16(ByteBuffer *const me, uint16_t *val);
-    uint8_t BB_BE_PeekUInt16At(ByteBuffer *const me, uint8_t index, uint16_t *val);
+    uint8_t BB_BE_PeekUInt16At(ByteBuffer *const me, uint32_t index, uint16_t *val);
 
     uint8_t BB_BE_GetUInt(ByteBuffer *const me, void *val, uint8_t size);
     uint8_t BB_LE_GetUInt(ByteBuffer *const me, void *val, uint8_t size);
@@ -138,6 +144,7 @@ extern "C"
     uint8_t BB_LE_PutUInt32(ByteBuffer *const me, uint32_t val);
     uint8_t BB_LE_PutUInt64(ByteBuffer *const me, uint64_t val);
     // BCD
+    uint8_t BB_BCDPeekUIntAt(ByteBuffer *const me, uint32_t index, void *val, uint8_t size);
     uint8_t BB_BCDGetUInt(ByteBuffer *const me, void *val, uint8_t size);
     uint8_t BB_BCDGetUInt8(ByteBuffer *const me, uint8_t *val);
 

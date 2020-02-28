@@ -54,6 +54,35 @@ GTEST_TEST(ByteBuffer, Ctor_wrapped)
     DelInstance(buf);
 }
 
+GTEST_TEST(ByteBuffer, Ctor_wrappedAnother)
+{
+    ByteBuffer *buf = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(buf, "7E7E"
+                            "0012345678"
+                            "10"
+                            "1234"
+                            "34"
+                            "8008"
+                            "02"
+                            "0001"
+                            "140613143853"
+                            "04"
+                            "696E",
+                       50);
+    BB_Flip(buf);
+
+    ByteBuffer wrappedBuff;
+    BB_ctor_wrappedAnother(&wrappedBuff, buf, BB_Position(buf), BB_Limit(buf));
+    BB_Flip(&wrappedBuff);
+    ASSERT_EQ(wrappedBuff.position, 0);
+    ASSERT_EQ(wrappedBuff.limit, 25);
+    ASSERT_EQ(wrappedBuff.size, 25);
+    BB_dtor(&wrappedBuff);
+    BB_dtor(buf);
+
+    DelInstance(buf);
+}
+
 GTEST_TEST(ByteBuffer, PutGetUInt8)
 {
     ByteBuffer *buf = NewInstance(ByteBuffer);
