@@ -155,6 +155,8 @@ extern "C"
         case ADDED:
         case TEST:
         case EVEN_TIME:
+        case INTERVAL:
+        case PICTURE:
             return true;
         default:
             return false;
@@ -174,6 +176,8 @@ extern "C"
         case ADDED:
         case TEST:
         case EVEN_TIME:
+        case INTERVAL:
+        case PICTURE:
             return true;
         default:
             return false;
@@ -196,6 +200,9 @@ extern "C"
             case ADDED:
             case TEST:
             case EVEN_TIME:
+            case INTERVAL:
+            case ARTIFICIAL:
+            case PICTURE:
                 return true;
             default:
                 return false;
@@ -227,6 +234,8 @@ extern "C"
             case TEST:
             case ADDED:
             case EVEN_TIME:
+            case INTERVAL:
+            case PICTURE:
                 return true;
             default:
                 return false;
@@ -359,7 +368,8 @@ extern "C"
     } Head;
 
 #define PACKAGE_HEAD_STX_LEN 14
-#define PACKAGE_HEAD_SNY_LEN 17
+#define PACKAGE_HEAD_SEQUENCE_LEN 3
+#define PACKAGE_HEAD_SNY_LEN (PACKAGE_HEAD_STX_LEN + PACKAGE_HEAD_SEQUENCE_LEN)
 #define PACKAGE_HEAD_STX_DIRECTION_INDEX 11
 #define PACKAGE_HEAD_STX_DIRECTION_INDEX_MASK_BIT 4 // u16: 12 u8: 4
 #define PACKAGE_HEAD_STX_BODY_LEN_MASK 0xFFF
@@ -506,6 +516,7 @@ extern "C"
     {
         LinkMessage super;
         UplinkMessageHead messageHead;
+        ByteBuffer *rawBuff;
     } UplinkMessage;
 
     /* UplinkMessage Construtor & Destrucor */
@@ -523,6 +534,7 @@ extern "C"
     {
         LinkMessage super;
         DownlinkMessageHead messageHead;
+        ByteBuffer *rawBuff;
     } DownlinkMessage;
 
     /* DownlinkMessage Construtor  & Destrucor */

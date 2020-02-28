@@ -953,6 +953,316 @@ GTEST_TEST(Package, decodeEvenTimeUplinkMessage)
     DelInstance(byteBuff);
 }
 
+GTEST_TEST(Package, decodeIntervalDownlinkMessage)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E"
+                                 "0011223344"
+                                 "05"
+                                 "03E8"
+                                 "32"
+                                 "8008"
+                                 "02"
+                                 "0034"
+                                 "170718110016"
+                                 "1B"
+                                 "E5D4",
+                       50);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0xe5);
+    ASSERT_EQ(crc & 0xFF, 0xd4);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, INTERVAL);
+    ASSERT_EQ(pkg->head.direction, Down);
+    ASSERT_EQ(pkg->tail.etxFlag, ESC);
+    ASSERT_EQ(pkg->tail.crc, 0xE5D4);
+
+    pkg->vptr->dtor(pkg);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, decodeIntervalUplinkMessage)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E"
+                                 "05"
+                                 "0011223344"
+                                 "03E8"
+                                 "32"
+                                 "002B"
+                                 "02"
+                                 "0034"
+                                 "170718110016"
+                                 "F1F1"
+                                 "001122334448"
+                                 "F0F0"
+                                 "1707181100"
+                                 "2019"
+                                 "000040"
+                                 "2619"
+                                 "000040"
+                                 "3923"
+                                 "00010490"
+                                 "3812"
+                                 "1099"
+                                 "03"
+                                 "A421",
+                       120);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0xA4);
+    ASSERT_EQ(crc & 0xFF, 0x21);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, INTERVAL);
+    ASSERT_EQ(pkg->head.direction, Up);
+    ASSERT_EQ(pkg->tail.etxFlag, ETX);
+    ASSERT_EQ(pkg->tail.crc, 0xA421);
+
+    ElementPtrVector *elements = &((UplinkMessage *)pkg)->super.elements;
+    ASSERT_EQ(elements->length, 4);
+
+    Element *el = elements->data[0];
+    ASSERT_EQ(el->identifierLeader, 0x20);
+    ASSERT_EQ(el->dataDef, 0x19);
+
+    pkg->vptr->dtor(pkg);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, decodeArtificalDownlinkMessage)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E"
+                                 "0012345678"
+                                 "01"
+                                 "1234"
+                                 "35"
+                                 "8008"
+                                 "02"
+                                 "0004"
+                                 "591011155145"
+                                 "1B"
+                                 "F118",
+                       50);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0xf1);
+    ASSERT_EQ(crc & 0xFF, 0x18);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, ARTIFICIAL);
+    ASSERT_EQ(pkg->head.direction, Down);
+    ASSERT_EQ(pkg->tail.etxFlag, ESC);
+    ASSERT_EQ(pkg->tail.crc, 0xf118);
+
+    pkg->vptr->dtor(pkg);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, decodeArtificalUplinkMessage)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E"
+                                 "01"
+                                 "0012345678"
+                                 "1234"
+                                 "35"
+                                 "0011"
+                                 "02"
+                                 "0004"
+                                 "591011155145"
+                                 "F2F2"
+                                 "5120312E323334"
+                                 "03"
+                                 "4602",
+                       68);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0x46);
+    ASSERT_EQ(crc & 0xFF, 0x02);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, ARTIFICIAL);
+    ASSERT_EQ(pkg->head.direction, Up);
+    ASSERT_EQ(pkg->tail.etxFlag, ETX);
+    ASSERT_EQ(pkg->tail.crc, 0x4602);
+
+    pkg->vptr->dtor(pkg);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, decodeArtificalUplinkMessage1)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E"
+                                 "10"
+                                 "0012345678"
+                                 "1234"
+                                 "35"
+                                 "0021"
+                                 "02"
+                                 "000F"
+                                 "130325095804"
+                                 "F2F2"
+                                 "79616E7975313938383A59435A2D32412D313031212121"
+                                 "03"
+                                 "B698",
+                       100);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0xB6);
+    ASSERT_EQ(crc & 0xFF, 0x98);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, ARTIFICIAL);
+    ASSERT_EQ(pkg->head.direction, Up);
+    ASSERT_EQ(pkg->tail.etxFlag, ETX);
+    ASSERT_EQ(pkg->tail.crc, 0xB698);
+
+    pkg->vptr->dtor(pkg);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, decodePictureDownlinkMessage)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E"
+                                 "0012345678"
+                                 "01"
+                                 "1234"
+                                 "36"
+                                 "8008"
+                                 "02"
+                                 "0000"
+                                 "170718095255"
+                                 "05"
+                                 "bb17",
+                       50);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0xbb);
+    ASSERT_EQ(crc & 0xFF, 0x17);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, PICTURE);
+    ASSERT_EQ(pkg->head.direction, Down);
+    ASSERT_EQ(pkg->tail.etxFlag, ENQ);
+    ASSERT_EQ(pkg->tail.crc, 0xBB17);
+
+    pkg->vptr->dtor(pkg);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, decodePictureUplinkMessagePkg1)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E"
+                                 "01"
+                                 "0012345678"
+                                 "1234"
+                                 "36"
+                                 "011C"
+                                 "16"
+                                 "00D001"
+                                 "0005"
+                                 "591011161118"
+                                 "F1F1"
+                                 "0012345678"
+                                 "48"
+                                 "F0F0"
+                                 "5910111611"
+                                 "F3F3"
+                                 "FFD8FFE000104A46494600010100000100010000FFDB004300090606070606090707070909090A0C150D0C0C0C0C1912130F151E191F1E1C191C1C21242E2721222B221C1C2837282B30313434341F27393D39333C2E333431FFDB0043010909090C0A0C180D0D1831211C213131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131FFC4001F0000010501010101010100000000000000000102030405060708090A0BFFC400B5100002010303020403050504040000017D01020300041105122131410613516107227114328191A1082342B1C11552D1F02433627282090A161718191A"
+                                 "17"
+                                 "96CB",
+                       602);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0x96);
+    ASSERT_EQ(crc & 0xFF, 0xCB);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, PICTURE);
+    ASSERT_EQ(pkg->head.direction, Up);
+    ASSERT_EQ(pkg->tail.etxFlag, ETB);
+    ASSERT_EQ(pkg->tail.crc, 0x96CB);
+
+    pkg->vptr->dtor(pkg);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, decodePictureUplinkMessagePkg2)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E01001234567812343601031600D00225262728292A3435363738393A434445464748494A535455565758595A636465666768696A737475767778797A838485868788898A92939495969798999AA2A3A4A5A6A7A8A9AAB2B3B4B5B6B7B8B9BAC2C3C4C5C6C7C8C9CAD2D3D4D5D6D7D8D9DAE1E2E3E4E5E6E7E8E9EAF1F2F3F4F5F6F7F8F9FAFFC4001F0100030101010101010101010000000000000102030405060708090A0BFFC400B51100020102040403040705040400010277000102031104052131061241510761711322328108144291A1B1C109233352F0156272D10A162434E125F11718191A262728292A35363738393A434445464748494A535455565758595A636465666768696A73741759D8",
+                       552);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0x59);
+    ASSERT_EQ(crc & 0xFF, 0xD8);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, PICTURE);
+    ASSERT_EQ(pkg->head.direction, Up);
+    ASSERT_EQ(pkg->tail.etxFlag, ETB);
+    ASSERT_EQ(pkg->tail.crc, 0x59D8);
+    ASSERT_EQ(pkg->head.len - PACKAGE_HEAD_SEQUENCE_LEN, BB_Available(((UplinkMessage *)pkg)->rawBuff));
+
+    pkg->vptr->dtor(pkg);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
 int main(int argc, char *argv[])
 {
     ::testing::InitGoogleTest(&argc, argv);
