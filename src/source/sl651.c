@@ -229,11 +229,15 @@ static bool UplinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff)
     {
         return false;
     }
-    if (isMessageCombinedByElements(Up, me->head.funcCode)) // 按照要素解码
+    if (isMessageCombinedByElements(Up, me->head.funcCode) &&
+        BB_Available(byteBuff) > ELEMENT_IDENTIFER_LEN + PACKAGE_TAIL_LEN) // 按照要素解码
     {
-        while (BB_Available(byteBuff) > ELEMENT_IDENTIFER_LEN + PACKAGE_TAIL_LEN)
+        ByteBuffer elBuff;
+        BB_ctor_wrappedAnother(&elBuff, byteBuff, BB_Position(byteBuff), BB_Limit(byteBuff) - PACKAGE_TAIL_LEN);
+        BB_Flip(&elBuff);
+        while (BB_Available(&elBuff) > 0)
         {
-            Element *el = decodeElement(byteBuff, Up);
+            Element *el = decodeElement(&elBuff, Up);
             if (el != NULL)
             {
                 vec_push(&((UplinkMessage *const)me)->super.elements, el);
@@ -243,6 +247,8 @@ static bool UplinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff)
                 break;
             }
         }
+        BB_Skip(byteBuff, BB_Position(&elBuff));
+        BB_dtor(&elBuff);
     }
     else // 否则交给具体功能码去处理
     {
@@ -341,20 +347,26 @@ static bool DownlinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff
     {
         return false;
     }
-    if (isMessageCombinedByElements(Down, me->head.funcCode)) // 按照要素解码
+    if (isMessageCombinedByElements(Down, me->head.funcCode) &&
+        BB_Available(byteBuff) > ELEMENT_IDENTIFER_LEN + PACKAGE_TAIL_LEN) // 按照要素解码
     {
-        while (BB_Available(byteBuff) > ELEMENT_IDENTIFER_LEN + PACKAGE_TAIL_LEN)
+        ByteBuffer elBuff;
+        BB_ctor_wrappedAnother(&elBuff, byteBuff, BB_Position(byteBuff), BB_Limit(byteBuff) - PACKAGE_TAIL_LEN);
+        BB_Flip(&elBuff);
+        while (BB_Available(&elBuff) > 0)
         {
-            Element *el = decodeElement(byteBuff, Down);
+            Element *el = decodeElement(&elBuff, Down);
             if (el != NULL)
             {
-                vec_push(&((DownlinkMessage *const)me)->super.elements, el);
+                vec_push(&((UplinkMessage *const)me)->super.elements, el);
             }
             else
             {
                 break;
             }
         }
+        BB_Skip(byteBuff, BB_Position(&elBuff));
+        BB_dtor(&elBuff);
     }
     else // 否则交给具体功能码去处理
     {
@@ -837,53 +849,6 @@ uint8_t RelativeWaterLevelElement_ValueAt(RelativeWaterLevelElement *const me, u
 }
 // RelativeWaterLevelElement END
 
-// TimeStepCodeElement
-static bool TimeStepCodeElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
-{
-    assert(me);
-    return true;
-}
-
-static bool TimeStepCodeElement_Decode(Element *const me, ByteBuffer *const byteBuff)
-{
-    assert(me);
-    assert(byteBuff);
-    if (BB_Available(byteBuff) < TIME_STEP_CODE_LEN)
-    {
-        return false;
-    }
-    TimeStepCodeElement *self = (TimeStepCodeElement *)me;
-    uint8_t usedLen = 0;
-    usedLen += BB_BCDGetUInt8(byteBuff, &self->timeStepCode.day);
-    usedLen += BB_BCDGetUInt8(byteBuff, &self->timeStepCode.hour);
-    usedLen += BB_BCDGetUInt8(byteBuff, &self->timeStepCode.minute);
-    return usedLen == TIME_STEP_CODE_LEN;
-}
-
-static size_t TimeStepCodeElement_Size(Element const *const me)
-{
-    assert(me);
-    return TIME_STEP_CODE_LEN + ELEMENT_IDENTIFER_LEN;
-}
-
-void TimeStepCodeElement_dtor(Element *me)
-{
-    assert(me);
-    Element_dtor(me);
-}
-
-void TimeStepCodeElement_ctor(TimeStepCodeElement *const me)
-{
-    // override
-    static ElementVtbl const vtbl = {
-        &TimeStepCodeElement_Encode,
-        &TimeStepCodeElement_Decode,
-        &TimeStepCodeElement_Size};
-    Element_ctor(&me->super, TIME_STEP_CODE, TIME_STEP_CODE_DATADEF);
-    me->super.vptr = &vtbl;
-}
-// TimeStepCodeElement END
-
 // StationStatusElement
 static bool StationStatusElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
@@ -1005,7 +970,7 @@ static bool NumberElement_Decode(Element *const me, ByteBuffer *const byteBuff)
     {
         return false;
     }
-    uint8_t size = me->dataDef >> 3;
+    uint8_t size = me->dataDef >> NUMBER_ELEMENT_LEN_OFFSET;
     if (BB_Available(byteBuff) < size)
     {
         return false;
@@ -1062,10 +1027,15 @@ uint8_t NumberElement_GetInteger(NumberElement *const me, uint64_t *val)
     {
         BB_Rewind(me->buff);
     }
-    uint8_t bitLen = BB_Available(me->buff);
+    uint8_t size = BB_Available(me->buff);
     *val = 0; // 副作用
-    uint8_t res = BB_BCDGetUInt(me->buff, val, bitLen);
-    if (signedFlag == 0xFF && res != 0)
+    uint8_t res = BB_BCDGetUInt(me->buff, val, size);
+    if (res != size)
+    {
+        *val = 0xFFFFFFFFFFFFFFFF;
+        return res;
+    }
+    if (signedFlag == 0xFF)
     {
         *val *= -1;
     }
@@ -1085,6 +1055,170 @@ uint8_t NumberElement_GetFloat(NumberElement *const me, float *val)
     return res;
 }
 // NumberElement END
+
+// TimeStepCodeElement
+// Nest NumberListElement
+static bool NumberListElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
+{
+    assert(me);
+    return true;
+}
+
+static bool NumberListElement_Decode(Element *const me, ByteBuffer *const byteBuff)
+{
+    assert(me);
+    if (byteBuff == NULL)
+    {
+        return false;
+    }
+    uint8_t size = me->dataDef >> NUMBER_ELEMENT_LEN_OFFSET;
+    if (BB_Available(byteBuff) % size != 0)
+    {
+        return false;
+    }
+    NumberListElement *self = (NumberListElement *)me;
+    self->buff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff)); //read all
+    if (self->buff == NULL)
+    {
+        return false;
+    }
+    BB_Flip(self->buff); // Flip to read it.
+    self->count = BB_Available(self->buff) / size;
+    return true;
+}
+
+static size_t NumberListElement_Size(Element const *const me)
+{
+    assert(me);
+    NumberListElement *self = (NumberListElement *)me;
+    return ELEMENT_IDENTIFER_LEN + BB_Size(self->buff);
+}
+
+void NumberListElement_dtor(Element *const me)
+{
+    assert(me);
+    Element_dtor(me);
+    NumberListElement *self = (NumberListElement *)me;
+    if (self->buff != NULL)
+    {
+        BB_dtor(self->buff);
+        DelInstance(self->buff);
+    }
+}
+
+void NumberListElement_ctor(NumberListElement *const me, uint8_t identifierLeader, uint8_t dataDef)
+{
+    static ElementVtbl const vtbl = {
+        &NumberListElement_Encode,
+        &NumberListElement_Decode,
+        &NumberListElement_Size,
+        &NumberListElement_dtor};
+    Element_ctor(&me->super, identifierLeader, dataDef);
+    me->super.vptr = &vtbl;
+}
+
+uint8_t NumberListElement_GetIntegerAt(NumberListElement *const me, uint8_t index, uint64_t *val)
+{
+    assert(me);
+    if (index < 0 || me->count <= 0 || index > me->count || me->buff == NULL)
+    {
+        return 0;
+    }
+    uint8_t size = me->super.dataDef >> NUMBER_ELEMENT_LEN_OFFSET;
+    index = index * size;
+    // @Todo 暂时无法支持负值
+    // uint8_t signedFlag = 0;
+    // BB_PeekUInt8At(me->buff, index, &signedFlag);
+    // if (signedFlag == 0xFF) // 如果是负值
+    // {
+    //     index++;
+    // }
+    *val = 0; // 副作用
+    uint8_t res = BB_BCDPeekUIntAt(me->buff, index, val, size);
+    // if (signedFlag == 0xFF && res != 0)
+    // {
+    //     *val *= -1;
+    // }
+    if (res != size)
+    {
+        *val = 0xFFFFFFFFFFFFFF;
+    }
+    return res;
+}
+
+uint8_t NumberListElement_GetFloatAt(NumberListElement *const me, uint8_t index, float *val)
+{
+    uint64_t u64 = 0;
+    uint8_t res = NumberListElement_GetIntegerAt(me, index, &u64);
+    uint8_t precision = me->super.dataDef & NUMBER_ELEMENT_PRECISION_MASK;
+    *val = u64;
+    if (precision > 0)
+    {
+        *val = u64 / pow(10, precision);
+    }
+    return res;
+}
+// Nest NumberListElement END
+
+static bool TimeStepCodeElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
+{
+    assert(me);
+    return true;
+}
+
+static bool TimeStepCodeElement_Decode(Element *const me, ByteBuffer *const byteBuff)
+{
+    assert(me);
+    assert(byteBuff);
+    if (BB_Available(byteBuff) < TIME_STEP_CODE_LEN + ELEMENT_IDENTIFER_LEN) //至少一个时间步长+一个ELEMENT头
+    {
+        return false;
+    }
+    TimeStepCodeElement *self = (TimeStepCodeElement *)me;
+    uint8_t usedLen = 0;
+    usedLen += BB_BCDGetUInt8(byteBuff, &self->timeStepCode.day);
+    usedLen += BB_BCDGetUInt8(byteBuff, &self->timeStepCode.hour);
+    usedLen += BB_BCDGetUInt8(byteBuff, &self->timeStepCode.minute);
+    // decode NumberListElement
+    uint8_t identifierLeader = 0;                        //
+    usedLen += BB_GetUInt8(byteBuff, &identifierLeader); // 解析一个字节的 标识符引导符 ， 同时位移
+    uint8_t dataDef = 0;                                 //
+    usedLen += BB_GetUInt8(byteBuff, &dataDef);          // 解析一个字节的 数据定义符，同时位移
+    NumberListElement_ctor(&self->numberListElement, identifierLeader, dataDef);
+    Element_SetDirection(&self->numberListElement.super, me->direction);
+    if (!NumberListElement_Decode((Element *)&self->numberListElement, byteBuff))
+    {
+        return false;
+    }
+    return usedLen == TIME_STEP_CODE_LEN + ELEMENT_IDENTIFER_LEN;
+}
+
+static size_t TimeStepCodeElement_Size(Element const *const me)
+{
+    assert(me);
+    return TIME_STEP_CODE_LEN + ELEMENT_IDENTIFER_LEN;
+}
+
+void TimeStepCodeElement_dtor(Element *me)
+{
+    assert(me);
+    Element_dtor(me);
+    TimeStepCodeElement *self = (TimeStepCodeElement *)me;
+    NumberListElement_dtor((Element *)&self->numberListElement);
+}
+
+void TimeStepCodeElement_ctor(TimeStepCodeElement *const me)
+{
+    // override
+    static ElementVtbl const vtbl = {
+        &TimeStepCodeElement_Encode,
+        &TimeStepCodeElement_Decode,
+        &TimeStepCodeElement_Size,
+        &TimeStepCodeElement_dtor};
+    Element_ctor(&me->super, TIME_STEP_CODE, TIME_STEP_CODE_DATADEF);
+    me->super.vptr = &vtbl;
+}
+// TimeStepCodeElement END
 // Elements END
 
 // Decode & Encode

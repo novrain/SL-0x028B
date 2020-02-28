@@ -251,7 +251,17 @@ GTEST_TEST(DecodeElement, decodeTimeStepCodeElement)
     Element *el = NULL;
 
     ByteBuffer *byteBuff = NewInstance(ByteBuffer);
-    BB_ctor_fromHexStr(byteBuff, "0418200222", 10);
+    BB_ctor_fromHexStr(byteBuff, "0418"
+                                 "000005"
+                                 "3923"
+                                 "00000122"
+                                 "00000122"
+                                 "00000285"
+                                 "FFFFFFFF"
+                                 "00010490"
+                                 "00010490"
+                                 "FFFFFFFF",
+                       70);
     BB_Flip(byteBuff);
     el = decodeElement(byteBuff, Up);
     ASSERT_TRUE(el != NULL);
@@ -260,7 +270,18 @@ GTEST_TEST(DecodeElement, decodeTimeStepCodeElement)
     TimeStepCodeElement *tscel = (TimeStepCodeElement *)el;
     ASSERT_EQ(tscel->super.identifierLeader, TIME_STEP_CODE);
     ASSERT_EQ(tscel->super.dataDef, TIME_STEP_CODE_DATADEF);
-    ASSERT_EQ(tscel->timeStepCode.hour, 2);
+    ASSERT_EQ(tscel->timeStepCode.hour, 0);
+    ASSERT_EQ(tscel->timeStepCode.minute, 5);
+
+    NumberListElement *nle = &tscel->numberListElement;
+    ASSERT_EQ(nle->count, 7);
+    float fv = 0;
+    ASSERT_EQ(4, NumberListElement_GetFloatAt(nle, 0, &fv));
+    ASSERT_EQ(0.122f, fv);
+    ASSERT_EQ(4, NumberListElement_GetFloatAt(nle, 5, &fv));
+    ASSERT_EQ(10.49f, fv);
+    ASSERT_EQ(0, NumberListElement_GetFloatAt(nle, 6, &fv));
+    ASSERT_EQ(7.20576e+13f, fv);
 
     TimeStepCodeElement_dtor(el);
     DelInstance(tscel);
@@ -340,7 +361,7 @@ GTEST_TEST(Package, decodeKeepAliveUplinkMessage)
     pkg = decodePackage(byteBuff);
     ASSERT_TRUE(pkg != NULL);
     ASSERT_EQ(pkg->head.funcCode, 0x2F);
-    ASSERT_EQ(pkg->tail.etxFlag, 03);
+    ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0x6BCA);
 
     BB_dtor(byteBuff);
@@ -478,7 +499,7 @@ GTEST_TEST(Package, decodeRainfallStationHourlyUplinkMessage)
     ASSERT_EQ(2, NumberElement_GetFloat(nel, &fv));
     ASSERT_EQ(12.9f, fv);
 
-    ASSERT_EQ(pkg->tail.etxFlag, 03);
+    ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0x4383);
 
     pkg->vptr->dtor(pkg);
@@ -568,7 +589,7 @@ GTEST_TEST(Package, decodeWaterRainStationHourlyUplinkMessage)
     ASSERT_TRUE(pkg != NULL);
     ASSERT_EQ(pkg->head.funcCode, HOUR);
     ASSERT_EQ(pkg->head.direction, Up);
-    ASSERT_EQ(pkg->tail.etxFlag, 03);
+    ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0xdd4e);
 
     ElementPtrVector *elements = &((UplinkMessage *)pkg)->super.elements;
@@ -673,7 +694,7 @@ GTEST_TEST(Package, decodeRainStationAddRPTUplinkMessage)
     ASSERT_TRUE(pkg != NULL);
     ASSERT_EQ(pkg->head.funcCode, ADDED);
     ASSERT_EQ(pkg->head.direction, Up);
-    ASSERT_EQ(pkg->tail.etxFlag, 03);
+    ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0x7c62);
 
     ElementPtrVector *elements = &((UplinkMessage *)pkg)->super.elements;
@@ -806,7 +827,7 @@ GTEST_TEST(Package, decodeTestUplinkMessage)
     ASSERT_TRUE(pkg != NULL);
     ASSERT_EQ(pkg->head.funcCode, 0x30); // enum TEST CONFLICT WITH GTEST
     ASSERT_EQ(pkg->head.direction, Up);
-    ASSERT_EQ(pkg->tail.etxFlag, 03);
+    ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0x20FA);
 
     ElementPtrVector *elements = &((UplinkMessage *)pkg)->super.elements;
@@ -856,6 +877,76 @@ GTEST_TEST(Package, decodeEvenTimeDownlinkMessage)
     ASSERT_EQ(pkg->head.direction, Down);
     ASSERT_EQ(pkg->tail.etxFlag, ESC);
     ASSERT_EQ(pkg->tail.crc, 0x291C);
+
+    pkg->vptr->dtor(pkg);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, decodeEvenTimeUplinkMessage)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E"
+                                 "05"
+                                 "0011223344"
+                                 "03E8"
+                                 "31"
+                                 "004E"
+                                 "02"
+                                 "0031"
+                                 "170718110005"
+                                 "F1F1"
+                                 "001122334448"
+                                 "F0F0"
+                                 "17071810"
+                                 "0504"
+                                 "18000005"
+                                 "3923"
+                                 "00000122"
+                                 "00000122"
+                                 "00000285"
+                                 "00010490"
+                                 "00010490"
+                                 "FFFFFFFF"
+                                 "FFFFFFFF"
+                                 "FFFFFFFF"
+                                 "FFFFFFFF"
+                                 "FFFFFFFF"
+                                 "00010490"
+                                 "00010490"
+                                 "03"
+                                 "7AC7",
+                       190);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0x7a);
+    ASSERT_EQ(crc & 0xFF, 0xC7);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, EVEN_TIME);
+    ASSERT_EQ(pkg->head.direction, Up);
+    ASSERT_EQ(pkg->tail.etxFlag, ETX);
+    ASSERT_EQ(pkg->tail.crc, 0x7AC7);
+
+    ElementPtrVector *elements = &((UplinkMessage *)pkg)->super.elements;
+    ASSERT_EQ(elements->length, 1);
+
+    Element *el = elements->data[0];
+    ASSERT_EQ(el->identifierLeader, TIME_STEP_CODE);
+    ASSERT_EQ(el->dataDef, TIME_STEP_CODE_DATADEF);
+
+    TimeStepCodeElement *tsel = (TimeStepCodeElement *)el;
+    ASSERT_EQ(tsel->super.identifierLeader, TIME_STEP_CODE);
+    ASSERT_EQ(tsel->super.dataDef, TIME_STEP_CODE_DATADEF);
+
+    ASSERT_EQ(0x39, tsel->numberListElement.super.identifierLeader);
+    ASSERT_EQ(0x23, tsel->numberListElement.super.dataDef);
+    ASSERT_EQ(12, tsel->numberListElement.count);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
