@@ -275,7 +275,7 @@ ByteBuffer *BB_PeekByteBuffer(ByteBuffer *const me, uint32_t start, uint32_t siz
 {
     assert(me);
     assert(me->buff);
-    if (start < 0 || size < 0 || start + size > me->limit)
+    if (start < 0 || size <= 0 || start + size > me->limit)
     {
         return NULL;
     }

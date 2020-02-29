@@ -229,8 +229,13 @@ static bool UplinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff)
     {
         return false;
     }
-    if (isMessageCombinedByElements(Up, me->head.funcCode) &&
-        BB_Available(byteBuff) > ELEMENT_IDENTIFER_LEN + PACKAGE_TAIL_LEN) // 按照要素解码
+    // @Todo 分包情况下，后续包是否还需要去解析？
+    if (me->head.stxFlag == SYN && me->head.sequence.seq > 1)
+    {
+        ((UplinkMessage *)me)->rawBuff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff) - PACKAGE_TAIL_LEN);
+    }
+    else if (isMessageCombinedByElements(Up, me->head.funcCode) &&
+             BB_Available(byteBuff) > ELEMENT_IDENTIFER_LEN + PACKAGE_TAIL_LEN) // 按照要素解码
     {
         ByteBuffer elBuff;
         BB_ctor_wrappedAnother(&elBuff, byteBuff, BB_Position(byteBuff), BB_Limit(byteBuff) - PACKAGE_TAIL_LEN);
@@ -250,11 +255,17 @@ static bool UplinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff)
         BB_Skip(byteBuff, BB_Position(&elBuff));
         BB_dtor(&elBuff);
     }
-    else // 否则交给具体功能码去处理
+    else if (BB_Available(byteBuff) > PACKAGE_TAIL_LEN) // 否则交给具体功能码去处理，包括多包的后续包
     {
+        ((UplinkMessage *)me)->rawBuff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff) - PACKAGE_TAIL_LEN);
+    }
+    UplinkMessage *self = ((UplinkMessage *)me);
+    if (self->rawBuff != NULL)
+    {
+        BB_Flip(self->rawBuff);
     }
     // decode tail
-    res = BB_Available(byteBuff) == 3 && Package_DecodeTail(me, byteBuff);
+    res = BB_Available(byteBuff) == PACKAGE_TAIL_LEN && Package_DecodeTail(me, byteBuff);
     return res;
 }
 
@@ -268,6 +279,12 @@ void UplinkMessage_dtor(Package *const me)
 {
     assert(me);
     LinkMessage_dtor(me);
+    UplinkMessage *self = (UplinkMessage *)me;
+    if (self->rawBuff != NULL)
+    {
+        BB_dtor(self->rawBuff);
+        DelInstance(self);
+    }
 }
 
 void UplinkMessage_ctor(UplinkMessage *const me, uint16_t initElementCount)
@@ -294,6 +311,12 @@ bool UplinkMessage_DecodeHead(UplinkMessage *const me, ByteBuffer *const byteBuf
 {
     assert(me);
     assert(byteBuff);
+    // 如果是第二包，则不处理包头
+    Package *pkg = (Package *)me;
+    if (pkg->head.stxFlag == SYN && pkg->head.sequence.seq > 1)
+    {
+        return true;
+    }
     uint8_t usedLen = BB_BE_GetUInt16(byteBuff, &me->messageHead.seq);
     if (!DateTime_Decode(&me->messageHead.sendTime, byteBuff))
     {
@@ -347,8 +370,13 @@ static bool DownlinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff
     {
         return false;
     }
-    if (isMessageCombinedByElements(Down, me->head.funcCode) &&
-        BB_Available(byteBuff) > ELEMENT_IDENTIFER_LEN + PACKAGE_TAIL_LEN) // 按照要素解码
+    // @Todo 分包情况下，后续包是否还需要去解析？
+    if (me->head.stxFlag == SYN && me->head.sequence.seq > 1)
+    {
+        ((DownlinkMessage *)me)->rawBuff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff) - PACKAGE_TAIL_LEN);
+    }
+    else if (isMessageCombinedByElements(Down, me->head.funcCode) &&
+             BB_Available(byteBuff) > ELEMENT_IDENTIFER_LEN + PACKAGE_TAIL_LEN) // 按照要素解码
     {
         ByteBuffer elBuff;
         BB_ctor_wrappedAnother(&elBuff, byteBuff, BB_Position(byteBuff), BB_Limit(byteBuff) - PACKAGE_TAIL_LEN);
@@ -368,8 +396,14 @@ static bool DownlinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff
         BB_Skip(byteBuff, BB_Position(&elBuff));
         BB_dtor(&elBuff);
     }
-    else // 否则交给具体功能码去处理
+    else if (BB_Available(byteBuff) > PACKAGE_TAIL_LEN) // 否则交给具体功能码去处理
     {
+        ((DownlinkMessage *)me)->rawBuff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff) - PACKAGE_TAIL_LEN);
+    }
+    DownlinkMessage *self = ((DownlinkMessage *)me);
+    if (self->rawBuff != NULL)
+    {
+        BB_Flip(self->rawBuff);
     }
     // decode tail
     res = BB_Available(byteBuff) == 3 && Package_DecodeTail(me, byteBuff);
@@ -399,6 +433,12 @@ void DownlinkMessage_dtor(Package *const me)
 {
     assert(me);
     LinkMessage_dtor(me);
+    DownlinkMessage *self = (DownlinkMessage *)me;
+    if (self->rawBuff != NULL)
+    {
+        BB_dtor(self->rawBuff);
+        DelInstance(self);
+    }
 }
 /* Public methods */
 bool DownlinkMessage_EncodeHead(DownlinkMessage const *const me, ByteBuffer *const byteBuff)
@@ -411,6 +451,12 @@ bool DownlinkMessage_DecodeHead(DownlinkMessage *const me, ByteBuffer *const byt
 {
     assert(me);
     assert(byteBuff);
+    // 如果是第二包，则不处理包头
+    Package *pkg = (Package *)me;
+    if (pkg->head.sequence.seq > 1)
+    {
+        return true;
+    }
     uint8_t usedLen = BB_BE_GetUInt16(byteBuff, &me->messageHead.seq);
     if (!DateTime_Decode(&me->messageHead.sendTime, byteBuff))
     {
@@ -1341,7 +1387,7 @@ Package *decodePackage(ByteBuffer *const byteBuff)
     // crc
     uint16_t crcCalc = 0;
     uint16_t crcInBuf = 0;
-    uint8_t dataEnd = buffSize - (PACKAGE_TAIL_LEN - 1);
+    uint32_t dataEnd = buffSize - (PACKAGE_TAIL_LEN - 1);
     BB_BE_PeekUInt16At(byteBuff, dataEnd, &crcInBuf);
     BB_CRC16(byteBuff, &crcCalc, 0, dataEnd);
     if (crcCalc != crcInBuf)
