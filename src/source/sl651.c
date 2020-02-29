@@ -189,6 +189,11 @@ void LinkMessage_dtor(Package *const me)
             DelInstance(el);
         }
     }
+    if (self->rawBuff != NULL)
+    {
+        BB_dtor(self->rawBuff);
+        DelInstance(self->rawBuff);
+    }
 }
 
 void LinkMessage_ctor(LinkMessage *const me, uint16_t initElementCount)
@@ -232,7 +237,7 @@ static bool UplinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff)
     // @Todo 分包情况下，后续包是否还需要去解析？
     if (me->head.stxFlag == SYN && me->head.sequence.seq > 1)
     {
-        ((UplinkMessage *)me)->rawBuff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff) - PACKAGE_TAIL_LEN);
+        ((LinkMessage *)me)->rawBuff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff) - PACKAGE_TAIL_LEN);
     }
     else if (isMessageCombinedByElements(Up, me->head.funcCode) &&
              BB_Available(byteBuff) > ELEMENT_IDENTIFER_LEN + PACKAGE_TAIL_LEN) // 按照要素解码
@@ -249,7 +254,8 @@ static bool UplinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff)
             }
             else
             {
-                break;
+                BB_dtor(&elBuff);
+                return false;
             }
         }
         BB_Skip(byteBuff, BB_Position(&elBuff));
@@ -257,12 +263,12 @@ static bool UplinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff)
     }
     else if (BB_Available(byteBuff) > PACKAGE_TAIL_LEN) // 否则交给具体功能码去处理，包括多包的后续包
     {
-        ((UplinkMessage *)me)->rawBuff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff) - PACKAGE_TAIL_LEN);
+        ((LinkMessage *)me)->rawBuff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff) - PACKAGE_TAIL_LEN);
     }
     UplinkMessage *self = ((UplinkMessage *)me);
-    if (self->rawBuff != NULL)
+    if (((LinkMessage *)me)->rawBuff != NULL)
     {
-        BB_Flip(self->rawBuff);
+        BB_Flip(((LinkMessage *)me)->rawBuff);
     }
     // decode tail
     res = BB_Available(byteBuff) == PACKAGE_TAIL_LEN && Package_DecodeTail(me, byteBuff);
@@ -280,11 +286,6 @@ void UplinkMessage_dtor(Package *const me)
     assert(me);
     LinkMessage_dtor(me);
     UplinkMessage *self = (UplinkMessage *)me;
-    if (self->rawBuff != NULL)
-    {
-        BB_dtor(self->rawBuff);
-        DelInstance(self);
-    }
 }
 
 void UplinkMessage_ctor(UplinkMessage *const me, uint16_t initElementCount)
@@ -373,10 +374,10 @@ static bool DownlinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff
     // @Todo 分包情况下，后续包是否还需要去解析？
     if (me->head.stxFlag == SYN && me->head.sequence.seq > 1)
     {
-        ((DownlinkMessage *)me)->rawBuff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff) - PACKAGE_TAIL_LEN);
+        ((LinkMessage *)me)->rawBuff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff) - PACKAGE_TAIL_LEN);
     }
     else if (isMessageCombinedByElements(Down, me->head.funcCode) &&
-             BB_Available(byteBuff) > ELEMENT_IDENTIFER_LEN + PACKAGE_TAIL_LEN) // 按照要素解码
+             BB_Available(byteBuff) >= ELEMENT_IDENTIFER_LEN + PACKAGE_TAIL_LEN) // 按照要素解码
     {
         ByteBuffer elBuff;
         BB_ctor_wrappedAnother(&elBuff, byteBuff, BB_Position(byteBuff), BB_Limit(byteBuff) - PACKAGE_TAIL_LEN);
@@ -390,7 +391,8 @@ static bool DownlinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff
             }
             else
             {
-                break;
+                BB_dtor(&elBuff);
+                return false;
             }
         }
         BB_Skip(byteBuff, BB_Position(&elBuff));
@@ -398,12 +400,12 @@ static bool DownlinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff
     }
     else if (BB_Available(byteBuff) > PACKAGE_TAIL_LEN) // 否则交给具体功能码去处理
     {
-        ((DownlinkMessage *)me)->rawBuff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff) - PACKAGE_TAIL_LEN);
+        ((LinkMessage *)me)->rawBuff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff) - PACKAGE_TAIL_LEN);
     }
     DownlinkMessage *self = ((DownlinkMessage *)me);
-    if (self->rawBuff != NULL)
+    if (((LinkMessage *)me)->rawBuff != NULL)
     {
-        BB_Flip(self->rawBuff);
+        BB_Flip(((LinkMessage *)me)->rawBuff);
     }
     // decode tail
     res = BB_Available(byteBuff) == 3 && Package_DecodeTail(me, byteBuff);
@@ -434,11 +436,6 @@ void DownlinkMessage_dtor(Package *const me)
     assert(me);
     LinkMessage_dtor(me);
     DownlinkMessage *self = (DownlinkMessage *)me;
-    if (self->rawBuff != NULL)
-    {
-        BB_dtor(self->rawBuff);
-        DelInstance(self);
-    }
 }
 /* Public methods */
 bool DownlinkMessage_EncodeHead(DownlinkMessage const *const me, ByteBuffer *const byteBuff)
@@ -447,6 +444,26 @@ bool DownlinkMessage_EncodeHead(DownlinkMessage const *const me, ByteBuffer *con
     assert(byteBuff);
     return true;
 }
+
+static bool Decode_TimeRange(TimeRange *const timeRange, ByteBuffer *const byteBuff)
+{
+    assert(timeRange);
+    assert(byteBuff);
+    if (BB_Available(byteBuff) < TIME_STEP_RANGE_LEN)
+    {
+        return false;
+    }
+    uint8_t usedLen = BB_BCDGetUInt8(byteBuff, &timeRange->start.year);
+    usedLen += BB_BCDGetUInt8(byteBuff, &timeRange->start.month);
+    usedLen += BB_BCDGetUInt8(byteBuff, &timeRange->start.day);
+    usedLen += BB_BCDGetUInt8(byteBuff, &timeRange->start.hour);
+    usedLen += BB_BCDGetUInt8(byteBuff, &timeRange->end.year);
+    usedLen += BB_BCDGetUInt8(byteBuff, &timeRange->end.month);
+    usedLen += BB_BCDGetUInt8(byteBuff, &timeRange->end.day);
+    usedLen += BB_BCDGetUInt8(byteBuff, &timeRange->end.hour);
+    return usedLen == TIME_STEP_RANGE_LEN;
+}
+
 bool DownlinkMessage_DecodeHead(DownlinkMessage *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
@@ -459,6 +476,13 @@ bool DownlinkMessage_DecodeHead(DownlinkMessage *const me, ByteBuffer *const byt
     }
     uint8_t usedLen = BB_BE_GetUInt16(byteBuff, &me->messageHead.seq);
     if (!DateTime_Decode(&me->messageHead.sendTime, byteBuff))
+    {
+        return false;
+    }
+    // 中心站查询遥测站时段数据下行报文 特殊结构
+    if ((me->super.super.head.direction == Down &&
+         me->super.super.head.funcCode == QUERY_TIMERANGE) &&
+        !Decode_TimeRange(&me->messageHead.timeRange, byteBuff))
     {
         return false;
     }
@@ -719,6 +743,10 @@ static bool DRP5MINElement_Decode(Element *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
     assert(byteBuff);
+    if (me->direction == Down)
+    {
+        return true;
+    }
     if (BB_Available(byteBuff) < DRP5MIN_LEN)
     {
         return false;
@@ -787,6 +815,10 @@ static bool FlowRateDataElement_Decode(Element *const me, ByteBuffer *const byte
 {
     assert(me);
     assert(byteBuff);
+    if (me->direction == Down)
+    {
+        return true;
+    }
     if (BB_Available(byteBuff) < 0) // 截取所有
     {
         return false;
@@ -838,6 +870,10 @@ static bool RelativeWaterLevelElement_Decode(Element *const me, ByteBuffer *cons
 {
     assert(me);
     assert(byteBuff);
+    if (me->direction == Down)
+    {
+        return true;
+    }
     if (BB_Available(byteBuff) < RELATIVE_WATER_LEVEL_LEN)
     {
         return false;
@@ -1012,9 +1048,10 @@ static bool NumberElement_Encode(Element const *const me, ByteBuffer *const byte
 static bool NumberElement_Decode(Element *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
-    if (byteBuff == NULL)
+    assert(byteBuff);
+    if (me->direction == Down)
     {
-        return false;
+        return true;
     }
     uint8_t size = me->dataDef >> NUMBER_ELEMENT_LEN_OFFSET;
     if (BB_Available(byteBuff) < size)
@@ -1113,9 +1150,10 @@ static bool NumberListElement_Encode(Element const *const me, ByteBuffer *const 
 static bool NumberListElement_Decode(Element *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
-    if (byteBuff == NULL)
+    assert(byteBuff);
+    if (me->direction == Down) // 下行消息没有消息体，直接返回
     {
-        return false;
+        return true;
     }
     uint8_t size = me->dataDef >> NUMBER_ELEMENT_LEN_OFFSET;
     if (BB_Available(byteBuff) % size != 0)
