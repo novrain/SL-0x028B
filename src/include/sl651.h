@@ -94,6 +94,8 @@ extern "C"
         PICTURE,
         // 中心站查询遥测站实时数据
         QUERY_REALTIME,
+        // 中心站查询遥测站时段数据
+        QUERY_TIMERANGE,
         // 中心站查询遥测站人工置数
         QUERY_ARTIFICIAL,
         // 中心站查询遥测站指定要素数据
@@ -157,6 +159,9 @@ extern "C"
         case EVEN_TIME:
         case INTERVAL:
         case PICTURE:
+        case QUERY_REALTIME:
+        case QUERY_TIMERANGE:
+        case QUERY_ELEMENT:
             return true;
         default:
             return false;
@@ -178,6 +183,9 @@ extern "C"
         case EVEN_TIME:
         case INTERVAL:
         case PICTURE:
+        case QUERY_REALTIME:
+        case QUERY_TIMERANGE:
+        case QUERY_ELEMENT:
             return true;
         default:
             return false;
@@ -203,6 +211,9 @@ extern "C"
             case INTERVAL:
             case ARTIFICIAL:
             case PICTURE:
+            case QUERY_REALTIME:
+            case QUERY_TIMERANGE:
+            case QUERY_ELEMENT:
                 return true;
             default:
                 return false;
@@ -210,6 +221,9 @@ extern "C"
         case Down:
             switch (functionCode)
             {
+            case QUERY_TIMERANGE:
+            case QUERY_ELEMENT:
+                return true;
             default:
                 return false;
             }
@@ -236,6 +250,27 @@ extern "C"
             case EVEN_TIME:
             case INTERVAL:
             case PICTURE:
+            case QUERY_REALTIME:
+            case QUERY_TIMERANGE:
+            case QUERY_ELEMENT:
+            case MODIFY_BASIC_CONFIG:
+            case BASIC_CONFIG:
+            case MODIFY_RUNTIME_CONFIG:
+            case RUNTIME_CONFIG:
+            case QUERY_PUMPING_REALTIME:
+            case QUERY_SOFTWARE_VERSION:
+            case QUERY_STATUS:
+            case INIT_STORAGE:
+            case RESET:
+            case CHANGE_PASSWORD:
+            case SET_CLOCK:
+            case SET_IC:
+            case PUMPING_SWITCH:
+            case VALVE_SWITCH:
+            case GATE_SWITCH:
+            case WATER_VOLUME_SETTING:
+            case QUERY_LOG:
+            case QUERY_CLOCK:
                 return true;
             default:
                 return false;
@@ -445,8 +480,23 @@ extern "C"
 
     typedef struct
     {
+        uint8_t year;
+        uint8_t month;
+        uint8_t day;
+        uint8_t hour;
+    } Time;
+
+    typedef struct
+    {
+        Time start;
+        Time end;
+    } TimeRange;
+#define TIME_STEP_RANGE_LEN 8
+    typedef struct
+    {
         uint16_t seq;
         DateTime sendTime;
+        TimeRange timeRange;
         RemoteStationAddrElement stationAddrElement;
     } DownlinkMessageHead;
 
@@ -504,6 +554,7 @@ extern "C"
     {
         Package super;
         ElementPtrVector elements;
+        ByteBuffer *rawBuff;
     } LinkMessage;
 
     /* LinkMessage Construtor & Destrucor */
@@ -516,7 +567,6 @@ extern "C"
     {
         LinkMessage super;
         UplinkMessageHead messageHead;
-        ByteBuffer *rawBuff;
     } UplinkMessage;
 
     /* UplinkMessage Construtor & Destrucor */
@@ -534,7 +584,6 @@ extern "C"
     {
         LinkMessage super;
         DownlinkMessageHead messageHead;
-        ByteBuffer *rawBuff;
     } DownlinkMessage;
 
     /* DownlinkMessage Construtor  & Destrucor */
@@ -676,6 +725,7 @@ extern "C"
     void NumberListElement_dtor(Element *const me);
     uint8_t NumberListElement_GetFloatAt(NumberListElement *const me, uint8_t index, float *val);
     uint8_t NumberListElement_GetIntegerAt(NumberListElement *const me, uint8_t index, uint64_t *val);
+
     typedef struct
     {
         // it is fixed value, 0x0418
