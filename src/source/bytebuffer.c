@@ -188,6 +188,7 @@ void BB_dtor(ByteBuffer *const me)
     if (!me->wrapped)
     {
         free(me->buff);
+        me->buff == NULL;
     }
 }
 
@@ -269,6 +270,27 @@ ByteBuffer *BB_GetByteBuffer(ByteBuffer *const me, uint32_t size)
         me->position += size;
     }
     return val;
+}
+
+bool BB_PutByteBuffer(ByteBuffer *const me, ByteBuffer *const src)
+{
+    assert(me);
+    assert(src);
+    uint32_t size = BB_Available(src);
+    if (size == 0)
+    {
+        return true;
+    }
+    if (me->position + size <= me->size)
+    {
+        memcpy(me->buff + me->position, src->buff + src->position, size);
+        me->position += size;
+        return true;
+    }
+    else
+    {
+        return false;
+    }
 }
 
 ByteBuffer *BB_PeekByteBuffer(ByteBuffer *const me, uint32_t start, uint32_t size)
@@ -574,4 +596,16 @@ uint8_t BB_BCDGetUInt(ByteBuffer *const me, void *val, uint8_t size)
 uint8_t BB_BCDGetUInt8(ByteBuffer *const me, uint8_t *val)
 {
     return BB_BCDGetUInt(me, val, 1);
+}
+
+uint8_t BB_BCDPutUInt8(ByteBuffer *const me, uint8_t val)
+{
+    assert(me);
+    assert(me->buff);
+    if (val > 99 || me->position >= me->limit)
+    {
+        return 0;
+    }
+    me->buff[me->position++] = ((val / 10) << 4) + (val % 10);
+    return 1;
 }

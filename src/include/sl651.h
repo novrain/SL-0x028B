@@ -499,6 +499,7 @@ extern "C"
         TimeRange timeRange;
         RemoteStationAddrElement stationAddrElement;
     } DownlinkMessageHead;
+    size_t DownlinkMessageHead_Size(DownlinkMessageHead const *const me);
 
     typedef struct
     {
@@ -521,7 +522,7 @@ extern "C"
     typedef struct PackageVtbl
     {
         // pure virtual
-        bool (*encode)(Package const *const me, ByteBuffer *const byteBuff);
+        ByteBuffer *(*encode)(Package const *const me);
         bool (*decode)(Package *const me, ByteBuffer *const byteBuff);
         size_t (*size)(Package const *const me);
         // to call the subclass's desctrutor as a superclass.
@@ -535,6 +536,8 @@ extern "C"
     bool Package_EncodeTail(Package const *const me, ByteBuffer *const byteBuff);
     bool Package_DecodeHead(Package *const me, ByteBuffer *const byteBuff);
     bool Package_DecodeTail(Package *const me, ByteBuffer *const byteBuff);
+    size_t Package_HeadSize(Package const *const me);
+    size_t Package_TailSize(Package const *const me);
     // an empty desctrutor implements
     static inline void Package_dtor(Package *const me)
     {
@@ -560,6 +563,8 @@ extern "C"
     /* LinkMessage Construtor & Destrucor */
     void LinkMessage_ctor(LinkMessage *const me, uint16_t initElementCount);
     void LinkMessage_dtor(Package *const me);
+    size_t LinkMessage_ElementsSize(LinkMessage const *const me);
+    size_t LinkMessage_RawByteBuffSize(LinkMessage const *const me);
     // "Basic" LinkMessage END
 
     // "AbstractUpClass" UplinkMessage

@@ -10,8 +10,15 @@ GTEST_TEST(Definition, package)
     pkg->head.centerAddr = 0;              // 调用方法，或者直接访问，必要的功能可以封装起来，简单赋值直接访问
     pkg->head.direction = Up;              //
     ASSERT_EQ(Package_Direction(pkg), Up); //
-    Package_dtor(pkg);                     // 析构 or pkg->vtbl->dtor(pkg)?
-    DelInstance(pkg);                      // 同上
+    ByteBuffer *encoded = NewInstance(ByteBuffer);
+    BB_ctor(encoded, PACKAGE_HEAD_STX_LEN);
+    Package_EncodeHead(pkg, encoded);
+    ASSERT_EQ(BB_Position(encoded), PACKAGE_HEAD_STX_LEN);
+
+    BB_dtor(encoded);
+    DelInstance(encoded);
+    Package_dtor(pkg); // 析构 or pkg->vtbl->dtor(pkg)?
+    DelInstance(pkg);  // 同上
 }
 
 GTEST_TEST(DecodeElement, decodeCustomeElement)
@@ -43,10 +50,26 @@ GTEST_TEST(DecodeElement, decodeObserveTimeElement)
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, OBSERVETIME);
     ASSERT_EQ(el->dataDef, OBSERVETIME);
+    ASSERT_EQ(el->vptr->size(el), OBSERVETIME_LEN + ELEMENT_IDENTIFER_LEN);
+
     ObserveTimeElement *otel = (ObserveTimeElement *)el; // 类型转换要小心，因为没有严格的类型匹配
     ASSERT_EQ(otel->super.identifierLeader, OBSERVETIME);
     ASSERT_EQ(otel->super.dataDef, OBSERVETIME);
     ASSERT_EQ(otel->observeTime.day, 22);
+
+    ASSERT_EQ(otel->super.vptr->size(el), 7);
+
+    ByteBuffer *encoded = NewInstance(ByteBuffer);
+    BB_ctor(encoded, otel->super.vptr->size(el));
+
+    el->vptr->encode(el, encoded);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), otel->super.vptr->size(el));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     ObserveTimeElement_dtor(el);
     DelInstance(otel);
@@ -65,10 +88,24 @@ GTEST_TEST(DecodeElement, decodeRemoteStationAddrElement)
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, ADDRESS);
     ASSERT_EQ(el->dataDef, ADDRESS);
+    ASSERT_EQ(el->vptr->size(el), REMOTE_STATION_ADDR_LEN + ELEMENT_IDENTIFER_LEN);
+
     RemoteStationAddrElement *rsael = (RemoteStationAddrElement *)el; // 类型转换要小心，因为没有严格的类型匹配
     ASSERT_EQ(rsael->super.identifierLeader, ADDRESS);
     ASSERT_EQ(rsael->super.dataDef, ADDRESS);
     ASSERT_EQ(rsael->stationAddr.A1, 87); // 0x2222  8738  =>  00 87 38
+
+    ByteBuffer *encoded = NewInstance(ByteBuffer);
+    BB_ctor(encoded, rsael->super.vptr->size(el));
+
+    el->vptr->encode(el, encoded);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), rsael->super.vptr->size(el));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     RemoteStationAddrElement_dtor(el);
     DelInstance(rsael);
@@ -82,11 +119,25 @@ GTEST_TEST(DecodeElement, decodeRemoteStationAddrElement)
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, ADDRESS);
     ASSERT_EQ(el->dataDef, ADDRESS);
+    ASSERT_EQ(el->vptr->size(el), REMOTE_STATION_ADDR_LEN + ELEMENT_IDENTIFER_LEN);
+
     rsael = (RemoteStationAddrElement *)el; // 类型转换要小心，因为没有严格的类型匹配
     ASSERT_EQ(rsael->super.identifierLeader, ADDRESS);
     ASSERT_EQ(rsael->super.dataDef, ADDRESS);
     ASSERT_EQ(rsael->stationAddr.A5, A5_HYDROLOGICAL_TELEMETRY_STATION);
     ASSERT_EQ(rsael->stationAddr.A1, 22);
+
+    encoded = NewInstance(ByteBuffer);
+    BB_ctor(encoded, rsael->super.vptr->size(el));
+
+    el->vptr->encode(el, encoded);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), rsael->super.vptr->size(el));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     RemoteStationAddrElement_dtor(el);
     DelInstance(rsael);
@@ -108,6 +159,19 @@ GTEST_TEST(DecodeElement, decodePictureElement)
     PictureElement *pel = (PictureElement *)el;
     ASSERT_EQ(pel->super.identifierLeader, PICTURE_IL);
     ASSERT_EQ(pel->super.dataDef, PICTURE_IL);
+    ASSERT_EQ(pel->super.vptr->size(el), ELEMENT_IDENTIFER_LEN + 6);
+
+    ByteBuffer *encoded = NewInstance(ByteBuffer);
+    BB_ctor(encoded, pel->super.vptr->size(el));
+
+    el->vptr->encode(el, encoded);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pel->super.vptr->size(el));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     PictureElement_dtor(el);
     DelInstance(pel);
@@ -129,6 +193,34 @@ GTEST_TEST(DecodeElement, decodeArtificialElement)
     ArtificialElement *aiel = (ArtificialElement *)el;
     ASSERT_EQ(aiel->super.identifierLeader, ARTIFICIAL_IL);
     ASSERT_EQ(aiel->super.dataDef, ARTIFICIAL_IL);
+    ASSERT_EQ(aiel->super.vptr->size(el), 25);
+
+    ByteBuffer *encoded = NewInstance(ByteBuffer);
+    BB_ctor(encoded, aiel->super.vptr->size(el));
+
+    el->vptr->encode(el, encoded);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), aiel->super.vptr->size(el));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
+    Element_SetDirection(el, Down);
+    ASSERT_EQ(aiel->super.vptr->size(el), 25);
+
+    encoded = NewInstance(ByteBuffer);
+    BB_ctor(encoded, aiel->super.vptr->size(el));
+
+    el->vptr->encode(el, encoded);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), aiel->super.vptr->size(el));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     ArtificialElement_dtor(el);
     DelInstance(aiel);
@@ -150,6 +242,7 @@ GTEST_TEST(DecodeElement, decodeDRP5MINElement)
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, DRP5MIN);
     ASSERT_EQ(el->dataDef, DRP5MIN_DATADEF);
+    ASSERT_EQ(el->vptr->size(el), DRP5MIN_LEN + ELEMENT_IDENTIFER_LEN);
     DRP5MINElement *drp5el = (DRP5MINElement *)el;
     ASSERT_EQ(drp5el->super.identifierLeader, DRP5MIN);
     ASSERT_EQ(drp5el->super.dataDef, DRP5MIN_DATADEF);
@@ -158,6 +251,31 @@ GTEST_TEST(DecodeElement, decodeDRP5MINElement)
     ASSERT_TRUE(0 == fv);
     ASSERT_EQ(1, DRP5MINElement_ValueAt(drp5el, 1, &fv));
     ASSERT_EQ(0.1f, fv);
+
+    ByteBuffer *encoded = NewInstance(ByteBuffer);
+    BB_ctor(encoded, drp5el->super.vptr->size(el));
+
+    el->vptr->encode(el, encoded);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), drp5el->super.vptr->size(el));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
+    Element_SetDirection(el, Down);
+    ASSERT_EQ(el->vptr->size(el), ELEMENT_IDENTIFER_LEN);
+
+    encoded = NewInstance(ByteBuffer);
+    BB_ctor(encoded, drp5el->super.vptr->size(el));
+
+    el->vptr->encode(el, encoded);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), 2);
+
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     DRP5MINElement_dtor(el);
     DelInstance(drp5el);
@@ -176,9 +294,36 @@ GTEST_TEST(DecodeElement, decodeFlowRateDataElement)
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, FLOW_RATE_DATA);
     ASSERT_EQ(el->dataDef, FLOW_RATE_DATA_DATADEF);
+    ASSERT_EQ(el->vptr->size(el), 8);
     FlowRateDataElement *flel = (FlowRateDataElement *)el;
     ASSERT_EQ(flel->super.identifierLeader, FLOW_RATE_DATA);
     ASSERT_EQ(flel->super.dataDef, FLOW_RATE_DATA_DATADEF);
+
+    ByteBuffer *encoded = NewInstance(ByteBuffer);
+    BB_ctor(encoded, flel->super.vptr->size(el));
+
+    el->vptr->encode(el, encoded);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), flel->super.vptr->size(el));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
+    Element_SetDirection(el, Down);
+    ASSERT_EQ(el->vptr->size(el), 2);
+
+    encoded = NewInstance(ByteBuffer);
+    BB_ctor(encoded, flel->super.vptr->size(el));
+
+    el->vptr->encode(el, encoded);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), flel->super.vptr->size(el));
+
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     FlowRateDataElement_dtor(el);
     DelInstance(flel);
     BB_dtor(byteBuff);
@@ -199,6 +344,8 @@ GTEST_TEST(DecodeElement, decodeRelativeWaterLevelElement)
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, RELATIVE_WATER_LEVEL_5MIN1);
     ASSERT_EQ(el->dataDef, RELATIVE_WATER_LEVEL_5MIN1_DATADEF);
+    ASSERT_EQ(el->vptr->size(el), 26);
+
     RelativeWaterLevelElement *rwl5el = (RelativeWaterLevelElement *)el;
     ASSERT_EQ(rwl5el->super.identifierLeader, RELATIVE_WATER_LEVEL_5MIN1);
     ASSERT_EQ(rwl5el->super.dataDef, RELATIVE_WATER_LEVEL_5MIN1_DATADEF);
@@ -207,6 +354,33 @@ GTEST_TEST(DecodeElement, decodeRelativeWaterLevelElement)
     ASSERT_TRUE(0x0AAA / 100.0f == fv);
     ASSERT_EQ(2, RelativeWaterLevelElement_ValueAt(rwl5el, 1, &fv));
     ASSERT_EQ(0x0AAA / 100.0f, fv);
+
+    ByteBuffer *encoded = NewInstance(ByteBuffer);
+    BB_ctor(encoded, rwl5el->super.vptr->size(el));
+
+    el->vptr->encode(el, encoded);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), rwl5el->super.vptr->size(el));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
+    Element_SetDirection(el, Down);
+    ASSERT_EQ(el->vptr->size(el), 2);
+
+    encoded = NewInstance(ByteBuffer);
+    BB_ctor(encoded, rwl5el->super.vptr->size(el));
+
+    el->vptr->encode(el, encoded);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), rwl5el->super.vptr->size(el));
+
+    ASSERT_EQ(encoded->buff[0], 0xF5);
+    ASSERT_EQ(encoded->buff[1], 0xC0);
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     RelativeWaterLevelElement_dtor(el);
     DelInstance(rwl5el);
@@ -228,6 +402,7 @@ GTEST_TEST(DecodeElement, decodeNumberElement)
     BB_Flip(byteBuff);
     el = decodeElement(byteBuff, Up);
     ASSERT_TRUE(el != NULL);
+    ASSERT_EQ(el->vptr->size(el), 6);
     NumberElement *nel = (NumberElement *)el;
     ASSERT_EQ(nel->super.identifierLeader, 0x28);
     ASSERT_EQ(nel->super.dataDef, 0x23);
@@ -239,6 +414,34 @@ GTEST_TEST(DecodeElement, decodeNumberElement)
     float f = 0;
     NumberElement_GetFloat(nel, &f);
     ASSERT_EQ(f, 11.11f);
+
+    ByteBuffer *encoded = NewInstance(ByteBuffer);
+    BB_ctor(encoded, nel->super.vptr->size(el));
+
+    el->vptr->encode(el, encoded);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), nel->super.vptr->size(el));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
+    Element_SetDirection(el, Down);
+    ASSERT_EQ(el->vptr->size(el), 2);
+
+    encoded = NewInstance(ByteBuffer);
+    BB_ctor(encoded, nel->super.vptr->size(el));
+
+    el->vptr->encode(el, encoded);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), nel->super.vptr->size(el));
+
+    ASSERT_EQ(encoded->buff[0], 0x28);
+    ASSERT_EQ(encoded->buff[1], 0x23);
+
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     NumberElement_dtor(el);
     DelInstance(nel);
@@ -267,6 +470,8 @@ GTEST_TEST(DecodeElement, decodeTimeStepCodeElement)
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, TIME_STEP_CODE);
     ASSERT_EQ(el->dataDef, TIME_STEP_CODE_DATADEF);
+    ASSERT_EQ(el->vptr->size(el), 35);
+
     TimeStepCodeElement *tscel = (TimeStepCodeElement *)el;
     ASSERT_EQ(tscel->super.identifierLeader, TIME_STEP_CODE);
     ASSERT_EQ(tscel->super.dataDef, TIME_STEP_CODE_DATADEF);
@@ -282,6 +487,35 @@ GTEST_TEST(DecodeElement, decodeTimeStepCodeElement)
     ASSERT_EQ(10.49f, fv);
     ASSERT_EQ(0, NumberListElement_GetFloatAt(nle, 6, &fv));
     ASSERT_EQ(7.20576e+13f, fv);
+
+    ByteBuffer *encoded = NewInstance(ByteBuffer);
+    BB_ctor(encoded, tscel->super.vptr->size(el));
+
+    el->vptr->encode(el, encoded);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), tscel->super.vptr->size(el));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
+    Element_SetDirection(el, Down);
+    ASSERT_EQ(el->vptr->size(el), 7);
+
+    encoded = NewInstance(ByteBuffer);
+    BB_ctor(encoded, tscel->super.vptr->size(el));
+
+    el->vptr->encode(el, encoded);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), tscel->super.vptr->size(el));
+
+    ASSERT_EQ(encoded->buff[0], 0x04);
+    ASSERT_EQ(encoded->buff[1], 0x18);
+    ASSERT_EQ(encoded->buff[5], 0x39);
+    ASSERT_EQ(encoded->buff[6], 0x23);
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     TimeStepCodeElement_dtor(el);
     DelInstance(tscel);
@@ -305,6 +539,17 @@ GTEST_TEST(DecodeElement, decodeStationStatusElement)
     ASSERT_EQ(ssel->super.dataDef, STATION_STATUS_DATADEF);
     ASSERT_EQ(ssel->status, 0x20022211);
 
+    ByteBuffer *encoded = NewInstance(ByteBuffer);
+    BB_ctor(encoded, ssel->super.vptr->size(el));
+
+    el->vptr->encode(el, encoded);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), ssel->super.vptr->size(el));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     StationStatusElement_dtor(el);
     DelInstance(ssel);
     BB_dtor(byteBuff);
@@ -327,6 +572,17 @@ GTEST_TEST(DecodeElement, decodeDurationElement)
     ASSERT_EQ(duel->super.dataDef, DURATION_OF_XX_DATADEF);
     ASSERT_EQ(duel->hour, 11);
     ASSERT_EQ(duel->minute, 1);
+
+    ByteBuffer *encoded = NewInstance(ByteBuffer);
+    BB_ctor(encoded, duel->super.vptr->size(el));
+
+    el->vptr->encode(el, encoded);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), duel->super.vptr->size(el));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     DurationElement_dtor(el);
     DelInstance(duel);
@@ -363,6 +619,14 @@ GTEST_TEST(Package, decodeKeepAliveUplinkMessage)
     ASSERT_EQ(pkg->head.funcCode, 0x2F);
     ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0x6BCA);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -401,6 +665,14 @@ GTEST_TEST(Package, decodeRainfallStationHourlyDownlinkMessage)
     ASSERT_EQ(pkg->head.direction, Down);
     ASSERT_EQ(pkg->tail.etxFlag, 04);
     ASSERT_EQ(pkg->tail.crc, 0x696e);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
@@ -499,6 +771,14 @@ GTEST_TEST(Package, decodeRainfallStationHourlyUplinkMessage)
     ASSERT_EQ(2, NumberElement_GetFloat(nel, &fv));
     ASSERT_EQ(12.9f, fv);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0x4383);
 
@@ -536,6 +816,14 @@ GTEST_TEST(Package, decodeWaterRainStationHourlyDownlinkMessage)
     ASSERT_EQ(pkg->head.direction, Down);
     ASSERT_EQ(pkg->tail.etxFlag, 04);
     ASSERT_EQ(pkg->tail.crc, 0x99A1);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
@@ -610,6 +898,14 @@ GTEST_TEST(Package, decodeWaterRainStationHourlyUplinkMessage)
     ASSERT_EQ(2, RelativeWaterLevelElement_ValueAt(rwlel, 11, &fv));
     ASSERT_EQ(0xffff, fv);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -645,6 +941,14 @@ GTEST_TEST(Package, decodeRainStationAddRPTDownlinkMessage)
     ASSERT_EQ(pkg->head.direction, Down);
     ASSERT_EQ(pkg->tail.etxFlag, 04);
     ASSERT_EQ(pkg->tail.crc, 0xDAAA);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
@@ -709,6 +1013,14 @@ GTEST_TEST(Package, decodeRainStationAddRPTUplinkMessage)
     ASSERT_EQ(2, NumberElement_GetFloat(nel, &fv));
     ASSERT_EQ(12.09f, fv);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -745,6 +1057,14 @@ GTEST_TEST(Package, decodeTestDownlinkMessage1)
     ASSERT_EQ(pkg->tail.etxFlag, 04);
     ASSERT_EQ(pkg->tail.crc, 0x19AF);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -780,6 +1100,14 @@ GTEST_TEST(Package, decodeTestDownlinkMessage)
     ASSERT_EQ(pkg->head.direction, Down);
     ASSERT_EQ(pkg->tail.etxFlag, ESC);
     ASSERT_EQ(pkg->tail.crc, 0x75D4);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
@@ -842,6 +1170,14 @@ GTEST_TEST(Package, decodeTestUplinkMessage)
     ASSERT_EQ(4, NumberElement_GetFloat(nel, &fv));
     ASSERT_EQ(0.127f, fv);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -877,6 +1213,14 @@ GTEST_TEST(Package, decodeEvenTimeDownlinkMessage)
     ASSERT_EQ(pkg->head.direction, Down);
     ASSERT_EQ(pkg->tail.etxFlag, ESC);
     ASSERT_EQ(pkg->tail.crc, 0x291C);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
@@ -948,6 +1292,14 @@ GTEST_TEST(Package, decodeEvenTimeUplinkMessage)
     ASSERT_EQ(0x23, tsel->numberListElement.super.dataDef);
     ASSERT_EQ(12, tsel->numberListElement.count);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -983,6 +1335,14 @@ GTEST_TEST(Package, decodeIntervalDownlinkMessage)
     ASSERT_EQ(pkg->head.direction, Down);
     ASSERT_EQ(pkg->tail.etxFlag, ESC);
     ASSERT_EQ(pkg->tail.crc, 0xE5D4);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
@@ -1039,6 +1399,14 @@ GTEST_TEST(Package, decodeIntervalUplinkMessage)
     ASSERT_EQ(el->identifierLeader, 0x20);
     ASSERT_EQ(el->dataDef, 0x19);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -1074,6 +1442,14 @@ GTEST_TEST(Package, decodeArtificalDownlinkMessage)
     ASSERT_EQ(pkg->head.direction, Down);
     ASSERT_EQ(pkg->tail.etxFlag, ESC);
     ASSERT_EQ(pkg->tail.crc, 0xf118);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
@@ -1113,6 +1489,14 @@ GTEST_TEST(Package, decodeArtificalUplinkMessage)
     ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0x4602);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -1151,6 +1535,14 @@ GTEST_TEST(Package, decodeArtificalUplinkMessage1)
     ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0xB698);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -1186,6 +1578,14 @@ GTEST_TEST(Package, decodePictureDownlinkMessage)
     ASSERT_EQ(pkg->head.direction, Down);
     ASSERT_EQ(pkg->tail.etxFlag, ENQ);
     ASSERT_EQ(pkg->tail.crc, 0xBB17);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
@@ -1231,6 +1631,13 @@ GTEST_TEST(Package, decodePictureUplinkMessagePkg1)
     ASSERT_EQ(pkg->tail.etxFlag, ETB);
     ASSERT_EQ(pkg->tail.crc, 0x96CB);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -1257,6 +1664,14 @@ GTEST_TEST(Package, decodePictureUplinkMessagePkg2)
     ASSERT_EQ(pkg->tail.etxFlag, ETB);
     ASSERT_EQ(pkg->tail.crc, 0x59D8);
     ASSERT_EQ(pkg->head.len - PACKAGE_HEAD_SEQUENCE_LEN, BB_Available(((LinkMessage *)pkg)->rawBuff));
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
@@ -1285,6 +1700,14 @@ GTEST_TEST(Package, decodePictureUplinkMessagePkg3)
     ASSERT_EQ(pkg->tail.crc, 0x6456);
     ASSERT_EQ(pkg->head.len - PACKAGE_HEAD_SEQUENCE_LEN, BB_Available(((LinkMessage *)pkg)->rawBuff));
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -1311,6 +1734,14 @@ GTEST_TEST(Package, decodePictureUplinkMessagePkg13)
     ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0x679B);
     ASSERT_EQ(pkg->head.len - PACKAGE_HEAD_SEQUENCE_LEN, BB_Available(((LinkMessage *)pkg)->rawBuff));
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
@@ -1347,6 +1778,14 @@ GTEST_TEST(Package, decodeQueryRealtimeDownlinkMessage)
     ASSERT_EQ(pkg->head.direction, Down);
     ASSERT_EQ(pkg->tail.etxFlag, ENQ);
     ASSERT_EQ(pkg->tail.crc, 0xABC8);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
@@ -1404,6 +1843,14 @@ GTEST_TEST(Package, decodeQueryRealtimeUplinkMessage)
     ASSERT_EQ(el->identifierLeader, 0x20);
     ASSERT_EQ(el->dataDef, 0x19);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -1460,6 +1907,14 @@ GTEST_TEST(Package, decodeQueryTimeRangeDownlinkMessage)
     ASSERT_EQ(tscel->timeStepCode.hour, 0);
     ASSERT_EQ(tscel->timeStepCode.minute, 0);
     ASSERT_EQ(tscel->numberListElement.super.identifierLeader, 0xf4);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
@@ -1519,6 +1974,14 @@ GTEST_TEST(Package, decodeQueryTimeRangeUplinkMessage1)
     ASSERT_EQ(tscel->timeStepCode.minute, 0);
     ASSERT_EQ(tscel->numberListElement.super.identifierLeader, 0xf4);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -1545,6 +2008,14 @@ GTEST_TEST(Package, decodeQueryArtificalDownlinkMessage)
     ASSERT_EQ(pkg->tail.etxFlag, ENQ);
     ASSERT_EQ(pkg->tail.crc, 0x6832);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -1570,6 +2041,14 @@ GTEST_TEST(Package, decodeQueryArtificalUplinkMessage)
     ASSERT_EQ(pkg->head.direction, Up);
     ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0x46AA);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
@@ -1614,6 +2093,14 @@ GTEST_TEST(Package, decodeQueryElementDownlinkMessage)
     Element *el = elements->data[0];
     ASSERT_EQ(el->identifierLeader, 0xF4);
     ASSERT_EQ(el->dataDef, 0x60);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
@@ -1665,6 +2152,14 @@ GTEST_TEST(Package, decodeQueryElementUplinkMessage)
     ASSERT_EQ(el->identifierLeader, 0xF4);
     ASSERT_EQ(el->dataDef, 0x60);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -1697,6 +2192,14 @@ GTEST_TEST(Package, decodeQueryElementDownlinkMessage1)
     Element *el = elements->data[0];
     ASSERT_EQ(el->identifierLeader, 0xF5);
     ASSERT_EQ(el->dataDef, 0xC0);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
@@ -1760,6 +2263,14 @@ GTEST_TEST(Package, decodeQueryElementUplinkMessage1)
     ASSERT_EQ(2, RelativeWaterLevelElement_ValueAt(rwlel, 11, &fv));
     ASSERT_EQ(0.49f, fv);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -1812,6 +2323,14 @@ GTEST_TEST(Package, decodeQueryElementDownlinkMessage2)
     el = elements->data[4];
     ASSERT_EQ(el->identifierLeader, 0x39);
     ASSERT_EQ(el->dataDef, 0x23);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
@@ -1871,6 +2390,14 @@ GTEST_TEST(Package, decodeQueryElementUplinkMessage2)
     ASSERT_EQ(el->identifierLeader, 0x1f);
     ASSERT_EQ(el->dataDef, 0x19);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -1907,6 +2434,14 @@ GTEST_TEST(Package, decodeModifyBasicDownlinkMessage)
     ASSERT_EQ(pkg->tail.etxFlag, ENQ);
     ASSERT_EQ(pkg->tail.crc, 0xE4B9);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -1932,6 +2467,14 @@ GTEST_TEST(Package, decodeModifyBasicUplinkMessage)
     ASSERT_EQ(pkg->head.direction, Up);
     ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0x2B4C);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
@@ -1959,6 +2502,14 @@ GTEST_TEST(Package, decodeReadConfigDownlinkMessage)
     ASSERT_EQ(pkg->tail.etxFlag, ENQ);
     ASSERT_EQ(pkg->tail.crc, 0xF2E3);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -1984,6 +2535,14 @@ GTEST_TEST(Package, decodeReadConfigUplinkMessage)
     ASSERT_EQ(pkg->head.direction, Up);
     ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0x6f60);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
@@ -2011,6 +2570,14 @@ GTEST_TEST(Package, decodeModifyRuntimeDownlinkMessage)
     ASSERT_EQ(pkg->tail.etxFlag, ENQ);
     ASSERT_EQ(pkg->tail.crc, 0x348A);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -2037,6 +2604,14 @@ GTEST_TEST(Package, decodeModifyRuntimeUplinkMessage)
     ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0x42A6);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -2057,6 +2632,14 @@ GTEST_TEST(Package, decodeReadRuntimeDownlinkMessage)
     ASSERT_EQ(pkg->head.direction, Down);
     ASSERT_EQ(pkg->tail.etxFlag, ENQ);
     ASSERT_EQ(pkg->tail.crc, 0x6564);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
@@ -2079,6 +2662,14 @@ GTEST_TEST(Package, decodeReadRuntimeUplinkMessage)
     ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0xAF1B);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -2099,6 +2690,14 @@ GTEST_TEST(Package, decodeReadPumpingDownlinkMessage)
     ASSERT_EQ(pkg->head.direction, Down);
     ASSERT_EQ(pkg->tail.etxFlag, ENQ);
     ASSERT_EQ(pkg->tail.crc, 0xBAD4);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
@@ -2121,6 +2720,14 @@ GTEST_TEST(Package, decodeReadPumpingUplinkMessage)
     ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0x3703);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -2141,6 +2748,14 @@ GTEST_TEST(Package, decodeReadSoftDownlinkMessage)
     ASSERT_EQ(pkg->head.direction, Down);
     ASSERT_EQ(pkg->tail.etxFlag, ENQ);
     ASSERT_EQ(pkg->tail.crc, 0x6bdf);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
@@ -2163,6 +2778,14 @@ GTEST_TEST(Package, decodeReadSoftUplinkMessage)
     ASSERT_EQ(pkg->tail.etxFlag, ETX);
     ASSERT_EQ(pkg->tail.crc, 0xc476);
 
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
     pkg->vptr->dtor(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -2182,7 +2805,7 @@ GTEST_TEST(Package, decodeReadSoftUplinkMessage)
             case WATER_VOLUME_SETTING:
             case QUERY_LOG:
             case QUERY_CLOCK:
-            
+
 7E7E001122334405123446800802000017071810210805F8B3
 7E7E0500112233441234460015020023170718102008F1F100112233444520000004000315C1
 7E7E00112233440503E847800A020000170718110351970005983C

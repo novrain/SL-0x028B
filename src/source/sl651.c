@@ -3,7 +3,28 @@
 
 #include "sl651.h"
 
-static bool RemoteStationAddr_Decode(RemoteStationAddr *me, ByteBuffer *const byteBuff)
+static bool RemoteStationAddr_Encode(RemoteStationAddr const *const me, ByteBuffer *const byteBuff)
+{
+    assert(me);
+    assert(byteBuff);
+    uint8_t writeLen = 0;
+    writeLen += BB_BCDPutUInt8(byteBuff, me->A5);
+    writeLen += BB_BCDPutUInt8(byteBuff, me->A4);
+    writeLen += BB_BCDPutUInt8(byteBuff, me->A3);
+    if (me->A5 == A5_HYDROLOGICAL_TELEMETRY_STATION)
+    {
+        writeLen += BB_BCDPutUInt8(byteBuff, me->A2);
+        writeLen += BB_BCDPutUInt8(byteBuff, me->A1);
+    }
+    else
+    {
+        uint16_t u16A2A1 = me->A2 * 10000 + me->A1 * 100 + me->A0;
+        writeLen += BB_BE_PutUInt16(byteBuff, u16A2A1);
+    }
+    return writeLen == REMOTE_STATION_ADDR_LEN;
+}
+
+static bool RemoteStationAddr_Decode(RemoteStationAddr *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
     assert(byteBuff);
@@ -35,7 +56,21 @@ static bool RemoteStationAddr_Decode(RemoteStationAddr *me, ByteBuffer *const by
     return usedLen == REMOTE_STATION_ADDR_LEN;
 }
 
-static DateTime_Decode(DateTime *me, ByteBuffer *byteBuff)
+static DateTime_Encode(DateTime const *const me, ByteBuffer *byteBuff)
+{
+    assert(me);
+    assert(byteBuff);
+    uint8_t writeLen = 0;
+    writeLen += BB_BCDPutUInt8(byteBuff, me->year);
+    writeLen += BB_BCDPutUInt8(byteBuff, me->month);
+    writeLen += BB_BCDPutUInt8(byteBuff, me->day);
+    writeLen += BB_BCDPutUInt8(byteBuff, me->hour);
+    writeLen += BB_BCDPutUInt8(byteBuff, me->minute);
+    writeLen += BB_BCDPutUInt8(byteBuff, me->second);
+    return writeLen == DATETIME_LEN;
+}
+
+static bool DateTime_Decode(DateTime *const me, ByteBuffer *byteBuff)
 {
     assert(me);
     assert(byteBuff);
@@ -49,7 +84,20 @@ static DateTime_Decode(DateTime *me, ByteBuffer *byteBuff)
     return usedLen == DATETIME_LEN;
 }
 
-static ObserveTime_Decode(ObserveTime *me, ByteBuffer *byteBuff)
+static bool ObserveTime_Encode(ObserveTime const *const me, ByteBuffer *byteBuff)
+{
+    assert(me);
+    assert(byteBuff);
+    uint8_t writeLen = 0;
+    writeLen += BB_BCDPutUInt8(byteBuff, me->year);
+    writeLen += BB_BCDPutUInt8(byteBuff, me->month);
+    writeLen += BB_BCDPutUInt8(byteBuff, me->day);
+    writeLen += BB_BCDPutUInt8(byteBuff, me->hour);
+    writeLen += BB_BCDPutUInt8(byteBuff, me->minute);
+    return writeLen == OBSERVETIME_LEN;
+}
+
+static ObserveTime_Decode(ObserveTime *const me, ByteBuffer *byteBuff)
 {
     assert(me);
     assert(byteBuff);
@@ -64,10 +112,10 @@ static ObserveTime_Decode(ObserveTime *me, ByteBuffer *byteBuff)
 
 // "AbstractClass" Package
 /* purely-virtual */
-static bool Package_Virtual_Encode(Package const *const me, ByteBuffer *const byteBuff)
+static ByteBuffer *Package_Virtual_Encode(Package const *const me)
 {
     assert(0);
-    return true;
+    return NULL;
 }
 
 static bool Package_Virtual_Decode(Package *const me, ByteBuffer *const byteBuff)
@@ -97,12 +145,50 @@ void Package_ctor(Package *me)
 /* Methods  & Destrucor */
 bool Package_EncodeHead(Package const *const me, ByteBuffer *const byteBuff)
 {
-    return true;
+    assert(me);
+    assert(byteBuff);
+    uint8_t writeLen = BB_BE_PutUInt16(byteBuff, SOH_BINARY);
+    if (me->head.direction == Up)
+    {
+        writeLen += BB_PutUInt8(byteBuff, me->head.centerAddr);
+        writeLen += RemoteStationAddr_Encode(&me->head.stationAddr, byteBuff) ? REMOTE_STATION_ADDR_LEN : 0;
+    }
+    else
+    {
+        writeLen += RemoteStationAddr_Encode(&me->head.stationAddr, byteBuff) ? REMOTE_STATION_ADDR_LEN : 0;
+        writeLen += BB_PutUInt8(byteBuff, me->head.centerAddr);
+    }
+    writeLen += BB_BE_PutUInt16(byteBuff, me->head.password);
+    writeLen += BB_PutUInt8(byteBuff, me->head.funcCode);
+    writeLen += BB_BE_PutUInt16(byteBuff, me->head.len & 0xFFF |
+                                              (((uint16_t)me->head.direction)
+                                               << (PACKAGE_HEAD_STX_DIRECTION_INDEX_MASK_BIT + 8)));
+    writeLen += BB_PutUInt8(byteBuff, me->head.stxFlag);
+    if (me->head.stxFlag == SYN)
+    {
+        uint32_t u32 = 0;
+        u32 = (((uint32_t)me->head.sequence.count) << PACKAGE_HEAD_SEQUENCE_COUNT_BIT_MASK_LEN) + me->head.sequence.seq;
+        writeLen += BB_PutUInt8(byteBuff, u32 >> 16);
+        writeLen += BB_BE_PutUInt16(byteBuff, u32 & 0xFFFF);
+    }
+    return me->head.stxFlag == SYN ? writeLen == PACKAGE_HEAD_SNY_LEN : writeLen == PACKAGE_HEAD_STX_LEN;
 }
 
 bool Package_EncodeTail(Package const *const me, ByteBuffer *const byteBuff)
 {
-    return true;
+    assert(me);
+    assert(byteBuff);
+    uint8_t writeLen = BB_PutUInt8(byteBuff, me->tail.etxFlag);
+    uint16_t crc16 = 0;
+    if (BB_CRC16(byteBuff, &crc16, 0, BB_Position(byteBuff)))
+    {
+        writeLen += BB_BE_PutUInt16(byteBuff, crc16);
+        return writeLen == PACKAGE_TAIL_LEN;
+    }
+    else
+    {
+        return false;
+    }
 }
 
 bool Package_DecodeHead(Package *const me, ByteBuffer *const byteBuff)
@@ -170,6 +256,17 @@ bool Package_DecodeTail(Package *const me, ByteBuffer *const byteBuff)
     return usedLen == PACKAGE_TAIL_LEN;
 }
 
+size_t Package_HeadSize(Package const *const me)
+{
+    assert(me);
+    return me->head.stxFlag == SYN ? PACKAGE_HEAD_SNY_LEN : PACKAGE_HEAD_STX_LEN;
+}
+
+size_t Package_TailSize(Package const *const me)
+{
+    assert(me);
+    return PACKAGE_TAIL_LEN;
+}
 // "AbstractClass" Package END
 
 /* LinkMessage Construtor & Destrucor */
@@ -216,15 +313,101 @@ void LinkMessage_ctor(LinkMessage *const me, uint16_t initElementCount)
     vec_reserve(&me->elements, initElementCount);
 }
 
+static bool LinkMessage_EncodeRawBuff(LinkMessage *const me, ByteBuffer *byteBuff)
+{
+    assert(me);
+    return me->rawBuff != NULL ? BB_PutByteBuffer(byteBuff, me->rawBuff) : true;
+}
+
+static bool LinkMessage_EncodeElements(LinkMessage *const me, ByteBuffer *byteBuff)
+{
+    assert(me);
+    assert(byteBuff);
+    bool res = true;
+    Element *el;
+    uint8_t i = 0;
+    vec_foreach(&me->elements, el, i)
+    {
+        res = el->vptr->encode(el, byteBuff);
+        if (!res)
+        {
+            break;
+        }
+    }
+    return res;
+}
+
+size_t LinkMessage_ElementsSize(LinkMessage const *const me)
+{
+    assert(me);
+    size_t size = 0;
+    uint8_t i = 0;
+    Element *el;
+    vec_foreach(&me->elements, el, i)
+    {
+        size += el->vptr->size(el);
+    }
+    return size;
+}
+
+size_t LinkMessage_RawByteBuffSize(LinkMessage const *const me)
+{
+    assert(me);
+    return me->rawBuff == NULL ? 0 : BB_Available(me->rawBuff);
+}
 // "Basic" LinkMessage END
 
 // "AbstractUpClass" UplinkMessage
 /* UplinkMessage Construtor & Destrucor */
-static bool UplinkMessage_Encode(Package const *const me, ByteBuffer *const byteBuff)
+static size_t UplinkMessage_HeadSize(DownlinkMessage const *const me)
 {
-    assert(0);
-    return true;
+    assert(me);
+    Package const *const pkg = &me->super.super;
+    return Package_HeadSize(pkg) +
+           ((pkg->head.stxFlag == SYN && pkg->head.sequence.seq > 1)
+                ? 0
+                : (2 + DATETIME_LEN +
+                   (isContainObserveTimeElement(pkg->head.funcCode) ? OBSERVETIME_LEN + ELEMENT_IDENTIFER_LEN : 0) +
+                   (isContainStationCategoryField(pkg->head.funcCode) ? 1 : 0) +
+                   (isContainRemoteStationAddrElement(Up, pkg->head.funcCode) ? REMOTE_STATION_ADDR_LEN + ELEMENT_IDENTIFER_LEN : 0)));
 }
+
+static size_t UplinkMessage_Size(Package const *const me)
+{
+    assert(me);
+    return UplinkMessage_HeadSize((DownlinkMessage *)me) +
+           LinkMessage_RawByteBuffSize((LinkMessage *)me) +
+           LinkMessage_ElementsSize((LinkMessage *)me) +
+           Package_TailSize(me);
+}
+
+static ByteBuffer *UplinkMessage_Encode(Package const *const me)
+{
+    assert(me);
+    UplinkMessage *self = (UplinkMessage *)me;
+    uint32_t size = UplinkMessage_Size(me);
+    if (size <= 0)
+    {
+        return NULL;
+    }
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor(byteBuff, size);
+    // 编码不按照规则，由调用者按照规范去填写相关字段，有就编码，没有就不编码
+    if (UplinkMessage_EncodeHead(self, byteBuff) &&
+        LinkMessage_EncodeRawBuff(&self->super, byteBuff) &&
+        LinkMessage_EncodeElements(&self->super, byteBuff) &&
+        Package_EncodeTail(me, byteBuff))
+    {
+        return byteBuff;
+    }
+    else
+    {
+        BB_dtor(byteBuff);
+        DelInstance(byteBuff);
+        return NULL;
+    }
+}
+
 static bool UplinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
@@ -275,12 +458,6 @@ static bool UplinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff)
     return res;
 }
 
-static size_t UplinkMessage_Size(Package const *const me)
-{
-    assert(me);
-    return 0;
-}
-
 void UplinkMessage_dtor(Package *const me)
 {
     assert(me);
@@ -300,12 +477,30 @@ void UplinkMessage_ctor(UplinkMessage *const me, uint16_t initElementCount)
     // me->super.super.vptr = &vtbl;  // or -->
     ((Package *)me)->vptr = &vtbl; // single inheritance
 }
+
 /* Public methods */
 bool UplinkMessage_EncodeHead(UplinkMessage const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
     assert(byteBuff);
-    return true;
+    return Package_EncodeHead(&me->super.super, byteBuff) &&
+           ((me->super.super.head.stxFlag == SYN && me->super.super.head.sequence.seq > 1)
+                ? true
+                : (BB_BE_PutUInt16(byteBuff, me->messageHead.seq) == 2 &&
+                   DateTime_Encode(&me->messageHead.sendTime, byteBuff) &&
+                   (isContainRemoteStationAddrElement(Up, me->super.super.head.funcCode)
+                        ? (BB_PutUInt8(byteBuff, ADDRESS) &&
+                           BB_PutUInt8(byteBuff, ADDRESS) &&
+                           RemoteStationAddr_Encode(&me->messageHead.stationAddrElement.stationAddr, byteBuff))
+                        : true) &&
+                   (isContainStationCategoryField(me->super.super.head.funcCode)
+                        ? BB_PutUInt8(byteBuff, me->messageHead.stationCategory) == 1
+                        : true) &&
+                   (isContainObserveTimeElement(me->super.super.head.funcCode)
+                        ? (BB_PutUInt8(byteBuff, OBSERVETIME) &&
+                           BB_PutUInt8(byteBuff, OBSERVETIME) &&
+                           ObserveTime_Encode(&me->messageHead.observeTimeElement.observeTime, byteBuff))
+                        : true)));
 }
 
 bool UplinkMessage_DecodeHead(UplinkMessage *const me, ByteBuffer *const byteBuff)
@@ -357,11 +552,56 @@ bool UplinkMessage_DecodeHead(UplinkMessage *const me, ByteBuffer *const byteBuf
 // "AbstractUpClass" DownlinkMessage
 
 /* DownlinkMessage Construtor  & Destrucor */
-static bool DownlinkMessage_Encode(Package const *const me, ByteBuffer *const byteBuff)
+static size_t DownlinkMessage_HeadSize(DownlinkMessage *const me)
 {
-    assert(0);
-    return true;
+    assert(me);
+    Package *pkg = &me->super.super;
+    return Package_HeadSize(pkg) +
+           2 + // sequence
+           DATETIME_LEN +
+           (pkg->head.direction == Down &&
+                    pkg->head.funcCode == QUERY_TIMERANGE
+                ? TIME_STEP_RANGE_LEN
+                : 0) +
+           (isContainRemoteStationAddrElement(Down, pkg->head.funcCode) ? REMOTE_STATION_ADDR_LEN + ELEMENT_IDENTIFER_LEN : 0);
 }
+
+static size_t DownlinkMessage_Size(Package const *const me)
+{
+    assert(me);
+    return DownlinkMessage_HeadSize((DownlinkMessage *)me) +
+           LinkMessage_RawByteBuffSize((LinkMessage *)me) +
+           LinkMessage_ElementsSize((LinkMessage *)me) +
+           Package_TailSize(me);
+}
+
+static ByteBuffer *DownlinkMessage_Encode(Package const *const me)
+{
+    assert(me);
+    DownlinkMessage *self = (DownlinkMessage *)me;
+    uint32_t size = DownlinkMessage_Size(me);
+    if (size <= 0)
+    {
+        return NULL;
+    }
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor(byteBuff, size);
+    // 编码不按照规则，由调用者按照规范去填写相关字段，有就编码，没有就不编码
+    if (DownlinkMessage_EncodeHead(self, byteBuff) &&
+        LinkMessage_EncodeRawBuff(&self->super, byteBuff) &&
+        LinkMessage_EncodeElements(&self->super, byteBuff) &&
+        Package_EncodeTail(me, byteBuff))
+    {
+        return byteBuff;
+    }
+    else
+    {
+        BB_dtor(byteBuff);
+        DelInstance(byteBuff);
+        return NULL;
+    }
+}
+
 static bool DownlinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
@@ -412,12 +652,6 @@ static bool DownlinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff
     return res;
 }
 
-static size_t DownlinkMessage_Size(Package const *const me)
-{
-    assert(me);
-    return 0;
-}
-
 void DownlinkMessage_ctor(DownlinkMessage *const me, uint16_t initElementCount)
 {
     assert(me);
@@ -438,30 +672,59 @@ void DownlinkMessage_dtor(Package *const me)
     DownlinkMessage *self = (DownlinkMessage *)me;
 }
 /* Public methods */
-bool DownlinkMessage_EncodeHead(DownlinkMessage const *const me, ByteBuffer *const byteBuff)
+static bool TimeRange_Decode(TimeRange *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
-    assert(byteBuff);
-    return true;
-}
-
-static bool Decode_TimeRange(TimeRange *const timeRange, ByteBuffer *const byteBuff)
-{
-    assert(timeRange);
     assert(byteBuff);
     if (BB_Available(byteBuff) < TIME_STEP_RANGE_LEN)
     {
         return false;
     }
-    uint8_t usedLen = BB_BCDGetUInt8(byteBuff, &timeRange->start.year);
-    usedLen += BB_BCDGetUInt8(byteBuff, &timeRange->start.month);
-    usedLen += BB_BCDGetUInt8(byteBuff, &timeRange->start.day);
-    usedLen += BB_BCDGetUInt8(byteBuff, &timeRange->start.hour);
-    usedLen += BB_BCDGetUInt8(byteBuff, &timeRange->end.year);
-    usedLen += BB_BCDGetUInt8(byteBuff, &timeRange->end.month);
-    usedLen += BB_BCDGetUInt8(byteBuff, &timeRange->end.day);
-    usedLen += BB_BCDGetUInt8(byteBuff, &timeRange->end.hour);
+    uint8_t usedLen = BB_BCDGetUInt8(byteBuff, &me->start.year);
+    usedLen += BB_BCDGetUInt8(byteBuff, &me->start.month);
+    usedLen += BB_BCDGetUInt8(byteBuff, &me->start.day);
+    usedLen += BB_BCDGetUInt8(byteBuff, &me->start.hour);
+    usedLen += BB_BCDGetUInt8(byteBuff, &me->end.year);
+    usedLen += BB_BCDGetUInt8(byteBuff, &me->end.month);
+    usedLen += BB_BCDGetUInt8(byteBuff, &me->end.day);
+    usedLen += BB_BCDGetUInt8(byteBuff, &me->end.hour);
     return usedLen == TIME_STEP_RANGE_LEN;
+}
+
+static bool TimeRange_Encode(TimeRange const *const me, ByteBuffer *const byteBuff)
+{
+    assert(me);
+    assert(byteBuff);
+    if (BB_Available(byteBuff) < TIME_STEP_RANGE_LEN)
+    {
+        return false;
+    }
+    uint8_t usedLen = BB_BCDPutUInt8(byteBuff, me->start.year);
+    usedLen += BB_BCDPutUInt8(byteBuff, me->start.month);
+    usedLen += BB_BCDPutUInt8(byteBuff, me->start.day);
+    usedLen += BB_BCDPutUInt8(byteBuff, me->start.hour);
+    usedLen += BB_BCDPutUInt8(byteBuff, me->end.year);
+    usedLen += BB_BCDPutUInt8(byteBuff, me->end.month);
+    usedLen += BB_BCDPutUInt8(byteBuff, me->end.day);
+    usedLen += BB_BCDPutUInt8(byteBuff, me->end.hour);
+    return usedLen == TIME_STEP_RANGE_LEN;
+}
+
+bool DownlinkMessage_EncodeHead(DownlinkMessage const *const me, ByteBuffer *const byteBuff)
+{
+    assert(me);
+    assert(byteBuff);
+    return Package_EncodeHead(&me->super.super, byteBuff) &&
+           BB_BE_PutUInt16(byteBuff, me->messageHead.seq) == 2 &&
+           DateTime_Encode(&me->messageHead.sendTime, byteBuff) &&
+           ((me->super.super.head.direction == Down && me->super.super.head.funcCode == QUERY_TIMERANGE)
+                ? TimeRange_Encode(&me->messageHead.timeRange, byteBuff)
+                : true) &&
+           (isContainRemoteStationAddrElement(Down, me->super.super.head.funcCode)
+                ? (BB_PutUInt8(byteBuff, ADDRESS) &&
+                   BB_PutUInt8(byteBuff, ADDRESS) &&
+                   RemoteStationAddr_Encode(&me->messageHead.stationAddrElement.stationAddr, byteBuff))
+                : true);
 }
 
 bool DownlinkMessage_DecodeHead(DownlinkMessage *const me, ByteBuffer *const byteBuff)
@@ -482,7 +745,7 @@ bool DownlinkMessage_DecodeHead(DownlinkMessage *const me, ByteBuffer *const byt
     // 中心站查询遥测站时段数据下行报文 特殊结构
     if ((me->super.super.head.direction == Down &&
          me->super.super.head.funcCode == QUERY_TIMERANGE) &&
-        !Decode_TimeRange(&me->messageHead.timeRange, byteBuff))
+        !TimeRange_Decode(&me->messageHead.timeRange, byteBuff))
     {
         return false;
     }
@@ -534,13 +797,23 @@ void Element_ctor(Element *const me, uint8_t identifierLeader, uint8_t dataDef)
     me->dataDef = dataDef;
     me->direction = Up;
 }
+
+static bool Element_EncodeIdentifier(Element const *const me, ByteBuffer *const byteBuff)
+{
+    assert(me);
+    assert(byteBuff);
+    return BB_PutUInt8(byteBuff, me->identifierLeader) + BB_PutUInt8(byteBuff, me->dataDef) == 2;
+}
 // "AbstractorClass" Element END
 
 // RemoteStationAddrElement
 static bool RemoteStationAddrElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
-    return true;
+    assert(byteBuff);
+    RemoteStationAddrElement *self = (RemoteStationAddrElement *)me;
+    return Element_EncodeIdentifier(me, byteBuff) &&
+           RemoteStationAddr_Encode(&self->stationAddr, byteBuff);
 }
 
 static bool RemoteStationAddrElement_Decode(Element *const me, ByteBuffer *const byteBuff)
@@ -584,7 +857,10 @@ void RemoteStationAddrElement_ctor(RemoteStationAddrElement *const me)
 static bool ObserveTimeElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
-    return true;
+    assert(byteBuff);
+    ObserveTimeElement *self = (ObserveTimeElement *)me;
+    return Element_EncodeIdentifier(me, byteBuff) &&
+           ObserveTime_Encode(&self->observeTime, byteBuff);
 }
 
 static bool ObserveTimeElement_Decode(Element *const me, ByteBuffer *const byteBuff)
@@ -628,7 +904,10 @@ void ObserveTimeElement_ctor(ObserveTimeElement *const me)
 static bool PictureElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
-    return true;
+    assert(byteBuff);
+    PictureElement *self = (PictureElement *)me;
+    return Element_EncodeIdentifier(me, byteBuff) &&
+           BB_PutByteBuffer(byteBuff, self->buff);
 }
 
 static bool PictureElement_Decode(Element *const me, ByteBuffer *const byteBuff)
@@ -648,7 +927,9 @@ static bool PictureElement_Decode(Element *const me, ByteBuffer *const byteBuff)
 static size_t PictureElement_Size(Element const *const me)
 {
     assert(me);
-    return ELEMENT_IDENTIFER_LEN + ((PictureElement *)me)->buff->size;
+    PictureElement *self = (PictureElement *)me;
+    assert(self->buff);
+    return ELEMENT_IDENTIFER_LEN + BB_Size(self->buff);
 }
 
 void PictureElement_dtor(Element *const me)
@@ -681,6 +962,11 @@ void PictureElement_ctor(PictureElement *const me)
 static bool ArtificialElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
+    assert(byteBuff);
+    ArtificialElement *self = (ArtificialElement *)me;
+    assert(self->buff);
+    return Element_EncodeIdentifier(me, byteBuff) &&
+           BB_PutByteBuffer(byteBuff, self->buff);
     return true;
 }
 
@@ -703,7 +989,9 @@ static bool ArtificialElement_Decode(Element *const me, ByteBuffer *const byteBu
 static size_t ArtificialElement_Size(Element const *const me)
 {
     assert(me);
-    return ELEMENT_IDENTIFER_LEN + ((ArtificialElement *)me)->buff->size;
+    ArtificialElement *self = (ArtificialElement *)me;
+    assert(self->buff);
+    return ELEMENT_IDENTIFER_LEN + BB_Size(self->buff);
 }
 
 void ArtificialElement_dtor(Element *const me)
@@ -736,7 +1024,16 @@ void ArtificialElement_ctor(ArtificialElement *const me)
 static bool DRP5MINElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
-    return true;
+    assert(byteBuff);
+    DRP5MINElement *self = (DRP5MINElement *)me;
+    if (me->direction == Up && self->buff == NULL)
+    {
+        return false;
+    }
+    return me->direction == Up
+               ? (Element_EncodeIdentifier(me, byteBuff) &&
+                  BB_PutByteBuffer(byteBuff, self->buff))
+               : Element_EncodeIdentifier(me, byteBuff);
 }
 
 static bool DRP5MINElement_Decode(Element *const me, ByteBuffer *const byteBuff)
@@ -760,7 +1057,9 @@ static bool DRP5MINElement_Decode(Element *const me, ByteBuffer *const byteBuff)
 static size_t DRP5MINElement_Size(Element const *const me)
 {
     assert(me);
-    return ELEMENT_IDENTIFER_LEN + DRP5MIN_LEN;
+    return me->direction == Up
+               ? ELEMENT_IDENTIFER_LEN + DRP5MIN_LEN
+               : ELEMENT_IDENTIFER_LEN;
 }
 
 void DRP5MINElement_dtor(Element *const me)
@@ -808,7 +1107,16 @@ uint8_t DRP5MINElement_ValueAt(DRP5MINElement *const me, uint8_t index, float *v
 static bool FlowRateDataElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
-    return true;
+    assert(byteBuff);
+    FlowRateDataElement *self = (FlowRateDataElement *)me;
+    if (me->direction == Up && self->buff == NULL)
+    {
+        return false;
+    }
+    return me->direction == Up
+               ? (Element_EncodeIdentifier(me, byteBuff) &&
+                  BB_PutByteBuffer(byteBuff, self->buff))
+               : Element_EncodeIdentifier(me, byteBuff);
 }
 
 static bool FlowRateDataElement_Decode(Element *const me, ByteBuffer *const byteBuff)
@@ -832,7 +1140,9 @@ static bool FlowRateDataElement_Decode(Element *const me, ByteBuffer *const byte
 static size_t FlowRateDataElement_Size(Element const *const me)
 {
     assert(me);
-    return ELEMENT_IDENTIFER_LEN + ((FlowRateDataElement *)me)->buff->size;
+    return me->direction == Up
+               ? ELEMENT_IDENTIFER_LEN + BB_Size(((FlowRateDataElement *)me)->buff)
+               : ELEMENT_IDENTIFER_LEN;
 }
 
 void FlowRateDataElement_ctor(FlowRateDataElement *const me)
@@ -863,7 +1173,16 @@ void FlowRateDataElement_dtor(Element *const me)
 static bool RelativeWaterLevelElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
-    return true;
+    assert(byteBuff);
+    RelativeWaterLevelElement *self = (RelativeWaterLevelElement *)me;
+    if (me->direction == Up && self->buff == NULL)
+    {
+        return false;
+    }
+    return me->direction == Up
+               ? (Element_EncodeIdentifier(me, byteBuff) &&
+                  BB_PutByteBuffer(byteBuff, self->buff))
+               : Element_EncodeIdentifier(me, byteBuff);
 }
 
 static bool RelativeWaterLevelElement_Decode(Element *const me, ByteBuffer *const byteBuff)
@@ -887,7 +1206,9 @@ static bool RelativeWaterLevelElement_Decode(Element *const me, ByteBuffer *cons
 static size_t RelativeWaterLevelElement_Size(Element const *const me)
 {
     assert(me);
-    return ELEMENT_IDENTIFER_LEN + RELATIVE_WATER_LEVEL_LEN;
+    return me->direction == Up
+               ? ELEMENT_IDENTIFER_LEN + RELATIVE_WATER_LEVEL_LEN
+               : ELEMENT_IDENTIFER_LEN;
 }
 
 void RelativeWaterLevelElement_dtor(Element *const me)
@@ -935,7 +1256,12 @@ uint8_t RelativeWaterLevelElement_ValueAt(RelativeWaterLevelElement *const me, u
 static bool StationStatusElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
-    return true;
+    assert(byteBuff);
+    StationStatusElement *self = (StationStatusElement *)me;
+    return me->direction == Up
+               ? (Element_EncodeIdentifier(me, byteBuff) &&
+                  BB_BE_PutUInt32(byteBuff, self->status) == STATION_STATUS_LEN)
+               : true;
 }
 
 static bool StationStatusElement_Decode(Element *const me, ByteBuffer *const byteBuff)
@@ -954,7 +1280,9 @@ static bool StationStatusElement_Decode(Element *const me, ByteBuffer *const byt
 static size_t StationStatusElement_Size(Element const *const me)
 {
     assert(me);
-    return STATION_STATUS_LEN + ELEMENT_IDENTIFER_LEN;
+    return me->direction == Up
+               ? STATION_STATUS_LEN + ELEMENT_IDENTIFER_LEN
+               : 0;
 }
 
 void StationStatusElement_dtor(Element *const me)
@@ -989,7 +1317,22 @@ uint8_t StationStatusElement_StatusAt(StationStatusElement const *const me, uint
 static bool DurationElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
-    return true;
+    assert(byteBuff);
+    if (me->direction == Down)
+    {
+        return true;
+    }
+    if (!Element_EncodeIdentifier(me, byteBuff))
+    {
+        return false;
+    }
+    DurationElement *self = (DurationElement *)me;
+    uint8_t writeLen = BB_PutUInt8(byteBuff, self->hour / 10 + '0');
+    writeLen = BB_PutUInt8(byteBuff, self->hour % 10 + '0');
+    writeLen = BB_PutUInt8(byteBuff, '.');
+    writeLen = BB_PutUInt8(byteBuff, self->minute / 10 + '0');
+    writeLen = BB_PutUInt8(byteBuff, self->minute % 10 + '0');
+    return writeLen == DURATION_OF_XX_LEN;
 }
 
 static bool DurationElement_Decode(Element *const me, ByteBuffer *const byteBuff)
@@ -1005,19 +1348,21 @@ static bool DurationElement_Decode(Element *const me, ByteBuffer *const byteBuff
     // @Todo ASCII TO INT atoi with end.
     uint8_t usedLen = BB_GetUInt8(byteBuff, &self->hour);
     usedLen += BB_GetUInt8(byteBuff, &byte);
-    self->hour = (self->hour - 0x30) * 10 + (byte - 0x30);
+    self->hour = (self->hour - '0') * 10 + (byte - '0');
     usedLen += BB_GetUInt8(byteBuff, &byte); // a dot in ascii.
     usedLen += BB_GetUInt8(byteBuff, &self->minute);
     byte = 0;
     usedLen += BB_GetUInt8(byteBuff, &byte);
-    self->minute = (self->minute - 0x30) * 10 + (byte - 0x30);
+    self->minute = (self->minute - '0') * 10 + (byte - '0');
     return usedLen == DURATION_OF_XX_LEN;
 }
 
 static size_t DurationElement_Size(Element const *const me)
 {
     assert(me);
-    return DURATION_OF_XX_LEN + ELEMENT_IDENTIFER_LEN;
+    return me->direction == Up
+               ? DURATION_OF_XX_LEN + ELEMENT_IDENTIFER_LEN
+               : 0;
 }
 
 void DurationElement_dtor(Element *const me)
@@ -1042,7 +1387,16 @@ void DurationElement_ctor(DurationElement *const me)
 static bool NumberElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
-    return true;
+    assert(byteBuff);
+    NumberElement *self = (NumberElement *)me;
+    if (me->direction == Up && self->buff == NULL)
+    {
+        return false;
+    }
+    return me->direction == Up
+               ? (Element_EncodeIdentifier(me, byteBuff) &&
+                  BB_PutByteBuffer(byteBuff, self->buff))
+               : Element_EncodeIdentifier(me, byteBuff);
 }
 
 static bool NumberElement_Decode(Element *const me, ByteBuffer *const byteBuff)
@@ -1071,7 +1425,9 @@ static bool NumberElement_Decode(Element *const me, ByteBuffer *const byteBuff)
 static size_t NumberElement_Size(Element const *const me)
 {
     assert(me);
-    return ELEMENT_IDENTIFER_LEN + (me->dataDef >> NUMBER_ELEMENT_LEN_OFFSET);
+    return me->direction == Up
+               ? ELEMENT_IDENTIFER_LEN + (me->dataDef >> NUMBER_ELEMENT_LEN_OFFSET)
+               : ELEMENT_IDENTIFER_LEN;
 }
 
 void NumberElement_dtor(Element *const me)
@@ -1105,14 +1461,15 @@ uint8_t NumberElement_GetInteger(NumberElement *const me, uint64_t *val)
         return 0;
     }
     uint8_t signedFlag = 0;
-    BB_GetUInt8(me->buff, &signedFlag);
-    if (signedFlag != 0xFF) // 如果不是负值
+    uint8_t at = 0;
+    BB_PeekUInt8(me->buff, &signedFlag);
+    if (signedFlag == 0xFF) // 如果不是负值
     {
-        BB_Rewind(me->buff);
+        at = 1;
     }
-    uint8_t size = BB_Available(me->buff);
+    uint8_t size = me->super.dataDef >> NUMBER_ELEMENT_LEN_OFFSET;
     *val = 0; // 副作用
-    uint8_t res = BB_BCDGetUInt(me->buff, val, size);
+    uint8_t res = BB_BCDPeekUIntAt(me->buff, at, val, size);
     if (res != size)
     {
         *val = 0xFFFFFFFFFFFFFFFF;
@@ -1144,7 +1501,16 @@ uint8_t NumberElement_GetFloat(NumberElement *const me, float *val)
 static bool NumberListElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
-    return true;
+    assert(byteBuff);
+    NumberListElement *self = (NumberListElement *)me;
+    if (me->direction == Up && self->buff == NULL)
+    {
+        return false;
+    }
+    return me->direction == Up
+               ? (Element_EncodeIdentifier(me, byteBuff) &&
+                  BB_PutByteBuffer(byteBuff, self->buff))
+               : Element_EncodeIdentifier(me, byteBuff);
 }
 
 static bool NumberListElement_Decode(Element *const me, ByteBuffer *const byteBuff)
@@ -1175,7 +1541,9 @@ static size_t NumberListElement_Size(Element const *const me)
 {
     assert(me);
     NumberListElement *self = (NumberListElement *)me;
-    return ELEMENT_IDENTIFER_LEN + BB_Size(self->buff);
+    return me->direction == Up
+               ? ELEMENT_IDENTIFER_LEN + BB_Size(self->buff)
+               : ELEMENT_IDENTIFER_LEN;
 }
 
 void NumberListElement_dtor(Element *const me)
@@ -1247,7 +1615,14 @@ uint8_t NumberListElement_GetFloatAt(NumberListElement *const me, uint8_t index,
 static bool TimeStepCodeElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
-    return true;
+    assert(byteBuff);
+    TimeStepCodeElement *self = (TimeStepCodeElement *)me;
+    Element_SetDirection((Element *)&self->numberListElement, self->super.direction);
+    return Element_EncodeIdentifier(me, byteBuff) &&
+           BB_PutUInt8(byteBuff, self->timeStepCode.day) == 1 &&
+           BB_PutUInt8(byteBuff, self->timeStepCode.hour) == 1 &&
+           BB_PutUInt8(byteBuff, self->timeStepCode.minute) == 1 &&
+           NumberListElement_Encode((Element *)&self->numberListElement, byteBuff);
 }
 
 static bool TimeStepCodeElement_Decode(Element *const me, ByteBuffer *const byteBuff)
@@ -1280,7 +1655,11 @@ static bool TimeStepCodeElement_Decode(Element *const me, ByteBuffer *const byte
 static size_t TimeStepCodeElement_Size(Element const *const me)
 {
     assert(me);
-    return TIME_STEP_CODE_LEN + ELEMENT_IDENTIFER_LEN;
+    TimeStepCodeElement *self = (TimeStepCodeElement *)me;
+    // force NumberListElement's direction sync with TimeStepCodeElement
+    // here call NumberListElement_Size directly.
+    Element_SetDirection((Element *)&self->numberListElement, self->super.direction);
+    return TIME_STEP_CODE_LEN + ELEMENT_IDENTIFER_LEN + NumberListElement_Size((Element *)&self->numberListElement);
 }
 
 void TimeStepCodeElement_dtor(Element *me)
