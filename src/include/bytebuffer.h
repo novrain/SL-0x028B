@@ -66,6 +66,12 @@ extern "C"
 #define BB_Limit(ptr_) (ptr_)->limit
 #define BB_Size(ptr_) (ptr_)->size
 #define BB_Available(ptr_) ((ptr_)->limit - (ptr_)->position)
+#define BB_Equal(sPtr_, dPtr_) ((sPtr_) != NULL) &&                    \
+                                   ((dPtr_) != NULL) &&                \
+                                   ((sPtr_->buff) != NULL) &&          \
+                                   ((dPtr_->buff) != NULL) &&          \
+                                   ((sPtr_)->size == (dPtr_)->size) && \
+                                   (memcmp((sPtr_)->buff, (dPtr_)->buff, (sPtr_)->size) == 0)
 
     /**
      * Construtor
@@ -113,6 +119,7 @@ extern "C"
     uint8_t BB_CRC16(ByteBuffer *const me, uint16_t *crc16, uint32_t start, uint32_t size);
 
     ByteBuffer *BB_GetByteBuffer(ByteBuffer *const me, uint32_t size);
+    bool BB_PutByteBuffer(ByteBuffer *const me, ByteBuffer *const src);
     ByteBuffer *BB_PeekByteBuffer(ByteBuffer *const me, uint32_t start, uint32_t size);
 
     uint8_t BB_PeekUInt8(ByteBuffer *const me, uint8_t *val);
@@ -147,6 +154,9 @@ extern "C"
     uint8_t BB_BCDPeekUIntAt(ByteBuffer *const me, uint32_t index, void *val, uint8_t size);
     uint8_t BB_BCDGetUInt(ByteBuffer *const me, void *val, uint8_t size);
     uint8_t BB_BCDGetUInt8(ByteBuffer *const me, uint8_t *val);
+
+    // uint8_t BB_BCDPutUInt(ByteBuffer *const me, void *val, uint8_t size);
+    uint8_t BB_BCDPutUInt8(ByteBuffer *const me, uint8_t val);
 
 #ifdef __cplusplus
 }
