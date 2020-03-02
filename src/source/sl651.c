@@ -313,6 +313,23 @@ void LinkMessage_ctor(LinkMessage *const me, uint16_t initElementCount)
     vec_reserve(&me->elements, initElementCount);
 }
 
+void LinkMessage_PushElement(LinkMessage *const me, Element *const el)
+{
+    assert(me);
+    assert(el);
+    vec_push(&me->elements, el);
+}
+
+Element *const LinkMessage_ElementAt(LinkMessage *const me, uint8_t index)
+{
+    assert(me);
+    if (index >= 0 && index < me->elements.length)
+    {
+        return me->elements.data[index];
+    }
+    return NULL;
+}
+
 static bool LinkMessage_EncodeRawBuff(LinkMessage *const me, ByteBuffer *byteBuff)
 {
     assert(me);
@@ -1442,8 +1459,9 @@ void NumberElement_dtor(Element *const me)
     }
 }
 
-void NumberElement_ctor(NumberElement *const me, uint8_t identifierLeader, uint8_t dataDef)
+void NumberElement_ctor_noBuff(NumberElement *const me, uint8_t identifierLeader, uint8_t dataDef)
 {
+    assert(me);
     static ElementVtbl const vtbl = {
         &NumberElement_Encode,
         &NumberElement_Decode,
@@ -1451,6 +1469,36 @@ void NumberElement_ctor(NumberElement *const me, uint8_t identifierLeader, uint8
         &NumberElement_dtor};
     Element_ctor(&me->super, identifierLeader, dataDef);
     me->super.vptr = &vtbl;
+}
+
+void NumberElement_ctor(NumberElement *const me, uint8_t identifierLeader, uint8_t dataDef)
+{
+    NumberElement_ctor_noBuff(me, identifierLeader, dataDef);
+    if (me->buff == NULL)
+    {
+        uint8_t size = me->super.dataDef >> NUMBER_ELEMENT_LEN_OFFSET;
+        me->buff = NewInstance(ByteBuffer);
+        BB_ctor(me->buff, size + 1); // 多一个字节给符号位
+    }
+}
+
+uint8_t NumberElement_SetInteger(NumberElement *const me, uint64_t val)
+{
+    assert(me);
+    assert(me->buff);
+    BB_Clear(me->buff);
+    if (val < 0)
+    {
+        BB_PutUInt8(me->buff, 0xFF);
+        val *= -1;
+    }
+    return BB_BE_BCDPutUInt(me->buff, &val, me->super.dataDef >> NUMBER_ELEMENT_LEN_OFFSET);
+}
+
+uint8_t NumberElement_SetFloat(NumberElement *const me, float val)
+{
+    uint8_t precision = me->super.dataDef & NUMBER_ELEMENT_PRECISION_MASK;
+    return NumberElement_SetInteger(me, val * pow(10, precision));
 }
 
 uint8_t NumberElement_GetInteger(NumberElement *const me, uint64_t *val)
@@ -1527,6 +1575,11 @@ static bool NumberListElement_Decode(Element *const me, ByteBuffer *const byteBu
         return false;
     }
     NumberListElement *self = (NumberListElement *)me;
+    if (self->buff != NULL) // 释放
+    {
+        BB_dtor(self->buff);
+        DelInstance(self->buff);
+    }
     self->buff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff)); //read all
     if (self->buff == NULL)
     {
@@ -1768,7 +1821,7 @@ Element *decodeElement(ByteBuffer *const byteBuff, Direction direction)
         if (isNumberElement(identifierLeader))
         {
             el = (Element *)NewInstance(NumberElement);
-            NumberElement_ctor((NumberElement *)el, identifierLeader, dataDef);
+            NumberElement_ctor_noBuff((NumberElement *)el, identifierLeader, dataDef);
         }
         else
         {

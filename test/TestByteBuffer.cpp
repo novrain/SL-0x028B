@@ -259,6 +259,52 @@ GTEST_TEST(ByteBuffer, BB_CRC16)
     DelInstance(buf);
 }
 
+GTEST_TEST(ByteBuffer, BB_BE_BCDPutUInt)
+{
+    ByteBuffer *buf = NewInstance(ByteBuffer);
+    BB_ctor(buf, 8);
+    uint8_t v8 = 45;
+    BB_BE_BCDPutUInt(buf, &v8, 1);
+    uint8_t u8 = 0;
+    ASSERT_EQ(1, BB_PeekUInt8At(buf, 0, &u8));
+    ASSERT_EQ(u8, 0x45);
+
+    BB_Clear(buf);
+    uint16_t v16 = 1234;
+    BB_BE_BCDPutUInt(buf, &v16, 2);
+    u8 = 0;
+    ASSERT_EQ(1, BB_PeekUInt8At(buf, 0, &u8));
+    ASSERT_EQ(u8, 0x12);
+    ASSERT_EQ(1, BB_PeekUInt8At(buf, 1, &u8));
+    ASSERT_EQ(u8, 0x34);
+
+    BB_Clear(buf);
+    uint32_t v32 = 12345678;
+    BB_BE_BCDPutUInt(buf, &v32, 4);
+    u8 = 0;
+    ASSERT_EQ(1, BB_PeekUInt8At(buf, 0, &u8));
+    ASSERT_EQ(u8, 0x12);
+    ASSERT_EQ(1, BB_PeekUInt8At(buf, 1, &u8));
+    ASSERT_EQ(u8, 0x34);
+    ASSERT_EQ(1, BB_PeekUInt8At(buf, 2, &u8));
+    ASSERT_EQ(u8, 0x56);
+    ASSERT_EQ(1, BB_PeekUInt8At(buf, 3, &u8));
+    ASSERT_EQ(u8, 0x78);
+
+    BB_Clear(buf);
+    uint64_t v64 = 8765432112345678;
+    BB_BE_BCDPutUInt(buf, &v64, 8);
+    u8 = 0;
+    ASSERT_EQ(1, BB_PeekUInt8At(buf, 4, &u8));
+    ASSERT_EQ(u8, 0x12);
+    ASSERT_EQ(1, BB_PeekUInt8At(buf, 5, &u8));
+    ASSERT_EQ(u8, 0x34);
+    ASSERT_EQ(1, BB_PeekUInt8At(buf, 6, &u8));
+    ASSERT_EQ(u8, 0x56);
+    ASSERT_EQ(1, BB_PeekUInt8At(buf, 7, &u8));
+    ASSERT_EQ(u8, 0x78);
+}
+
 int main(int argc, char *argv[])
 {
     ::testing::InitGoogleTest(&argc, argv);

@@ -2833,6 +2833,34 @@ GTEST_TEST(Package, decodeReadSoftUplinkMessage)
 
  */
 
+GTEST_TEST(Package, putItTogether)
+{
+    UplinkMessage *msg = NewInstance(UplinkMessage); // 选择是上行还是下行
+    UplinkMessage_ctor(msg, 1);                      // 调用构造函数,如果有要素，需要指定要素数量
+    Package *pkg = (Package *)msg;                   // 获取父结构Package
+    Head *head = &pkg->head;                         // 获取Head结构
+    head->centerAddr = 1;                            // 填写Head结构
+    head->funcCode = INTERVAL;                       // 功能码，后续需要根据功能码填写相应的要素或自定包
+    //head->......
+    msg->messageHead.seq = 1; // 根据功能码填写报文头
+    // msg->messageHead.
+
+    NumberElement *nel = NewInstance(NumberElement);  // 根据场景创建Element 或 自定数据
+    NumberElement_ctor(nel, 0x20, 0x19);              // 封装了协议里 数值型的 要素结构，标识符 和 数据类型（字节数、精度，此处为“当前降水量”），需要自行填写，没有严格限制 >= 0x01 &&  <= 0x75 && != TIME_STEP_CODE && != STATION_STATUS && != DURATION_OF_XX
+    NumberElement_SetFloat(nel, 11.1);                //
+    LinkMessage *linkMsg = (LinkMessage *)msg;        // 获取父结构LinkMessage
+    LinkMessage_PushElement(linkMsg, (Element *)nel); // 添加LinkMessage
+
+    ByteBuffer *byteOut = pkg->vptr->encode(pkg); // 编码
+
+    // 释放
+    UplinkMessage_dtor((Package *)msg);
+    DelInstance(msg);
+
+    BB_dtor(byteOut);
+    DelInstance(byteOut);
+}
+
 int main(int argc, char *argv[])
 {
     ::testing::InitGoogleTest(&argc, argv);
