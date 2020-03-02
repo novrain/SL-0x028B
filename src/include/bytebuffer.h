@@ -155,7 +155,7 @@ extern "C"
     uint8_t BB_BCDGetUInt(ByteBuffer *const me, void *val, uint8_t size);
     uint8_t BB_BCDGetUInt8(ByteBuffer *const me, uint8_t *val);
 
-    // uint8_t BB_BCDPutUInt(ByteBuffer *const me, void *val, uint8_t size);
+    uint8_t BB_BE_BCDPutUInt(ByteBuffer *const me, void *val, uint8_t size);
     uint8_t BB_BCDPutUInt8(ByteBuffer *const me, uint8_t val);
 
 #ifdef __cplusplus

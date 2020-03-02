@@ -598,6 +598,53 @@ uint8_t BB_BCDGetUInt8(ByteBuffer *const me, uint8_t *val)
     return BB_BCDGetUInt(me, val, 1);
 }
 
+uint8_t BB_BE_BCDPutUInt(ByteBuffer *const me, void *val, uint8_t size)
+{
+    uint64_t bcd = 0;
+    int shift = 0;
+
+    uint64_t u64 = 0;
+    if (size <= 1)
+    {
+        u64 = *(uint8_t *)val;
+    }
+    else if (size <= 2)
+    {
+        u64 = *(uint16_t *)val;
+    }
+    else if (size <= 4)
+    {
+        u64 = *(uint32_t *)val;
+    }
+    else
+    {
+        u64 = *(uint64_t *)val;
+    }
+
+    while (u64 > 0 && shift < size * 2)
+    {
+        bcd |= (u64 % 10) << (shift++ << 2);
+        u64 /= 10;
+    }
+
+    if (size <= 1)
+    {
+        return BB_PutUInt8(me, (uint8_t)bcd);
+    }
+    else if (size <= 2)
+    {
+        return BB_BE_PutUInt16(me, (uint16_t)bcd);
+    }
+    else if (size <= 4)
+    {
+        return BB_BE_PutUInt32(me, (uint32_t)bcd);
+    }
+    else
+    {
+        return BB_BE_PutUInt64(me, bcd);
+    }
+}
+
 uint8_t BB_BCDPutUInt8(ByteBuffer *const me, uint8_t val)
 {
     assert(me);
