@@ -785,6 +785,9 @@ GTEST_TEST(Package, decodeRainfallStationHourlyUplinkMessage)
 
     pkg->vptr->dtor(pkg);
     DelInstance(pkg);
+
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
 }
 
 GTEST_TEST(Package, decodeWaterRainStationHourlyDownlinkMessage)
