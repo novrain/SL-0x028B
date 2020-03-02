@@ -56,7 +56,7 @@ static bool RemoteStationAddr_Decode(RemoteStationAddr *const me, ByteBuffer *co
     return usedLen == REMOTE_STATION_ADDR_LEN;
 }
 
-static DateTime_Encode(DateTime const *const me, ByteBuffer *byteBuff)
+static bool DateTime_Encode(DateTime const *const me, ByteBuffer *byteBuff)
 {
     assert(me);
     assert(byteBuff);
@@ -97,7 +97,7 @@ static bool ObserveTime_Encode(ObserveTime const *const me, ByteBuffer *byteBuff
     return writeLen == OBSERVETIME_LEN;
 }
 
-static ObserveTime_Decode(ObserveTime *const me, ByteBuffer *byteBuff)
+static void ObserveTime_Decode(ObserveTime *const me, ByteBuffer *byteBuff)
 {
     assert(me);
     assert(byteBuff);
