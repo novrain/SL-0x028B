@@ -286,6 +286,7 @@ void LinkMessage_dtor(Package *const me)
             DelInstance(el);
         }
     }
+    vec_deinit(&self->elements);
     if (self->rawBuff != NULL)
     {
         BB_dtor(self->rawBuff);
