@@ -97,7 +97,7 @@ static bool ObserveTime_Encode(ObserveTime const *const me, ByteBuffer *byteBuff
     return writeLen == OBSERVETIME_LEN;
 }
 
-static void ObserveTime_Decode(ObserveTime *const me, ByteBuffer *byteBuff)
+static bool ObserveTime_Decode(ObserveTime *const me, ByteBuffer *byteBuff)
 {
     assert(me);
     assert(byteBuff);
