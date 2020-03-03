@@ -1,4 +1,4 @@
-#include "bytebuffer.h"
+#include "sl651/bytebuffer/bytebuffer.h"
 
 static size_t binToBeUInt(const uint8_t *bin, void *val, const size_t size)
 {

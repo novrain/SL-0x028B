@@ -1,6 +1,6 @@
 #include "gtest/gtest.h"
 
-#include "sl651.h"
+#include "sl651/sl651.h"
 
 GTEST_TEST(Definition, package)
 {
@@ -675,6 +675,7 @@ GTEST_TEST(Package, decodeRainfallStationHourlyDownlinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -784,6 +785,9 @@ GTEST_TEST(Package, decodeRainfallStationHourlyUplinkMessage)
 
     pkg->vptr->dtor(pkg);
     DelInstance(pkg);
+
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
 }
 
 GTEST_TEST(Package, decodeWaterRainStationHourlyDownlinkMessage)
@@ -826,6 +830,7 @@ GTEST_TEST(Package, decodeWaterRainStationHourlyDownlinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -907,6 +912,7 @@ GTEST_TEST(Package, decodeWaterRainStationHourlyUplinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -951,6 +957,7 @@ GTEST_TEST(Package, decodeRainStationAddRPTDownlinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -1022,6 +1029,7 @@ GTEST_TEST(Package, decodeRainStationAddRPTUplinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -1066,6 +1074,7 @@ GTEST_TEST(Package, decodeTestDownlinkMessage1)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -1110,6 +1119,7 @@ GTEST_TEST(Package, decodeTestDownlinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -1179,6 +1189,7 @@ GTEST_TEST(Package, decodeTestUplinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -1223,6 +1234,7 @@ GTEST_TEST(Package, decodeEvenTimeDownlinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -1301,6 +1313,7 @@ GTEST_TEST(Package, decodeEvenTimeUplinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -1345,6 +1358,7 @@ GTEST_TEST(Package, decodeIntervalDownlinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -1408,6 +1422,7 @@ GTEST_TEST(Package, decodeIntervalUplinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -1452,6 +1467,7 @@ GTEST_TEST(Package, decodeArtificalDownlinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -1498,6 +1514,7 @@ GTEST_TEST(Package, decodeArtificalUplinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -1544,6 +1561,7 @@ GTEST_TEST(Package, decodeArtificalUplinkMessage1)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -1588,6 +1606,7 @@ GTEST_TEST(Package, decodePictureDownlinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -1639,6 +1658,7 @@ GTEST_TEST(Package, decodePictureUplinkMessagePkg1)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -1674,6 +1694,7 @@ GTEST_TEST(Package, decodePictureUplinkMessagePkg2)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -1709,6 +1730,7 @@ GTEST_TEST(Package, decodePictureUplinkMessagePkg3)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -1744,6 +1766,7 @@ GTEST_TEST(Package, decodePictureUplinkMessagePkg13)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -1788,6 +1811,7 @@ GTEST_TEST(Package, decodeQueryRealtimeDownlinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -1852,6 +1876,7 @@ GTEST_TEST(Package, decodeQueryRealtimeUplinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -1917,6 +1942,7 @@ GTEST_TEST(Package, decodeQueryTimeRangeDownlinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -1983,6 +2009,7 @@ GTEST_TEST(Package, decodeQueryTimeRangeUplinkMessage1)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -2017,6 +2044,7 @@ GTEST_TEST(Package, decodeQueryArtificalDownlinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -2051,6 +2079,7 @@ GTEST_TEST(Package, decodeQueryArtificalUplinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -2103,6 +2132,7 @@ GTEST_TEST(Package, decodeQueryElementDownlinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -2161,6 +2191,7 @@ GTEST_TEST(Package, decodeQueryElementUplinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -2202,6 +2233,7 @@ GTEST_TEST(Package, decodeQueryElementDownlinkMessage1)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -2272,6 +2304,7 @@ GTEST_TEST(Package, decodeQueryElementUplinkMessage1)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -2333,6 +2366,7 @@ GTEST_TEST(Package, decodeQueryElementDownlinkMessage2)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -2399,6 +2433,7 @@ GTEST_TEST(Package, decodeQueryElementUplinkMessage2)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -2443,6 +2478,7 @@ GTEST_TEST(Package, decodeModifyBasicDownlinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -2477,6 +2513,7 @@ GTEST_TEST(Package, decodeModifyBasicUplinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -2511,6 +2548,7 @@ GTEST_TEST(Package, decodeReadConfigDownlinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -2545,6 +2583,7 @@ GTEST_TEST(Package, decodeReadConfigUplinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -2579,6 +2618,7 @@ GTEST_TEST(Package, decodeModifyRuntimeDownlinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -2613,6 +2653,7 @@ GTEST_TEST(Package, decodeModifyRuntimeUplinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -2642,6 +2683,7 @@ GTEST_TEST(Package, decodeReadRuntimeDownlinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -2671,6 +2713,7 @@ GTEST_TEST(Package, decodeReadRuntimeUplinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -2700,6 +2743,7 @@ GTEST_TEST(Package, decodeReadPumpingDownlinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -2729,6 +2773,7 @@ GTEST_TEST(Package, decodeReadPumpingUplinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -2758,6 +2803,7 @@ GTEST_TEST(Package, decodeReadSoftDownlinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
@@ -2787,6 +2833,7 @@ GTEST_TEST(Package, decodeReadSoftUplinkMessage)
     DelInstance(encoded);
 
     pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }

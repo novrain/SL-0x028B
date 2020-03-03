@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <math.h>
 
-#include "sl651.h"
+#include "sl651/sl651.h"
 
 static bool RemoteStationAddr_Encode(RemoteStationAddr const *const me, ByteBuffer *const byteBuff)
 {
