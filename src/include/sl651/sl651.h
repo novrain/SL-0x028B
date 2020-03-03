@@ -10,10 +10,10 @@ extern "C"
 #include <memory.h>
 #include <stdbool.h>
 // others
-#include "vec.h"
+#include "sl651/vec/vec.h"
 
-#include "class.h"
-#include "bytebuffer.h"
+#include "sl651/common/class.h"
+#include "sl651/bytebuffer/bytebuffer.h"
 
     typedef enum
     {

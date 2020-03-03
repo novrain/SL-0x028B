@@ -1,6 +1,6 @@
 #include "gtest/gtest.h"
 
-#include "sl651.h"
+#include "sl651/sl651.h"
 
 GTEST_TEST(Definition, package)
 {

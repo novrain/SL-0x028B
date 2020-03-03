@@ -9,7 +9,7 @@ extern "C"
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "class.h"
+#include "sl651/common/class.h"
 
     typedef enum
     {
