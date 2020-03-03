@@ -18,7 +18,7 @@
             "${workspaceFolder}/src/source/common/*.c",
             "${workspaceFolder}/src/source/bytebuffer/*.c",
             "${workspaceFolder}/src/source/vec/*.c",
-            "${workspaceFolder}/src/source/*.c",
+            "${workspaceFolder}/src/source/sl651/*.c",
             "-o",
             "${fileDirname}\\${fileBasenameNoExtension}.exe",
             "-lgtest",

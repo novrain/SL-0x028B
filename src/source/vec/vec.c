@@ -5,7 +5,7 @@
  * under the terms of the MIT license. See LICENSE for details.
  */
 
-#include "sl651/vec/vec.h"
+#include "vec/vec.h"
 
 int vec_expand_(char **data, int *length, int *capacity, int memsz)
 {
