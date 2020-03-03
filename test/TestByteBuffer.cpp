@@ -1,6 +1,6 @@
 #include "gtest/gtest.h"
 
-#include "sl651/bytebuffer/bytebuffer.h"
+#include "bytebuffer/bytebuffer.h"
 
 GTEST_TEST(ByteBuffer, Ctor)
 {

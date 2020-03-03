@@ -3,6 +3,122 @@
 
 #include "sl651/sl651.h"
 
+/* init and register error info before main. */
+#define SL651_DEFINE_ERROR_INFO_COMMON(C, ES) [(C)-0x0000] = DEFINE_ERROR_INFO(C, ES, "sl651")
+
+static struct error_info errors[] = {
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_SUCCESS,
+        "Success."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_INVALID_SOH,
+        "Invalid SOH."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_INVALID_DIRECTION,
+        "Invalid direction."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_INVALID_STATION_ADDR,
+        "Invalid station address(eg. invalid BCD)."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_INVALID_STATION_ELEMENT,
+        "Invalid station element(invalid dentifier(0xF1F1) or station address(eg. invalid BCD))."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_INVALID_DATATIME,
+        "Invalid report time(eg. invalid BCD)."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_INVALID_OBSERVETIME,
+        "Invalid observe time(eg. invalid BCD)."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_INVALID_OBSERVETIME_ELEMENT,
+        "Invalid observe time element(invalid dentifier(0xF1F1) or observe time(eg. invalid BCD))."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_INVALID_CRC,
+        "CRC not match."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_INSUFFICIENT_HEAD_LEN,
+        "Insufficient head length."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_INVALID_HEAD,
+        "Invalid head data."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_INVALID_UPLINKMESSAGE_HEAD,
+        "Invalid uplink message head data."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_ELEMENT_INSUFFICIENT_LEN,
+        "Insufficient element length."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_ELEMENT_UNKOWN_INDENTIFIERLEADER,
+        "Unkown element indentifier leader."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_ELEMENT_UNSUPPORTCUSTOM,
+        "Does not support custom element."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_ELEMENT_OBSERVETIME_INSUFFICIENT_LEN,
+        "Insufficient observe time element length."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_ELEMENT_REMOTEADDR_INSUFFICIENT_LEN,
+        "Insufficient remote address element length."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_ELEMENT_ARTIFICIAL_EMPTY,
+        "Empty artificial element."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_ELEMENT_PICTURE_EMPTY,
+        "Empty picture element."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_ELEMENT_DRP5MIN_DATADEF_ERROR,
+        "DRP5MIN element's data definition field error."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_ELEMENT_DRP5MIN_INSUFFICIENT_LEN,
+        "Insufficient DRP5MIN element length."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_ELEMENT_RELATIVEWATERLEVEL_DATADEF_ERROR,
+        "Relative water level element's data definition field error."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_ELEMENT_RELATIVEWATERLEVEL_INSUFFICIENT_LEN,
+        "Insufficient relative water level element length."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_ELEMENT_FLOWRATE_DATADEF_ERROR,
+        "Flow rate element's data definition field error."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_ELEMENT_FLOWRATE_INSUFFICIENT_LEN,
+        "Insufficient flow rate element length."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_ELEMENT_TIMESTEPCODE_DATADEF_ERROR,
+        "Timestep code element's data definition field error."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_ELEMENT_TIMESTEPCODE_INSUFFICIENT_LEN,
+        "Insufficient timestep code element length."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_ELEMENT_STATIONSTATUS_DATADEF_ERROR,
+        "Station status element's data definition field error."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_ELEMENT_STATIONSTATUS_INSUFFICIENT_LEN,
+        "Insufficient station status element length."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_ELEMENT_DURATION_DATADEF_ERROR,
+        "Duration element's data definition field error."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_ELEMENT_DURATION_INSUFFICIENT_LEN,
+        "Insufficient duration element length."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_ELEMENT_NUMBERLIST_ODD_SIZE,
+        "NumberList element should not be an odd length."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_ELEMENT_NUMBER_SIZE_NOT_MATCH_DATADEF,
+        "Number element data length does not match the data definition field."),
+};
+
+static struct error_info_list sl651_error_list = {
+    .error_list = errors,
+    .count = sizeof(errors) / sizeof(errors[0]),
+};
+
+__attribute__((constructor)) void register_error()
+{
+    register_error_info(&sl651_error_list);
+}
+/* register error end*/
+
 static bool RemoteStationAddr_Encode(RemoteStationAddr const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
@@ -21,7 +137,7 @@ static bool RemoteStationAddr_Encode(RemoteStationAddr const *const me, ByteBuff
         uint16_t u16A2A1 = me->A2 * 10000 + me->A1 * 100 + me->A0;
         writeLen += BB_BE_PutUInt16(byteBuff, u16A2A1);
     }
-    return writeLen == REMOTE_STATION_ADDR_LEN;
+    return writeLen == REMOTE_STATION_ADDR_LEN || set_error_indicate(SL651_ERROR_INVALID_STATION_ADDR);
 }
 
 static bool RemoteStationAddr_Decode(RemoteStationAddr *const me, ByteBuffer *const byteBuff)
@@ -53,7 +169,7 @@ static bool RemoteStationAddr_Decode(RemoteStationAddr *const me, ByteBuffer *co
             return false;
         }
     }
-    return usedLen == REMOTE_STATION_ADDR_LEN;
+    return usedLen == REMOTE_STATION_ADDR_LEN || set_error_indicate(SL651_ERROR_INVALID_STATION_ADDR);
 }
 
 static bool DateTime_Encode(DateTime const *const me, ByteBuffer *byteBuff)
@@ -67,7 +183,7 @@ static bool DateTime_Encode(DateTime const *const me, ByteBuffer *byteBuff)
     writeLen += BB_BCDPutUInt8(byteBuff, me->hour);
     writeLen += BB_BCDPutUInt8(byteBuff, me->minute);
     writeLen += BB_BCDPutUInt8(byteBuff, me->second);
-    return writeLen == DATETIME_LEN;
+    return writeLen == DATETIME_LEN || set_error_indicate(SL651_ERROR_INVALID_DATATIME);
 }
 
 static bool DateTime_Decode(DateTime *const me, ByteBuffer *byteBuff)
@@ -81,7 +197,7 @@ static bool DateTime_Decode(DateTime *const me, ByteBuffer *byteBuff)
     usedLen += BB_BCDGetUInt8(byteBuff, &me->hour);
     usedLen += BB_BCDGetUInt8(byteBuff, &me->minute);
     usedLen += BB_BCDGetUInt8(byteBuff, &me->second);
-    return usedLen == DATETIME_LEN;
+    return usedLen == DATETIME_LEN || set_error_indicate(SL651_ERROR_INVALID_DATATIME);
 }
 
 static bool ObserveTime_Encode(ObserveTime const *const me, ByteBuffer *byteBuff)
@@ -107,7 +223,7 @@ static bool ObserveTime_Decode(ObserveTime *const me, ByteBuffer *byteBuff)
     usedLen += BB_BCDGetUInt8(byteBuff, &me->day);
     usedLen += BB_BCDGetUInt8(byteBuff, &me->hour);
     usedLen += BB_BCDGetUInt8(byteBuff, &me->minute);
-    return usedLen == OBSERVETIME_LEN;
+    return usedLen == OBSERVETIME_LEN || set_error_indicate(SL651_ERROR_INVALID_OBSERVETIME);
 }
 
 // "AbstractClass" Package
@@ -198,7 +314,7 @@ bool Package_DecodeHead(Package *const me, ByteBuffer *const byteBuff)
     uint32_t buffSize = BB_Available(byteBuff);
     if (buffSize < PACKAGE_HEAD_STX_LEN + PACKAGE_TAIL_LEN) // 非ASCII的最小长度
     {
-        return false;
+        return set_error_indicate(SL651_ERROR_DECODE_INSUFFICIENT_HEAD_LEN);
     }
     // 基本的数据判断
     // 消息头
@@ -206,7 +322,7 @@ bool Package_DecodeHead(Package *const me, ByteBuffer *const byteBuff)
     if (me->head.soh != SOH_BINARY)
     {
         // @Todo ASCII 模式
-        return false;
+        return set_error_indicate(SL651_ERROR_INVALID_SOH);
     }
     // Direction  do it again :(.
     bool decoded = false;
@@ -223,7 +339,7 @@ bool Package_DecodeHead(Package *const me, ByteBuffer *const byteBuff)
         usedLen += BB_GetUInt8(byteBuff, &me->head.centerAddr);
         break;
     default:
-        break;
+        return set_error_indicate(SL651_ERROR_INVALID_DIRECTION);
     }
     if (!decoded) // invalid address
     {
@@ -243,7 +359,8 @@ bool Package_DecodeHead(Package *const me, ByteBuffer *const byteBuff)
         me->head.sequence.count = u32 >> PACKAGE_HEAD_SEQUENCE_COUNT_BIT_MASK_LEN &
                                   PACKAGE_HEAD_SEQUENCE_COUNT_MASK;
     }
-    return me->head.stxFlag == SYN ? usedLen == PACKAGE_HEAD_SNY_LEN : usedLen == PACKAGE_HEAD_STX_LEN;
+    return (me->head.stxFlag == SYN ? usedLen == PACKAGE_HEAD_SNY_LEN : usedLen == PACKAGE_HEAD_STX_LEN) ||
+           set_error_indicate(SL651_ERROR_DECODE_INVALID_HEAD);
 }
 
 bool Package_DecodeTail(Package *const me, ByteBuffer *const byteBuff)
@@ -544,7 +661,7 @@ bool UplinkMessage_DecodeHead(UplinkMessage *const me, ByteBuffer *const byteBuf
             me->messageHead.stationAddrElement.super.dataDef != ADDRESS ||
             !RemoteStationAddr_Decode(&me->messageHead.stationAddrElement.stationAddr, byteBuff))
         {
-            return false;
+            return set_error_indicate(SL651_ERROR_INVALID_STATION_ELEMENT);
         }
     }
     bool containCategroyField = isContainStationCategoryField(me->super.super.head.funcCode);
@@ -560,10 +677,10 @@ bool UplinkMessage_DecodeHead(UplinkMessage *const me, ByteBuffer *const byteBuf
             me->messageHead.observeTimeElement.super.dataDef != OBSERVETIME ||
             !ObserveTime_Decode(&me->messageHead.observeTimeElement.observeTime, byteBuff))
         {
-            return false;
+            return set_error_indicate(SL651_ERROR_INVALID_OBSERVETIME_ELEMENT);
         }
     }
-    return usedLen == containCategroyField ? 3 : 2;
+    return (usedLen == containCategroyField ? 3 : 2) || set_error_indicate(SL651_ERROR_DECODE_INVALID_UPLINKMESSAGE_HEAD);
 }
 // "AbstractUpClass" UplinkMessage END
 
@@ -840,7 +957,7 @@ static bool RemoteStationAddrElement_Decode(Element *const me, ByteBuffer *const
     assert(byteBuff);
     if (BB_Available(byteBuff) < REMOTE_STATION_ADDR_LEN)
     {
-        return false;
+        return set_error_indicate(SL651_ERROR_DECODE_ELEMENT_REMOTEADDR_INSUFFICIENT_LEN);
     }
     RemoteStationAddrElement *self = (RemoteStationAddrElement *)me;
     return RemoteStationAddr_Decode(&self->stationAddr, byteBuff);
@@ -887,7 +1004,7 @@ static bool ObserveTimeElement_Decode(Element *const me, ByteBuffer *const byteB
     assert(byteBuff);
     if (BB_Available(byteBuff) < OBSERVETIME_LEN)
     {
-        return false;
+        return set_error_indicate(SL651_ERROR_DECODE_ELEMENT_OBSERVETIME_INSUFFICIENT_LEN);
     }
     ObserveTimeElement *self = (ObserveTimeElement *)me;
     return ObserveTime_Decode(&self->observeTime, byteBuff);
@@ -934,7 +1051,7 @@ static bool PictureElement_Decode(Element *const me, ByteBuffer *const byteBuff)
     assert(byteBuff);
     if (BB_Available(byteBuff) < 0) // 截取所有
     {
-        return false;
+        return set_error_indicate(SL651_ERROR_DECODE_ELEMENT_PICTURE_EMPTY);
     }
     PictureElement *self = (PictureElement *)me;
     self->buff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff));
@@ -994,7 +1111,7 @@ static bool ArtificialElement_Decode(Element *const me, ByteBuffer *const byteBu
     assert(byteBuff);
     if (BB_Available(byteBuff) < 0) // 截取所有
     {
-        return false;
+        return set_error_indicate(SL651_ERROR_DECODE_ELEMENT_ARTIFICIAL_EMPTY);
     }
     ArtificialElement *self = (ArtificialElement *)me;
     self->buff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff));
@@ -1064,7 +1181,7 @@ static bool DRP5MINElement_Decode(Element *const me, ByteBuffer *const byteBuff)
     }
     if (BB_Available(byteBuff) < DRP5MIN_LEN)
     {
-        return false;
+        return set_error_indicate(SL651_ERROR_DECODE_ELEMENT_DRP5MIN_INSUFFICIENT_LEN);
     }
     DRP5MINElement *self = (DRP5MINElement *)me;
     self->buff = BB_GetByteBuffer(byteBuff, DRP5MIN_LEN);
@@ -1213,7 +1330,7 @@ static bool RelativeWaterLevelElement_Decode(Element *const me, ByteBuffer *cons
     }
     if (BB_Available(byteBuff) < RELATIVE_WATER_LEVEL_LEN)
     {
-        return false;
+        return set_error_indicate(SL651_ERROR_DECODE_ELEMENT_RELATIVEWATERLEVEL_INSUFFICIENT_LEN);
     }
     RelativeWaterLevelElement *self = (RelativeWaterLevelElement *)me;
     self->buff = BB_GetByteBuffer(byteBuff, RELATIVE_WATER_LEVEL_LEN);
@@ -1288,7 +1405,7 @@ static bool StationStatusElement_Decode(Element *const me, ByteBuffer *const byt
     assert(byteBuff);
     if (BB_Available(byteBuff) < STATION_STATUS_LEN)
     {
-        return false;
+        return set_error_indicate(SL651_ERROR_DECODE_ELEMENT_STATIONSTATUS_INSUFFICIENT_LEN);
     }
     StationStatusElement *self = (StationStatusElement *)me;
     uint8_t usedLen = BB_BE_GetUInt32(byteBuff, &self->status);
@@ -1359,7 +1476,7 @@ static bool DurationElement_Decode(Element *const me, ByteBuffer *const byteBuff
     assert(byteBuff);
     if (BB_Available(byteBuff) < DURATION_OF_XX_LEN)
     {
-        return false;
+        return set_error_indicate(SL651_ERROR_DECODE_ELEMENT_DURATION_INSUFFICIENT_LEN);
     }
     DurationElement *self = (DurationElement *)me;
     uint8_t byte = 0;
@@ -1428,13 +1545,18 @@ static bool NumberElement_Decode(Element *const me, ByteBuffer *const byteBuff)
     uint8_t size = me->dataDef >> NUMBER_ELEMENT_LEN_OFFSET;
     if (BB_Available(byteBuff) < size)
     {
-        return false;
+        return set_error_indicate(SL651_ERROR_DECODE_ELEMENT_NUMBER_SIZE_NOT_MATCH_DATADEF);
     }
     NumberElement *self = (NumberElement *)me;
+    if (self->buff != NULL) // 释放
+    {
+        BB_dtor(self->buff);
+        DelInstance(self->buff);
+    }
     self->buff = BB_GetByteBuffer(byteBuff, size); //read all bcd
     if (self->buff == NULL)
     {
-        return false;
+        return set_error_indicate(SL651_ERROR_DECODE_ELEMENT_NUMBER_SIZE_NOT_MATCH_DATADEF);
     }
     BB_Flip(self->buff); // Flip to read it.
     return true;
@@ -1573,7 +1695,7 @@ static bool NumberListElement_Decode(Element *const me, ByteBuffer *const byteBu
     uint8_t size = me->dataDef >> NUMBER_ELEMENT_LEN_OFFSET;
     if (BB_Available(byteBuff) % size != 0)
     {
-        return false;
+        return set_error_indicate(SL651_ERROR_DECODE_ELEMENT_NUMBERLIST_ODD_SIZE);
     }
     NumberListElement *self = (NumberListElement *)me;
     if (self->buff != NULL) // 释放
@@ -1685,7 +1807,7 @@ static bool TimeStepCodeElement_Decode(Element *const me, ByteBuffer *const byte
     assert(byteBuff);
     if (BB_Available(byteBuff) < TIME_STEP_CODE_LEN + ELEMENT_IDENTIFER_LEN) //至少一个时间步长+一个ELEMENT头
     {
-        return false;
+        return set_error_indicate(SL651_ERROR_DECODE_ELEMENT_TIMESTEPCODE_INSUFFICIENT_LEN);
     }
     TimeStepCodeElement *self = (TimeStepCodeElement *)me;
     uint8_t usedLen = 0;
@@ -1746,21 +1868,23 @@ Element *decodeElement(ByteBuffer *const byteBuff, Direction direction)
     assert(byteBuff);
     if (BB_Available(byteBuff) < ELEMENT_IDENTIFER_LEN)
     {
+        set_error(SL651_ERROR_DECODE_ELEMENT_INSUFFICIENT_LEN);
         return NULL;
-    }                                                      // 至少包含标识符
-    uint8_t identifierLeader = 0;                          //
-    BB_GetUInt8(byteBuff, &identifierLeader);              // 解析一个字节的 标识符引导符 ， 同时位移
-    uint8_t dataDef = 0;                                   //
-    BB_GetUInt8(byteBuff, &dataDef);                       // 解析一个字节的 数据定义符，同时位移
-    Element *el = NULL;                                    // 根据标识符引导符，开始解析 Element
-    bool decoded = false;                                  //
-    switch (identifierLeader)                              //
-    {                                                      //
-    case CUSTOM_IDENTIFIER:                                // unsupport
-        return NULL;                                       // 返回NULL
-    case OBSERVETIME:                                      // 观测时间 Element
-        el = (Element *)(NewInstance(ObserveTimeElement)); // 创建指针，需要转为Element*
-        ObserveTimeElement_ctor((ObserveTimeElement *)el); // 构造函数
+    }                                                          // 至少包含标识符
+    uint8_t identifierLeader = 0;                              //
+    BB_GetUInt8(byteBuff, &identifierLeader);                  // 解析一个字节的 标识符引导符 ， 同时位移
+    uint8_t dataDef = 0;                                       //
+    BB_GetUInt8(byteBuff, &dataDef);                           // 解析一个字节的 数据定义符，同时位移
+    Element *el = NULL;                                        // 根据标识符引导符，开始解析 Element
+    bool decoded = false;                                      //
+    switch (identifierLeader)                                  //
+    {                                                          //
+    case CUSTOM_IDENTIFIER:                                    // unsupport
+        set_error(SL651_ERROR_DECODE_ELEMENT_UNSUPPORTCUSTOM); //
+        return NULL;                                           // 返回NULL
+    case OBSERVETIME:                                          // 观测时间 Element
+        el = (Element *)(NewInstance(ObserveTimeElement));     // 创建指针，需要转为Element*
+        ObserveTimeElement_ctor((ObserveTimeElement *)el);     // 构造函数
         break;
     case ADDRESS:
         el = (Element *)(NewInstance(RemoteStationAddrElement));       // 创建指针，需要转为Element*
@@ -1777,6 +1901,7 @@ Element *decodeElement(ByteBuffer *const byteBuff, Direction direction)
     case DRP5MIN:
         if (dataDef != DRP5MIN_DATADEF) //固定为 0x60
         {
+            set_error(SL651_ERROR_DECODE_ELEMENT_DRP5MIN_DATADEF_ERROR);
             return NULL;
         }
         el = (Element *)(NewInstance(DRP5MINElement)); // 创建指针，需要转为Element*
@@ -1792,6 +1917,7 @@ Element *decodeElement(ByteBuffer *const byteBuff, Direction direction)
     case RELATIVE_WATER_LEVEL_5MIN8:
         if (dataDef != RELATIVE_WATER_LEVEL_5MIN1_DATADEF) //固定为 0x60
         {
+            set_error(SL651_ERROR_DECODE_ELEMENT_RELATIVEWATERLEVEL_DATADEF_ERROR);
             return NULL;
         }
         el = (Element *)(NewInstance(RelativeWaterLevelElement));                          // 创建指针，需要转为Element*
@@ -1800,20 +1926,36 @@ Element *decodeElement(ByteBuffer *const byteBuff, Direction direction)
     case FLOW_RATE_DATA:
         if (dataDef != FLOW_RATE_DATA_DATADEF) //固定为 0xF6
         {
+            set_error(SL651_ERROR_DECODE_ELEMENT_FLOWRATE_DATADEF_ERROR);
             return NULL;
         }
         el = (Element *)(NewInstance(FlowRateDataElement));  // 创建指针，需要转为Element*
         FlowRateDataElement_ctor((FlowRateDataElement *)el); // 构造函数
         break;
     case TIME_STEP_CODE:
+        if (dataDef != TIME_STEP_CODE_DATADEF) //固定为 0x18
+        {
+            set_error(SL651_ERROR_DECODE_ELEMENT_TIMESTEPCODE_DATADEF_ERROR);
+            return NULL;
+        }
         el = (Element *)(NewInstance(TimeStepCodeElement));  // 创建指针，需要转为Element*
         TimeStepCodeElement_ctor((TimeStepCodeElement *)el); // 构造函数
         break;
     case STATION_STATUS:
+        if (dataDef != STATION_STATUS_DATADEF) //固定为 0x60
+        {
+            set_error(SL651_ERROR_DECODE_ELEMENT_STATIONSTATUS_DATADEF_ERROR);
+            return NULL;
+        }
         el = (Element *)(NewInstance(StationStatusElement));   // 创建指针，需要转为Element*
         StationStatusElement_ctor((StationStatusElement *)el); // 构造函数
         break;
     case DURATION_OF_XX:
+        if (dataDef != DURATION_OF_XX_DATADEF) //固定为 0x60
+        {
+            set_error(SL651_ERROR_DECODE_ELEMENT_DURATION_DATADEF_ERROR);
+            return NULL;
+        }
         el = (Element *)(NewInstance(DurationElement)); // 创建指针，需要转为Element*
         DurationElement_ctor((DurationElement *)el);    // 构造函数
         break;
@@ -1826,6 +1968,7 @@ Element *decodeElement(ByteBuffer *const byteBuff, Direction direction)
         }
         else
         {
+            set_error(SL651_ERROR_DECODE_ELEMENT_UNKOWN_INDENTIFIERLEADER);
             return NULL;
         }
     }
@@ -1853,6 +1996,7 @@ Package *decodePackage(ByteBuffer *const byteBuff)
     uint32_t buffSize = BB_Available(byteBuff);
     if (buffSize < PACKAGE_HEAD_STX_LEN + PACKAGE_TAIL_LEN) // 非ASCII的最小长度
     {
+        set_error(SL651_ERROR_DECODE_INSUFFICIENT_HEAD_LEN);
         return NULL;
     }
     // crc
@@ -1863,6 +2007,7 @@ Package *decodePackage(ByteBuffer *const byteBuff)
     BB_CRC16(byteBuff, &crcCalc, 0, dataEnd);
     if (crcCalc != crcInBuf)
     {
+        set_error(SL651_ERROR_DECODE_INVALID_CRC);
         return NULL;
     }
     // Direction
@@ -1884,6 +2029,7 @@ Package *decodePackage(ByteBuffer *const byteBuff)
         DownlinkMessage_ctor((DownlinkMessage *)pkg, DEFAULT_ELEMENT_NUMBER);
         break;
     default:
+        set_error(SL651_ERROR_INVALID_DIRECTION);
         return NULL;
     }
     if (pkg != NULL)
