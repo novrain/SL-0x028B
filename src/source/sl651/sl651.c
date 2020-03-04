@@ -18,22 +18,25 @@ static struct error_info errors[] = {
         "Invalid direction."),
     SL651_DEFINE_ERROR_INFO_COMMON(
         SL651_ERROR_INVALID_STATION_ADDR,
-        "Invalid station address(eg. invalid BCD)."),
+        "Invalid station address(eg: invalid BCD)."),
     SL651_DEFINE_ERROR_INFO_COMMON(
         SL651_ERROR_INVALID_STATION_ELEMENT,
-        "Invalid station element(invalid dentifier(0xF1F1) or station address(eg. invalid BCD))."),
+        "Invalid station element(invalid dentifier(0xF1F1) or station address(eg: invalid BCD))."),
     SL651_DEFINE_ERROR_INFO_COMMON(
         SL651_ERROR_INVALID_DATATIME,
-        "Invalid report time(eg. invalid BCD)."),
+        "Invalid report time(eg: invalid BCD)."),
     SL651_DEFINE_ERROR_INFO_COMMON(
         SL651_ERROR_INVALID_OBSERVETIME,
-        "Invalid observe time(eg. invalid BCD)."),
+        "Invalid observe time(eg: invalid BCD)."),
     SL651_DEFINE_ERROR_INFO_COMMON(
         SL651_ERROR_INVALID_OBSERVETIME_ELEMENT,
-        "Invalid observe time element(invalid dentifier(0xF1F1) or observe time(eg. invalid BCD))."),
+        "Invalid observe time element(invalid dentifier(0xF1F1) or observe time(eg: invalid BCD))."),
     SL651_DEFINE_ERROR_INFO_COMMON(
-        SL651_ERROR_DECODE_INVALID_CRC,
-        "CRC not match."),
+        SL651_ERROR_INVALID_TIMERANGE,
+        "Invalid time range(eg: invalid BCD)."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_INSUFFICIENT_TIMERANGE_LEN,
+        "Insufficient time range length."),
     SL651_DEFINE_ERROR_INFO_COMMON(
         SL651_ERROR_DECODE_INSUFFICIENT_HEAD_LEN,
         "Insufficient head length."),
@@ -43,6 +46,12 @@ static struct error_info errors[] = {
     SL651_DEFINE_ERROR_INFO_COMMON(
         SL651_ERROR_DECODE_INVALID_UPLINKMESSAGE_HEAD,
         "Invalid uplink message head data."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_INVALID_DOWNLINKMESSAGE_HEAD,
+        "Invalid downlink message head data."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_DECODE_INVALID_CRC,
+        "CRC not match."),
     SL651_DEFINE_ERROR_INFO_COMMON(
         SL651_ERROR_DECODE_ELEMENT_INSUFFICIENT_LEN,
         "Insufficient element length."),
@@ -106,6 +115,54 @@ static struct error_info errors[] = {
     SL651_DEFINE_ERROR_INFO_COMMON(
         SL651_ERROR_DECODE_ELEMENT_NUMBER_SIZE_NOT_MATCH_DATADEF,
         "Number element data length does not match the data definition field."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_ENCODE_INVALID_HEAD,
+        "Invalid head data to encode."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_ENCODE_INVALID_UPLINKMESSAGE_HEAD,
+        "Invalid uplink message head data to encode."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_ENCODE_INVALID_DOWNLINKMESSAGE_HEAD,
+        "Invalid downlink message head data to encode."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_ENCODE_CANNOT_PROCESS_RAWBUFF,
+        "Cannot encode raw buffer of link message."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_ENCODE_CANNOT_PROCESS_ELEMENTS,
+        "Cannot encode elements of link message."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_ENCODE_CANNOT_PROCESS_ELEMENT_INDENTIFIER,
+        "Cannot encode element's indentifier."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_ENCODE_CANNOT_PROCESS_PICTURE_DATA,
+        "Cannot encode picture element's data."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_ENCODE_CANNOT_PROCESS_ARTIFICIAL_DATA,
+        "Cannot encode artificial element's data."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_ENCODE_CANNOT_PROCESS_DRP5MIN_DATA,
+        "Cannot encode drp5min element's data."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_ENCODE_CANNOT_PROCESS_FLOWRATE_DATA,
+        "Cannot encode flow rate element's data."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_ENCODE_CANNOT_PROCESS_RELATIVEWATER_DATA,
+        "Cannot encode relative water level element's data."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_ENCODE_CANNOT_PROCESS_STATIONSTATUS_DATA,
+        "Cannot encode station status element's data."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_ENCODE_CANNOT_PROCESS_DURATION_DATA,
+        "Cannot encode duration element's data."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_ENCODE_CANNOT_PROCESS_NUMBER_DATA,
+        "Cannot encode number element's data."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_ENCODE_CANNOT_PROCESS_NUMBERLIST_DATA,
+        "Cannot encode number list element's data."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_ENCODE_FAIL_CALC_CRC,
+        "Can not calc crc of message."),
 };
 
 static struct error_info_list sl651_error_list = {
@@ -210,7 +267,7 @@ static bool ObserveTime_Encode(ObserveTime const *const me, ByteBuffer *byteBuff
     writeLen += BB_BCDPutUInt8(byteBuff, me->day);
     writeLen += BB_BCDPutUInt8(byteBuff, me->hour);
     writeLen += BB_BCDPutUInt8(byteBuff, me->minute);
-    return writeLen == OBSERVETIME_LEN;
+    return writeLen == OBSERVETIME_LEN || set_error_indicate(SL651_ERROR_INVALID_OBSERVETIME);
 }
 
 static bool ObserveTime_Decode(ObserveTime *const me, ByteBuffer *byteBuff)
@@ -258,7 +315,7 @@ void Package_ctor(Package *me)
     me->vptr = &vtbl;
 }
 
-/* Methods  & Destrucor */
+/* Methods & Destrucor */
 bool Package_EncodeHead(Package const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
@@ -269,10 +326,14 @@ bool Package_EncodeHead(Package const *const me, ByteBuffer *const byteBuff)
         writeLen += BB_PutUInt8(byteBuff, me->head.centerAddr);
         writeLen += RemoteStationAddr_Encode(&me->head.stationAddr, byteBuff) ? REMOTE_STATION_ADDR_LEN : 0;
     }
-    else
+    else if (me->head.direction == Down)
     {
         writeLen += RemoteStationAddr_Encode(&me->head.stationAddr, byteBuff) ? REMOTE_STATION_ADDR_LEN : 0;
         writeLen += BB_PutUInt8(byteBuff, me->head.centerAddr);
+    }
+    else
+    {
+        return set_error_indicate(SL651_ERROR_INVALID_DIRECTION);
     }
     writeLen += BB_BE_PutUInt16(byteBuff, me->head.password);
     writeLen += BB_PutUInt8(byteBuff, me->head.funcCode);
@@ -287,7 +348,10 @@ bool Package_EncodeHead(Package const *const me, ByteBuffer *const byteBuff)
         writeLen += BB_PutUInt8(byteBuff, u32 >> 16);
         writeLen += BB_BE_PutUInt16(byteBuff, u32 & 0xFFFF);
     }
-    return me->head.stxFlag == SYN ? writeLen == PACKAGE_HEAD_SNY_LEN : writeLen == PACKAGE_HEAD_STX_LEN;
+    return (me->head.stxFlag == SYN
+                ? writeLen == PACKAGE_HEAD_SNY_LEN
+                : writeLen == PACKAGE_HEAD_STX_LEN) ||
+           set_error_indicate(SL651_ERROR_ENCODE_INVALID_HEAD);
 }
 
 bool Package_EncodeTail(Package const *const me, ByteBuffer *const byteBuff)
@@ -299,11 +363,11 @@ bool Package_EncodeTail(Package const *const me, ByteBuffer *const byteBuff)
     if (BB_CRC16(byteBuff, &crc16, 0, BB_Position(byteBuff)))
     {
         writeLen += BB_BE_PutUInt16(byteBuff, crc16);
-        return writeLen == PACKAGE_TAIL_LEN;
+        return writeLen == PACKAGE_TAIL_LEN || set_error_indicate(SL651_ERROR_ENCODE_FAIL_CALC_CRC);
     }
     else
     {
-        return false;
+        return set_error_indicate(SL651_ERROR_ENCODE_FAIL_CALC_CRC);
     }
 }
 
@@ -451,7 +515,10 @@ Element *const LinkMessage_ElementAt(LinkMessage *const me, uint8_t index)
 static bool LinkMessage_EncodeRawBuff(LinkMessage *const me, ByteBuffer *byteBuff)
 {
     assert(me);
-    return me->rawBuff != NULL ? BB_PutByteBuffer(byteBuff, me->rawBuff) : true;
+    return me->rawBuff != NULL
+               ? (BB_PutByteBuffer(byteBuff, me->rawBuff) ||
+                  set_error_indicate(SL651_ERROR_ENCODE_CANNOT_PROCESS_RAWBUFF))
+               : true;
 }
 
 static bool LinkMessage_EncodeElements(LinkMessage *const me, ByteBuffer *byteBuff)
@@ -466,6 +533,7 @@ static bool LinkMessage_EncodeElements(LinkMessage *const me, ByteBuffer *byteBu
         res = el->vptr->encode(el, byteBuff);
         if (!res)
         {
+            // set_error(SL651_ERROR_ENCODE_CANNOT_PROCESS_ELEMENTS);
             break;
         }
     }
@@ -618,26 +686,26 @@ bool UplinkMessage_EncodeHead(UplinkMessage const *const me, ByteBuffer *const b
 {
     assert(me);
     assert(byteBuff);
-    return Package_EncodeHead(&me->super.super, byteBuff) &&
-           ((me->super.super.head.stxFlag == SYN && me->super.super.head.sequence.seq > 1)
-                ? true
-                : (BB_BE_PutUInt16(byteBuff, me->messageHead.seq) == 2 &&
-                   DateTime_Encode(&me->messageHead.sendTime, byteBuff) &&
-                   (isContainRemoteStationAddrElement(Up, me->super.super.head.funcCode)
-                        ? (BB_PutUInt8(byteBuff, ADDRESS) &&
-                           BB_PutUInt8(byteBuff, ADDRESS) &&
-                           RemoteStationAddr_Encode(&me->messageHead.stationAddrElement.stationAddr, byteBuff))
-                        : true) &&
-                   (isContainStationCategoryField(me->super.super.head.funcCode)
-                        ? BB_PutUInt8(byteBuff, me->messageHead.stationCategory) == 1
-                        : true) &&
-                   (isContainObserveTimeElement(me->super.super.head.funcCode)
-                        ? (BB_PutUInt8(byteBuff, OBSERVETIME) &&
-                           BB_PutUInt8(byteBuff, OBSERVETIME) &&
-                           ObserveTime_Encode(&me->messageHead.observeTimeElement.observeTime, byteBuff))
-                        : true)));
+    return (Package_EncodeHead(&me->super.super, byteBuff) &&
+            ((me->super.super.head.stxFlag == SYN && me->super.super.head.sequence.seq > 1)
+                 ? true
+                 : (BB_BE_PutUInt16(byteBuff, me->messageHead.seq) == 2 &&
+                    DateTime_Encode(&me->messageHead.sendTime, byteBuff) &&
+                    (isContainRemoteStationAddrElement(Up, me->super.super.head.funcCode)
+                         ? (BB_PutUInt8(byteBuff, ADDRESS) &&
+                            BB_PutUInt8(byteBuff, ADDRESS) &&
+                            RemoteStationAddr_Encode(&me->messageHead.stationAddrElement.stationAddr, byteBuff))
+                         : true) &&
+                    (isContainStationCategoryField(me->super.super.head.funcCode)
+                         ? BB_PutUInt8(byteBuff, me->messageHead.stationCategory) == 1
+                         : true) &&
+                    (isContainObserveTimeElement(me->super.super.head.funcCode)
+                         ? (BB_PutUInt8(byteBuff, OBSERVETIME) &&
+                            BB_PutUInt8(byteBuff, OBSERVETIME) &&
+                            ObserveTime_Encode(&me->messageHead.observeTimeElement.observeTime, byteBuff))
+                         : true)))) ||
+           set_error_indicate(SL651_ERROR_ENCODE_INVALID_UPLINKMESSAGE_HEAD);
 }
-
 bool UplinkMessage_DecodeHead(UplinkMessage *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
@@ -813,7 +881,7 @@ static bool TimeRange_Decode(TimeRange *const me, ByteBuffer *const byteBuff)
     assert(byteBuff);
     if (BB_Available(byteBuff) < TIME_STEP_RANGE_LEN)
     {
-        return false;
+        return set_error_indicate(SL651_ERROR_INSUFFICIENT_TIMERANGE_LEN);
     }
     uint8_t usedLen = BB_BCDGetUInt8(byteBuff, &me->start.year);
     usedLen += BB_BCDGetUInt8(byteBuff, &me->start.month);
@@ -823,7 +891,7 @@ static bool TimeRange_Decode(TimeRange *const me, ByteBuffer *const byteBuff)
     usedLen += BB_BCDGetUInt8(byteBuff, &me->end.month);
     usedLen += BB_BCDGetUInt8(byteBuff, &me->end.day);
     usedLen += BB_BCDGetUInt8(byteBuff, &me->end.hour);
-    return usedLen == TIME_STEP_RANGE_LEN;
+    return usedLen == TIME_STEP_RANGE_LEN || set_error_indicate(SL651_ERROR_INVALID_TIMERANGE);
 }
 
 static bool TimeRange_Encode(TimeRange const *const me, ByteBuffer *const byteBuff)
@@ -832,7 +900,7 @@ static bool TimeRange_Encode(TimeRange const *const me, ByteBuffer *const byteBu
     assert(byteBuff);
     if (BB_Available(byteBuff) < TIME_STEP_RANGE_LEN)
     {
-        return false;
+        return set_error_indicate(SL651_ERROR_INSUFFICIENT_TIMERANGE_LEN);
     }
     uint8_t usedLen = BB_BCDPutUInt8(byteBuff, me->start.year);
     usedLen += BB_BCDPutUInt8(byteBuff, me->start.month);
@@ -842,24 +910,26 @@ static bool TimeRange_Encode(TimeRange const *const me, ByteBuffer *const byteBu
     usedLen += BB_BCDPutUInt8(byteBuff, me->end.month);
     usedLen += BB_BCDPutUInt8(byteBuff, me->end.day);
     usedLen += BB_BCDPutUInt8(byteBuff, me->end.hour);
-    return usedLen == TIME_STEP_RANGE_LEN;
+    return usedLen == TIME_STEP_RANGE_LEN || set_error_indicate(SL651_ERROR_INVALID_TIMERANGE);
 }
 
 bool DownlinkMessage_EncodeHead(DownlinkMessage const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
     assert(byteBuff);
-    return Package_EncodeHead(&me->super.super, byteBuff) &&
-           BB_BE_PutUInt16(byteBuff, me->messageHead.seq) == 2 &&
-           DateTime_Encode(&me->messageHead.sendTime, byteBuff) &&
-           ((me->super.super.head.direction == Down && me->super.super.head.funcCode == QUERY_TIMERANGE)
-                ? TimeRange_Encode(&me->messageHead.timeRange, byteBuff)
-                : true) &&
-           (isContainRemoteStationAddrElement(Down, me->super.super.head.funcCode)
-                ? (BB_PutUInt8(byteBuff, ADDRESS) &&
-                   BB_PutUInt8(byteBuff, ADDRESS) &&
-                   RemoteStationAddr_Encode(&me->messageHead.stationAddrElement.stationAddr, byteBuff))
-                : true);
+    return (Package_EncodeHead(&me->super.super, byteBuff) &&
+            BB_BE_PutUInt16(byteBuff, me->messageHead.seq) == 2 &&
+            DateTime_Encode(&me->messageHead.sendTime, byteBuff) &&
+            ((me->super.super.head.direction == Down && me->super.super.head.funcCode == QUERY_TIMERANGE)
+                 ? TimeRange_Encode(&me->messageHead.timeRange, byteBuff)
+                 : true) &&
+            (isContainRemoteStationAddrElement(Down, me->super.super.head.funcCode)
+                 ? (BB_PutUInt8(byteBuff, ADDRESS) &&
+                    BB_PutUInt8(byteBuff, ADDRESS) &&
+                    RemoteStationAddr_Encode(&me->messageHead.stationAddrElement.stationAddr, byteBuff))
+                 : true)) ||
+           set_error_indicate(SL651_ERROR_DECODE_INVALID_DOWNLINKMESSAGE_HEAD);
+    ;
 }
 
 bool DownlinkMessage_DecodeHead(DownlinkMessage *const me, ByteBuffer *const byteBuff)
@@ -937,7 +1007,8 @@ static bool Element_EncodeIdentifier(Element const *const me, ByteBuffer *const 
 {
     assert(me);
     assert(byteBuff);
-    return BB_PutUInt8(byteBuff, me->identifierLeader) + BB_PutUInt8(byteBuff, me->dataDef) == 2;
+    return (BB_PutUInt8(byteBuff, me->identifierLeader) + BB_PutUInt8(byteBuff, me->dataDef) == 2) ||
+           set_error_indicate(SL651_ERROR_ENCODE_CANNOT_PROCESS_ELEMENT_INDENTIFIER);
 }
 // "AbstractorClass" Element END
 
@@ -1042,7 +1113,8 @@ static bool PictureElement_Encode(Element const *const me, ByteBuffer *const byt
     assert(byteBuff);
     PictureElement *self = (PictureElement *)me;
     return Element_EncodeIdentifier(me, byteBuff) &&
-           BB_PutByteBuffer(byteBuff, self->buff);
+           (BB_PutByteBuffer(byteBuff, self->buff) ||
+            set_error_indicate(SL651_ERROR_ENCODE_CANNOT_PROCESS_PICTURE_DATA));
 }
 
 static bool PictureElement_Decode(Element *const me, ByteBuffer *const byteBuff)
@@ -1101,8 +1173,8 @@ static bool ArtificialElement_Encode(Element const *const me, ByteBuffer *const 
     ArtificialElement *self = (ArtificialElement *)me;
     assert(self->buff);
     return Element_EncodeIdentifier(me, byteBuff) &&
-           BB_PutByteBuffer(byteBuff, self->buff);
-    return true;
+           (BB_PutByteBuffer(byteBuff, self->buff) ||
+            set_error_indicate(SL651_ERROR_ENCODE_CANNOT_PROCESS_ARTIFICIAL_DATA));
 }
 
 static bool ArtificialElement_Decode(Element *const me, ByteBuffer *const byteBuff)
@@ -1166,8 +1238,9 @@ static bool DRP5MINElement_Encode(Element const *const me, ByteBuffer *const byt
         return false;
     }
     return me->direction == Up
-               ? (Element_EncodeIdentifier(me, byteBuff) &&
-                  BB_PutByteBuffer(byteBuff, self->buff))
+               ? Element_EncodeIdentifier(me, byteBuff) &&
+                     (BB_PutByteBuffer(byteBuff, self->buff) ||
+                      set_error_indicate(SL651_ERROR_ENCODE_CANNOT_PROCESS_DRP5MIN_DATA))
                : Element_EncodeIdentifier(me, byteBuff);
 }
 
@@ -1249,8 +1322,9 @@ static bool FlowRateDataElement_Encode(Element const *const me, ByteBuffer *cons
         return false;
     }
     return me->direction == Up
-               ? (Element_EncodeIdentifier(me, byteBuff) &&
-                  BB_PutByteBuffer(byteBuff, self->buff))
+               ? Element_EncodeIdentifier(me, byteBuff) &&
+                     (BB_PutByteBuffer(byteBuff, self->buff) ||
+                      set_error_indicate(SL651_ERROR_ENCODE_CANNOT_PROCESS_FLOWRATE_DATA))
                : Element_EncodeIdentifier(me, byteBuff);
 }
 
@@ -1315,8 +1389,9 @@ static bool RelativeWaterLevelElement_Encode(Element const *const me, ByteBuffer
         return false;
     }
     return me->direction == Up
-               ? (Element_EncodeIdentifier(me, byteBuff) &&
-                  BB_PutByteBuffer(byteBuff, self->buff))
+               ? Element_EncodeIdentifier(me, byteBuff) &&
+                     (BB_PutByteBuffer(byteBuff, self->buff) ||
+                      set_error_indicate(SL651_ERROR_ENCODE_CANNOT_PROCESS_RELATIVEWATER_DATA))
                : Element_EncodeIdentifier(me, byteBuff);
 }
 
@@ -1394,8 +1469,9 @@ static bool StationStatusElement_Encode(Element const *const me, ByteBuffer *con
     assert(byteBuff);
     StationStatusElement *self = (StationStatusElement *)me;
     return me->direction == Up
-               ? (Element_EncodeIdentifier(me, byteBuff) &&
-                  BB_BE_PutUInt32(byteBuff, self->status) == STATION_STATUS_LEN)
+               ? Element_EncodeIdentifier(me, byteBuff) &&
+                     (BB_BE_PutUInt32(byteBuff, self->status) == STATION_STATUS_LEN ||
+                      set_error_indicate(SL651_ERROR_ENCODE_CANNOT_PROCESS_STATIONSTATUS_DATA))
                : true;
 }
 
@@ -1467,7 +1543,7 @@ static bool DurationElement_Encode(Element const *const me, ByteBuffer *const by
     writeLen = BB_PutUInt8(byteBuff, '.');
     writeLen = BB_PutUInt8(byteBuff, self->minute / 10 + '0');
     writeLen = BB_PutUInt8(byteBuff, self->minute % 10 + '0');
-    return writeLen == DURATION_OF_XX_LEN;
+    return writeLen == DURATION_OF_XX_LEN || set_error_indicate(SL651_ERROR_ENCODE_CANNOT_PROCESS_DURATION_DATA);
 }
 
 static bool DurationElement_Decode(Element *const me, ByteBuffer *const byteBuff)
@@ -1529,8 +1605,9 @@ static bool NumberElement_Encode(Element const *const me, ByteBuffer *const byte
         return false;
     }
     return me->direction == Up
-               ? (Element_EncodeIdentifier(me, byteBuff) &&
-                  BB_PutByteBuffer(byteBuff, self->buff))
+               ? Element_EncodeIdentifier(me, byteBuff) &&
+                     (BB_PutByteBuffer(byteBuff, self->buff) ||
+                      set_error_indicate(SL651_ERROR_ENCODE_CANNOT_PROCESS_NUMBER_DATA))
                : Element_EncodeIdentifier(me, byteBuff);
 }
 
@@ -1679,8 +1756,9 @@ static bool NumberListElement_Encode(Element const *const me, ByteBuffer *const 
         return false;
     }
     return me->direction == Up
-               ? (Element_EncodeIdentifier(me, byteBuff) &&
-                  BB_PutByteBuffer(byteBuff, self->buff))
+               ? Element_EncodeIdentifier(me, byteBuff) &&
+                     (BB_PutByteBuffer(byteBuff, self->buff) ||
+                      set_error_indicate(SL651_ERROR_ENCODE_CANNOT_PROCESS_NUMBERLIST_DATA))
                : Element_EncodeIdentifier(me, byteBuff);
 }
 
