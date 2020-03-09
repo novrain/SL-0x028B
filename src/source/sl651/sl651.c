@@ -337,7 +337,7 @@ bool Package_EncodeHead(Package const *const me, ByteBuffer *const byteBuff)
     }
     writeLen += BB_BE_PutUInt16(byteBuff, me->head.password);
     writeLen += BB_PutUInt8(byteBuff, me->head.funcCode);
-    writeLen += BB_BE_PutUInt16(byteBuff, me->head.len & 0xFFF |
+    writeLen += BB_BE_PutUInt16(byteBuff, (me->head.len & 0xFFF) |
                                               (((uint16_t)me->head.direction)
                                                << (PACKAGE_HEAD_STX_DIRECTION_INDEX_MASK_BIT + 8)));
     writeLen += BB_PutUInt8(byteBuff, me->head.stxFlag);
@@ -486,6 +486,7 @@ void LinkMessage_ctor(LinkMessage *const me, uint16_t initElementCount)
         &Package_Virtual_Decode,
         &Package_Virtual_Size,
         &LinkMessage_dtor};
+    me->super.vptr = &vtbl;
     if (initElementCount < 0 || initElementCount > MAX_ELEMENT_NUMBER)
     {
         initElementCount = DEFAULT_ELEMENT_NUMBER;
@@ -651,7 +652,7 @@ static bool UplinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff)
     {
         ((LinkMessage *)me)->rawBuff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff) - PACKAGE_TAIL_LEN);
     }
-    UplinkMessage *self = ((UplinkMessage *)me);
+    // UplinkMessage *self = ((UplinkMessage *)me);
     if (((LinkMessage *)me)->rawBuff != NULL)
     {
         BB_Flip(((LinkMessage *)me)->rawBuff);
@@ -665,7 +666,7 @@ void UplinkMessage_dtor(Package *const me)
 {
     assert(me);
     LinkMessage_dtor(me);
-    UplinkMessage *self = (UplinkMessage *)me;
+    // UplinkMessage *self = (UplinkMessage *)me;
 }
 
 void UplinkMessage_ctor(UplinkMessage *const me, uint16_t initElementCount)
@@ -748,7 +749,7 @@ bool UplinkMessage_DecodeHead(UplinkMessage *const me, ByteBuffer *const byteBuf
             return set_error_indicate(SL651_ERROR_INVALID_OBSERVETIME_ELEMENT);
         }
     }
-    return (usedLen == containCategroyField ? 3 : 2) || set_error_indicate(SL651_ERROR_DECODE_INVALID_UPLINKMESSAGE_HEAD);
+    return (usedLen == (containCategroyField ? 3 : 2)) || set_error_indicate(SL651_ERROR_DECODE_INVALID_UPLINKMESSAGE_HEAD);
 }
 // "AbstractUpClass" UplinkMessage END
 
@@ -845,7 +846,7 @@ static bool DownlinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff
     {
         ((LinkMessage *)me)->rawBuff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff) - PACKAGE_TAIL_LEN);
     }
-    DownlinkMessage *self = ((DownlinkMessage *)me);
+    // DownlinkMessage *self = ((DownlinkMessage *)me);
     if (((LinkMessage *)me)->rawBuff != NULL)
     {
         BB_Flip(((LinkMessage *)me)->rawBuff);
@@ -872,7 +873,7 @@ void DownlinkMessage_dtor(Package *const me)
 {
     assert(me);
     LinkMessage_dtor(me);
-    DownlinkMessage *self = (DownlinkMessage *)me;
+    // DownlinkMessage *self = (DownlinkMessage *)me;
 }
 /* Public methods */
 static bool TimeRange_Decode(TimeRange *const me, ByteBuffer *const byteBuff)
@@ -928,7 +929,7 @@ bool DownlinkMessage_EncodeHead(DownlinkMessage const *const me, ByteBuffer *con
                     BB_PutUInt8(byteBuff, ADDRESS) &&
                     RemoteStationAddr_Encode(&me->messageHead.stationAddrElement.stationAddr, byteBuff))
                  : true)) ||
-           set_error_indicate(SL651_ERROR_DECODE_INVALID_DOWNLINKMESSAGE_HEAD);
+           set_error_indicate(SL651_ERROR_ENCODE_INVALID_DOWNLINKMESSAGE_HEAD);
     ;
 }
 
@@ -965,7 +966,7 @@ bool DownlinkMessage_DecodeHead(DownlinkMessage *const me, ByteBuffer *const byt
             return false;
         }
     }
-    return true;
+    return usedLen == 2 || set_error_indicate(SL651_ERROR_DECODE_INVALID_DOWNLINKMESSAGE_HEAD);
 }
 // "AbstractUpClass" DownlinkMessage END
 
