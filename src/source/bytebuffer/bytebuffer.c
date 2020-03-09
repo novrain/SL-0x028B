@@ -169,7 +169,7 @@ void BB_ctor_fromHexStr(ByteBuffer *const me, char const *const hexStr, uint32_t
 {
     assert(me);
     assert(hexStr);
-    if (size < 0 || size & 1 == 1)
+    if (size < 0 || (size & 1) == 1)
     {
         return;
     }
@@ -188,7 +188,7 @@ void BB_dtor(ByteBuffer *const me)
     if (!me->wrapped)
     {
         free(me->buff);
-        me->buff == NULL;
+        me->buff = NULL;
     }
 }
 
