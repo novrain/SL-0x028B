@@ -21,5 +21,18 @@
         ]
     },
     "gtest-adapter.debugConfig": "Unit Test Debug",
-    "gtest-adapter.supportLocation": true
+    "gtest-adapter.supportLocation": true,
+    "files.associations": {
+        "*.nj": "html",
+        "*.cjson": "jsonc",
+        "*.wxss": "css",
+        "*.wxs": "javascript",
+        "*.html": "html",
+        "system_error": "c",
+        "ev.h": "c",
+        "stat.h": "c",
+        "fcntl.h": "c",
+        "windows.h": "c",
+        "station.h": "c"
+    }
 }

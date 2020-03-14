@@ -16,7 +16,7 @@ extern "C"
 #include "common/error.h"
 #include "bytebuffer/bytebuffer.h"
 
-    enum SL651Error
+    typedef enum
     {
         SL651_ERROR_SUCCESS = ERROR_ENUM_BEGIN_RANGE(0),
         // COMMON
@@ -74,7 +74,7 @@ extern "C"
         SL651_ERROR_ENCODE_CANNOT_PROCESS_NUMBER_DATA,         // 无法处理NUMBER data
         SL651_ERROR_ENCODE_CANNOT_PROCESS_NUMBERLIST_DATA,     // 无法处理NUMBERLIST data
         SL651_ERROR_ENCODE_FAIL_CALC_CRC,                      // 无法计算CRC
-    };
+    } SL651ProtocolError;
 
     typedef enum
     {
