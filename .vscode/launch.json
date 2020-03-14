@@ -21,5 +21,23 @@
             "ignoreFailures": true
         }],
         "preLaunchTask": "Unit Test"
+    }, {
+        "name": "Station Debug",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "${workspaceFolder}/app/station.exe",
+        "args": [],
+        "stopAtEntry": false,
+        "cwd": "${workspaceFolder}/app",
+        "environment": [],
+        "externalConsole": false,
+        "MIMode": "gdb",
+        "miDebuggerPath": "D:/Install/msys64/mingw64/bin/gdb.exe",
+        "setupCommands": [{
+            "description": "为 gdb 启用整齐打印",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+        }],
+        "preLaunchTask": "Station"
     }]
 }
