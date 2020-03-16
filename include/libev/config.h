@@ -123,4 +123,4 @@
 #define STDC_HEADERS 1
 
 /* Version number of package */
-#define VERSION "4.22"
+#define VERSION "4.24"
