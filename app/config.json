@@ -19,6 +19,11 @@
         "type": 2,
         "ipv4": "127.0.0.1",
         "port": 60338
+    }, {
+        "id": 5,
+        "type": 99,
+        "domain": "console.theiota.cn",
+        "port": 60338
     }],
     "workMode": 2
 }
