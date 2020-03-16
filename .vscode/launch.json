@@ -20,7 +20,7 @@
             "text": "-enable-pretty-printing",
             "ignoreFailures": true
         }],
-        "preLaunchTask": "Unit Test"
+        "preLaunchTask": "SL651 Protocol Test"
     }, {
         "name": "Station Debug",
         "type": "cppdbg",
