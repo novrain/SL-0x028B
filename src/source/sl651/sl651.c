@@ -285,7 +285,7 @@ static bool ObserveTime_Decode(ObserveTime *const me, ByteBuffer *byteBuff)
 
 // "AbstractClass" Package
 /* purely-virtual */
-static ByteBuffer *Package_Virtual_Encode(Package const *const me)
+static ByteBuffer *Package_Virtual_Encode(Package *const me)
 {
     assert(0);
     return NULL;
@@ -585,7 +585,7 @@ static size_t UplinkMessage_Size(Package const *const me)
            Package_TailSize(me);
 }
 
-static ByteBuffer *UplinkMessage_Encode(Package const *const me)
+static ByteBuffer *UplinkMessage_Encode(Package *const me)
 {
     assert(me);
     UplinkMessage *self = (UplinkMessage *)me;
@@ -594,6 +594,7 @@ static ByteBuffer *UplinkMessage_Encode(Package const *const me)
     {
         return NULL;
     }
+    me->head.len = size - PACKAGE_WRAPPER_LEN;
     ByteBuffer *byteBuff = NewInstance(ByteBuffer);
     BB_ctor(byteBuff, size);
     // 编码不按照规则，由调用者按照规范去填写相关字段，有就编码，没有就不编码
@@ -779,7 +780,7 @@ static size_t DownlinkMessage_Size(Package const *const me)
            Package_TailSize(me);
 }
 
-static ByteBuffer *DownlinkMessage_Encode(Package const *const me)
+static ByteBuffer *DownlinkMessage_Encode(Package *const me)
 {
     assert(me);
     DownlinkMessage *self = (DownlinkMessage *)me;
@@ -788,6 +789,7 @@ static ByteBuffer *DownlinkMessage_Encode(Package const *const me)
     {
         return NULL;
     }
+    me->head.len = size - PACKAGE_WRAPPER_LEN;
     ByteBuffer *byteBuff = NewInstance(ByteBuffer);
     BB_ctor(byteBuff, size);
     // 编码不按照规则，由调用者按照规范去填写相关字段，有就编码，没有就不编码

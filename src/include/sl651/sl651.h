@@ -569,6 +569,7 @@ extern "C"
     } Tail;
 
 #define PACKAGE_TAIL_LEN 3
+#define PACKAGE_WRAPPER_LEN 17 // PACKAGE_HEAD_STX_LEN + PACKAGE_TAIL_LEN
 
     // "AbstractClass" Package
     struct PackageVtbl; /* forward declaration */
@@ -583,7 +584,7 @@ extern "C"
     typedef struct PackageVtbl
     {
         // pure virtual
-        ByteBuffer *(*encode)(Package const *const me);
+        ByteBuffer *(*encode)(Package *const me);
         bool (*decode)(Package *const me, ByteBuffer *const byteBuff);
         size_t (*size)(Package const *const me);
         // to call the subclass's desctrutor as a superclass.
