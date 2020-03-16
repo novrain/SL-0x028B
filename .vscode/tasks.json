@@ -43,6 +43,8 @@
             "-I",
             "${workspaceFolder}/src/include/cJSON",
             "-I",
+            "${workspaceFolder}/src/include/libev",
+            "-I",
             "${workspaceFolder}/app/include",
             "-L",
             "D:/Install/msys64/mingw64/bin",
@@ -57,7 +59,7 @@
             "${workspaceFolder}/src/source/cJSON/*.c",
             "-o",
             "${workspaceFolder}/app/station.exe",
-            "-lgtest",
+            "-lev",
             "-lpthread",
             "-lws2_32"
         ],

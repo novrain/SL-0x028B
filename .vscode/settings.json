@@ -33,6 +33,9 @@
         "stat.h": "c",
         "fcntl.h": "c",
         "windows.h": "c",
-        "station.h": "c"
+        "station.h": "c",
+        "algorithm": "c",
+        "tuple": "c",
+        "utility": "c"
     }
 }
