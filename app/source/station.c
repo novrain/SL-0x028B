@@ -73,14 +73,33 @@ typedef struct
     int sock;
 } Ipv4;
 
+typedef struct
+{
+    Ipv4 ipv4;
+    char *domainStr;
+} Domain;
+
 typedef union {
     Ipv4 ipv4;
-    char *domain;
+    Domain domain;
 } ChannelParams;
 
 typedef struct ev_loop Reactor;
 typedef ev_timer ChannleConnectWatcher;
 typedef ev_io ChannleDataWatcher;
+
+typedef enum
+{
+    CHANNEL_ID_MASTER_01 = 4,
+    CHANNEL_ID_SLAVE_01,
+    CHANNEL_ID_MASTER_02,
+    CHANNEL_ID_SLAVE_02,
+    CHANNEL_ID_MASTER_03,
+    CHANNEL_ID_SLAVE_03,
+    CHANNEL_ID_MASTER_04,
+    CHANNEL_ID_SLAVE_04,
+    CHANNEL_ID_FIXED = 99, // internal private id
+} ChannelId;
 
 typedef struct
 {
@@ -138,18 +157,29 @@ cJSON *cJSON_fromFile(char const *const file)
     return json;
 }
 
-Channel *Channel_ipv4FromJson(cJSON *channelInJson)
+void Channel_dtor(Channel *const me)
+{
+    assert(me);
+    // stop and release watcher
+}
+
+Channel *Channel_ipv4FromJson(cJSON *const channelInJson)
 {
     assert(channelInJson);
+    uint8_t idU8 = 0;
     char *ipv4Str = NULL;
     uint16_t ipv4Port = 0;
+    cJSON *id = NULL;
     cJSON *ipv4 = NULL;
     cJSON *port = NULL;
+    GET_VALUE(idU8, channelInJson, id, id->valuedouble);
     GET_VALUE(ipv4Str, channelInJson, ipv4, ipv4->valuestring);
     GET_VALUE(ipv4Port, channelInJson, port, port->valuedouble);
-    if (ipv4Str != NULL && port > 0)
+    if (ipv4Str != NULL && port > 0 &&
+        idU8 >= CHANNEL_ID_MASTER_01 && idU8 <= CHANNEL_ID_SLAVE_04)
     {
         Channel *ch = NewInstance(Channel);
+        ch->id = idU8;
         ch->type = CHANNEL_IPV4;
         ch->params.ipv4.addr.sin_family = AF_INET;
         ch->params.ipv4.addr.sin_port = htons(ipv4Port);
@@ -163,6 +193,7 @@ Channel *Channel_ipv4FromJson(cJSON *channelInJson)
         }
         else
         {
+            Channel_dtor(ch);
             DelInstance(ch);
             return NULL;
         }
@@ -173,10 +204,50 @@ Channel *Channel_ipv4FromJson(cJSON *channelInJson)
     }
 }
 
-void Channel_dtor(Channel *const me)
+Channel *Channel_domainFromJson(cJSON *const channelInJson)
 {
-    assert(me);
-    // stop and release watcher
+    assert(channelInJson);
+    uint8_t idU8 = 0;
+    char *domainStr = NULL;
+    uint16_t ipv4Port = 0;
+    cJSON *id = NULL;
+    cJSON *domain = NULL;
+    cJSON *port = NULL;
+    GET_VALUE(idU8, channelInJson, id, id->valuedouble);
+    GET_VALUE(domainStr, channelInJson, domain, domain->valuestring);
+    GET_VALUE(ipv4Port, channelInJson, port, port->valuedouble);
+    if (domainStr != NULL && strlen(domainStr) > 0 && port > 0 &&
+        idU8 >= CHANNEL_ID_MASTER_01 && idU8 <= CHANNEL_ID_SLAVE_04)
+    {
+#ifdef _WIN32
+        WSADATA wsaData;
+        if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+        {
+            return NULL;
+        }
+#else
+
+#endif
+        struct hostent *hosts = gethostbyname(domainStr);
+        if (hosts == NULL || hosts->h_addrtype != AF_INET)
+        {
+            uint16_t err = WSAGetLastError();
+            return NULL;
+        }
+        Channel *ch = NewInstance(Channel);
+        ch->id = idU8;
+        ch->type = CHANNEL_DOMAIN;
+        ch->params.domain.domainStr = domainStr;
+        ch->params.domain.ipv4.addr.sin_family = AF_INET;
+        ch->params.domain.ipv4.addr.sin_port = htons(ipv4Port);
+        // GET THE FIRST IP
+        ch->params.domain.ipv4.addr.sin_addr = *(struct in_addr *)hosts->h_addr_list[0];
+        return ch;
+    }
+    else
+    {
+        return NULL;
+    }
 }
 
 bool Config_initFromJSON(Config *const me, cJSON *const json)
@@ -227,6 +298,9 @@ bool Config_initFromJSON(Config *const me, cJSON *const json)
         {
         case CHANNEL_IPV4: // 目前只处理IPV4, 其他认为无效
             ch = Channel_ipv4FromJson(channel);
+            break;
+        case CHANNEL_DOMAIN: // 自定义的域名方式
+            ch = Channel_domainFromJson(channel);
             break;
         default:
             break;
@@ -283,10 +357,23 @@ bool setSocketBlockingEnabled(int fd, bool blocking)
 
 void startAIPV4Channel(Reactor *reactor, ev_timer *w, int revents)
 {
-    w->repeat = 10;
+    w->repeat = 10; // retry every ten seconds.
     Channel *ch = (Channel *)w->data;
     if (ch->isConnnected)
     {
+        return;
+    }
+    Ipv4 *ipv4 = NULL;
+    switch (ch->type)
+    {
+    case CHANNEL_IPV4:
+        ipv4 = &ch->params.ipv4;
+        break;
+    case CHANNEL_DOMAIN:
+        ipv4 = &ch->params.domain.ipv4;
+        printf("connect: %s\n", ch->params.domain.domainStr);
+        break;
+    default:
         return;
     }
     int sock;
@@ -295,7 +382,7 @@ void startAIPV4Channel(Reactor *reactor, ev_timer *w, int revents)
         ev_timer_again(reactor, w);
         return;
     }
-    if (connect(sock, (struct sockaddr *)&ch->params.ipv4, sizeof(struct sockaddr_in)) < 0)
+    if (connect(sock, (struct sockaddr *)ipv4, sizeof(struct sockaddr_in)) < 0)
     {
         close(sock);
         ev_timer_again(reactor, w);
@@ -303,7 +390,7 @@ void startAIPV4Channel(Reactor *reactor, ev_timer *w, int revents)
     }
     // 开始一个io
     setSocketBlockingEnabled(sock, false);
-    ch->params.ipv4.sock = sock;
+    ipv4->sock = sock;
     if (ch->dataWatcher != NULL)
     {
         ev_io_stop(reactor, ch->dataWatcher);
@@ -341,13 +428,13 @@ bool Station_startBy(Station *const me, char const *file)
             Channel *ch = NULL;
             vec_foreach(&me->config.channels, ch, i)
             {
-                if (ch->type == CHANNEL_IPV4)
+                if (ch->type == CHANNEL_IPV4 || ch->type == CHANNEL_DOMAIN)
                 {
                     ChannleConnectWatcher *connectWatcher = NewInstance(ChannleConnectWatcher); // 启动定时器，连接，如果出错，自动重连
                     if (connectWatcher != NULL)
                     {
                         ev_init(connectWatcher, startAIPV4Channel);
-                        connectWatcher->repeat = 1; // start fast
+                        connectWatcher->repeat = 1; // start as fast as posible
                         ch->reactor = me->reactor;
                         connectWatcher->data = (void *)ch;
                         ch->connectWatcher = connectWatcher;
