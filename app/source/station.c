@@ -1,6 +1,7 @@
 
 #include "station.h"
 
+// cJSON read write helper
 cJSON *cJSON_fromFile(char const *const file)
 {
     cJSON *json = NULL;
@@ -22,12 +23,432 @@ cJSON *cJSON_fromFile(char const *const file)
     }
     return json;
 }
+// cJSON END
+
+// Virtual Channel
+
+uint16_t Channel_seq(Channel *const me)
+{
+    return me->seq++;
+}
+
+void Channel_Start(Channel *const me)
+{
+    assert(0);
+}
+
+bool Channel_Open(Channel *const me)
+{
+    assert(0);
+    return false;
+}
+
+void Channel_Close(Channel *const me)
+{
+    assert(0);
+}
+
+void Channel_Keepalive(Channel *const me)
+{
+    assert(me);
+    assert(me->station);
+    if (!me->isConnnected)
+    {
+        return;
+    }
+    Config *config = Station_config(me->station);
+    // create keepalive package
+    UplinkMessage *msg = NewInstance(UplinkMessage); // 选择是上行还是下行
+    UplinkMessage_ctor(msg, 0);                      // 调用构造函数,如果有要素，需要指定要素数量
+    Package *pkg = (Package *)msg;                   // 获取父结构Package
+    Head *head = &pkg->head;                         // 获取Head结构
+    head->centerAddr = me->centerAddr;               // 填写Head结构
+    head->funcCode = KEEPALIVE;                      // 心跳功能码功能码
+    head->password = *config->password;              // 密码
+    head->stationAddr = *config->stationAddr;        // 站地址
+    pkg->tail.etxFlag = ETX;                         // 截至符
+    msg->messageHead.seq = Channel_seq(me);          // 根据功能码填写报文头
+    ByteBuffer *byteOut = pkg->vptr->encode(pkg);    // 编码
+    BB_Flip(byteOut);                                // 转为读模式
+    me->vptr->send(me, byteOut);                     //
+    UplinkMessage_dtor((Package *)msg);              // 析构
+    DelInstance(msg);                                // free
+    BB_dtor(byteOut);                                // 析构
+    DelInstance(byteOut);                            // free
+}
+
+ByteBuffer *Channel_OnRead(Channel *const me)
+{
+    assert(0);
+    return NULL;
+}
+
+bool Channel_Send(Channel *const me, ByteBuffer *const buff)
+{
+    assert(0);
+    return false;
+}
 
 void Channel_dtor(Channel *const me)
 {
     assert(me);
-    // stop and release watcher
 }
+
+void Channel_ctor(Channel *me, Station *const station)
+{
+    assert(me);
+    // assert(station);
+    static ChannelVtbl const vtbl = {
+        &Channel_Start,
+        &Channel_Open,
+        &Channel_Close,
+        &Channel_Keepalive,
+        &Channel_OnRead,
+        &Channel_Send,
+        &Channel_dtor};
+    me->vptr = &vtbl;
+    me->station = station;
+}
+// Virtual Channel END
+
+// Abstract IOChannel
+void IOChannel_Start(Channel *const me)
+{
+    assert(me);
+    IOChannel *ioCh = (IOChannel *)me;
+    ChannleConnectWatcher *connectWatcher = NewInstance(ChannleConnectWatcher); // 启动定时器，连接，如果出错，自动重连
+    if (connectWatcher != NULL)
+    {
+        ev_init(connectWatcher, ((IOChannelVtbl *)me->vptr)->onConnectTimerEvent);
+        connectWatcher->repeat = 1; // start as fast as posible
+        ioCh->reactor = me->station->reactor;
+        connectWatcher->data = (void *)me;
+        ioCh->connectWatcher = connectWatcher;
+        ev_timer_again(ioCh->reactor, connectWatcher);
+    }
+}
+
+bool IOChannel_Open(Channel *const me)
+{
+    assert(0);
+    return false;
+}
+
+void IOChannel_Close(Channel *const me)
+{
+    assert(0);
+}
+
+void IOChannel_Keepalive(Channel *const me)
+{
+    Channel_Keepalive(me);
+}
+
+ByteBuffer *IOChannel_OnRead(Channel *const me)
+{
+    assert(0);
+    return NULL;
+}
+
+bool IOChannel_Send(Channel *const me, ByteBuffer *buff)
+{
+    assert(0);
+    return false;
+}
+
+void IOChannel_OnConnectTimerEvent(Reactor *reactor, ev_timer *w, int revents)
+{
+    IOChannel *ioCh = (IOChannel *)w->data;
+    Channel *ch = (Channel *)ioCh;
+    if (ch->isConnnected)
+    {
+        Channel_Keepalive(ch);
+        return;
+    }
+    if (!ch->vptr->open(ch))
+    {
+        ev_timer_again(reactor, w);
+        return;
+    }
+    int fd = ioCh->fd;
+    if (ioCh->dataWatcher != NULL)
+    {
+        ev_io_stop(reactor, ioCh->dataWatcher);
+        ev_io_set(ioCh->dataWatcher, fd, EV_READ);
+        ev_io_start(reactor, ioCh->dataWatcher);
+    }
+    else
+    {
+        ChannleDataWatcher *dataWatcher = NewInstance(ev_io);
+        if (dataWatcher != NULL)
+        {
+            ev_io_init(dataWatcher, ((IOChannelVtbl *)ch->vptr)->onIOReadEvent, fd, EV_READ);
+            ioCh->dataWatcher = dataWatcher;
+            dataWatcher->data = ioCh;
+            ev_io_start(reactor, ioCh->dataWatcher);
+        }
+    }
+    ioCh->connectWatcher->repeat = ch->keepaliveTimer;
+    ch->isConnnected = true;
+}
+
+void IOChannel_OnIOReadEvent(Reactor *reactor, ev_io *w, int revents)
+{
+    int len = 0;
+    IOChannel *ioCh = (IOChannel *)w->data;
+    Channel *ch = (Channel *)ioCh;
+    ByteBuffer *buff = ch->vptr->onRead(ch);
+    if (buff == NULL)
+    {
+        ev_io_stop(ioCh->reactor, ioCh->dataWatcher);
+        ch->isConnnected = false;
+        ch->vptr->close(ch);
+        ioCh->connectWatcher->repeat = 10;
+        ev_timer_again(ioCh->reactor, ioCh->connectWatcher);
+        return;
+    }
+    Package *pkg = decodePackage(buff);
+    if (pkg != NULL)
+    {
+        Package_dtor(pkg);
+        DelInstance(pkg);
+    }
+    else
+    {
+        printf("recv :%s\n", ch->readBuff);
+    }
+    BB_dtor(buff);
+    DelInstance(buff);
+}
+
+void IOChannel_dtor(Channel *const me)
+{
+    assert(me);
+    Channel_dtor(me);
+}
+
+void IOChannel_ctor(IOChannel *me, Station *const station)
+{
+    assert(me);
+    // assert(station);
+    static IOChannelVtbl const vtbl = {
+        {&IOChannel_Start,
+         &IOChannel_Open,
+         &IOChannel_Close,
+         &IOChannel_Keepalive,
+         &IOChannel_OnRead,
+         &IOChannel_Send,
+         &IOChannel_dtor},
+        &IOChannel_OnConnectTimerEvent,
+        &IOChannel_OnIOReadEvent};
+    Channel *super = (Channel *)me;
+    Channel_ctor(super, station);
+    super->vptr = (const ChannelVtbl *)(&vtbl);
+}
+// Abstract IOChannel END
+
+// SocketChannel
+void SocketChannel_Start(Channel *const me)
+{
+    assert(me);
+    IOChannel_Start(me);
+}
+
+bool setSocketBlockingEnabled(int fd, bool blocking)
+{
+    if (fd < 0)
+        return false;
+
+#ifdef _WIN32
+    unsigned long mode = blocking ? 0 : 1;
+    return (ioctlsocket(fd, FIONBIO, &mode) == 0) ? true : false;
+#else
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (flags == -1)
+        return false;
+    flags = blocking ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
+    return (fcntl(fd, F_SETFL, flags) == 0) ? true : false;
+#endif
+}
+
+bool SocketChannel_Connect(Channel *const me)
+{
+    assert(me);
+    IOChannel *ioCh = (IOChannel *)me;
+    Channel *ch = (Channel *)ioCh;
+    Ipv4 *ipv4 = ((SocketChannelVtbl *)ch->vptr)->ip((SocketChannel *)me);
+    int sock;
+    if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
+    {
+        return false;
+    }
+    if (connect(sock, (struct sockaddr *)ipv4, sizeof(struct sockaddr_in)) < 0)
+    {
+        close(sock);
+        return false;
+    }
+    setSocketBlockingEnabled(sock, false);
+    ioCh->fd = sock;
+    return true;
+}
+
+void SocketChannel_Close(Channel *const me)
+{
+    IOChannel *ioCh = (IOChannel *)me;
+    int sock = ioCh->fd;
+#ifdef _WIN32
+    closesocket(sock);
+#else
+    close(sock);
+#endif
+}
+
+void SocketChannel_Keepalive(Channel *const me)
+{
+    assert(0);
+}
+
+ByteBuffer *SocketChannel_OnRead(Channel *const me)
+{
+    IOChannel *ioCh = (IOChannel *)me;
+    Channel *ch = (Channel *)ioCh;
+    int sock = ioCh->fd;
+    int len = recv(sock, ch->readBuff, 1024, 0);
+    if (len <= 0)
+    {
+        return NULL;
+    }
+    // printf("recv :%s\n", ch->readBuff);
+    ByteBuffer *buff = NewInstance(ByteBuffer);
+    BB_ctor_wrapped(buff, (uint8_t *)ch->readBuff, len);
+    return buff;
+}
+
+bool SocketChannel_Send(Channel *const me, ByteBuffer *const buff)
+{
+    assert(me);
+    assert(buff);
+    if (me->isConnnected)
+    {
+        IOChannel *ioCh = (IOChannel *)me;
+        Channel *ch = (Channel *)ioCh;
+        int sock = ioCh->fd;
+        int len = BB_Available(buff);
+        return len == send(sock, (const char *)buff->buff, len, 0);
+    }
+    else
+    {
+        return false;
+    }
+}
+
+void SocketChannel_OnConnectTimerEvent(Reactor *reactor, ev_timer *w, int revents)
+{
+    IOChannel_OnConnectTimerEvent(reactor, w, revents);
+}
+
+void SocketChannel_OnIOReadEvent(Reactor *reactor, ev_io *w, int revents)
+{
+    IOChannel_OnIOReadEvent(reactor, w, revents);
+}
+
+Ipv4 *SocketChannel_Ip(SocketChannel *me)
+{
+    assert(0);
+    return NULL;
+}
+
+void SocketChannel_dtor(Channel *const me)
+{
+    assert(me);
+    IOChannel_dtor(me);
+}
+
+void SocketChannel_ctor(SocketChannel *me, Station *const station)
+{
+    assert(me);
+    // assert(station);
+    static SocketChannelVtbl const vtbl = {
+        {{&SocketChannel_Start,
+          &SocketChannel_Connect,
+          &SocketChannel_Close,
+          &SocketChannel_Keepalive,
+          &SocketChannel_OnRead,
+          &SocketChannel_Send,
+          &SocketChannel_dtor},
+         &SocketChannel_OnConnectTimerEvent,
+         &SocketChannel_OnIOReadEvent},
+        &SocketChannel_Ip};
+    IOChannel *super = (IOChannel *)me;
+    IOChannel_ctor(super, station);
+    Channel *ch = (Channel *)me;
+    ch->vptr = (const ChannelVtbl *)(&vtbl);
+}
+// SocketChannel END
+
+// Ipv4Channel
+Ipv4 *Ipv4Channel_Ip(SocketChannel *me)
+{
+    assert(me);
+    return &((Ipv4Channel *)me)->ipv4;
+}
+
+void Ipv4Channel_dtor(Channel *me)
+{
+    assert(me);
+    SocketChannel_dtor(me);
+}
+
+void Ipv4Channel_ctor(Ipv4Channel *me, Station *const station)
+{
+    assert(me);
+    // assert(station);
+    static SocketChannelVtbl const vtbl = {
+        {{&SocketChannel_Start,
+          &SocketChannel_Connect,
+          &SocketChannel_Close,
+          &SocketChannel_Keepalive,
+          &SocketChannel_OnRead,
+          &SocketChannel_Send,
+          &Ipv4Channel_dtor},
+         &SocketChannel_OnConnectTimerEvent,
+         &SocketChannel_OnIOReadEvent},
+        &Ipv4Channel_Ip};
+    SocketChannel *super = (SocketChannel *)me;
+    SocketChannel_ctor(super, station);
+    Channel *ch = (Channel *)me;
+    ch->vptr = (const ChannelVtbl *)&vtbl;
+}
+// Ipv4Channel END
+
+// DomainChannel
+Ipv4 *DomainChannel_Ip(SocketChannel *me)
+{
+    assert(me);
+    return &((DomainChannel *)me)->domain.ipv4;
+}
+
+void DomainChannel_ctor(DomainChannel *me, Station *const station)
+{
+    assert(me);
+    // assert(station);
+    static SocketChannelVtbl const vtbl = {
+        {{&SocketChannel_Start,
+          &SocketChannel_Connect,
+          &SocketChannel_Close,
+          &SocketChannel_Keepalive,
+          &SocketChannel_OnRead,
+          &SocketChannel_Send,
+          &SocketChannel_dtor},
+         &SocketChannel_OnConnectTimerEvent,
+         &SocketChannel_OnIOReadEvent},
+        &DomainChannel_Ip};
+    SocketChannel *super = (SocketChannel *)me;
+    SocketChannel_ctor(super, station);
+    Channel *ch = (Channel *)me;
+    ch->vptr = (const ChannelVtbl *)&vtbl;
+}
+// DomainChannel END
 
 Channel *Channel_ipv4FromJson(cJSON *const channelInJson)
 {
@@ -47,23 +468,25 @@ Channel *Channel_ipv4FromJson(cJSON *const channelInJson)
     if (ipv4Str != NULL && port > 0 &&
         idU8 >= CHANNEL_ID_MASTER_01 && idU8 <= CHANNEL_ID_SLAVE_04)
     {
-        Channel *ch = NewInstance(Channel);
-        ch->id = idU8;
-        ch->type = CHANNEL_IPV4;
-        ch->keepaliveTimer = keepaliveU8;
-        ch->params.ipv4.addr.sin_family = AF_INET;
-        ch->params.ipv4.addr.sin_port = htons(ipv4Port);
+        Ipv4Channel *ch = NewInstance(Ipv4Channel);
+        Ipv4Channel_ctor(ch, NULL); // 初始化 station 为 NULL
+        Channel *super = (Channel *)ch;
+        super->id = idU8;
+        super->type = CHANNEL_IPV4;
+        super->keepaliveTimer = keepaliveU8;
+        ch->ipv4.addr.sin_family = AF_INET;
+        ch->ipv4.addr.sin_port = htons(ipv4Port);
 #ifdef _WIN32
-        if (inet_pton(AF_INET, ipv4Str, &ch->params.ipv4.addr.sin_addr) == 1)
+        if (inet_pton(AF_INET, ipv4Str, &ch->ipv4.addr.sin_addr) == 1)
 #else
-        if (inet_aton(ipv4Str, &ch->params.ipv4.sin_addr) == 1)
+        if (inet_aton(ipv4Str, &ch->ipv4.sin_addr) == 1)
 #endif
         {
-            return ch;
+            return (Channel *)ch;
         }
         else
         {
-            Channel_dtor(ch);
+            Ipv4Channel_dtor(super);
             DelInstance(ch);
             return NULL;
         }
@@ -104,58 +527,25 @@ Channel *Channel_domainFromJson(cJSON *const channelInJson)
         struct hostent *hosts = gethostbyname(domainStr);
         if (hosts == NULL || hosts->h_addrtype != AF_INET)
         {
-            uint16_t err = WSAGetLastError();
             return NULL;
         }
-        Channel *ch = NewInstance(Channel);
-        ch->id = idU8;
-        ch->type = CHANNEL_DOMAIN;
-        ch->keepaliveTimer = keepaliveU8;
-        ch->params.domain.domainStr = domainStr;
-        ch->params.domain.ipv4.addr.sin_family = AF_INET;
-        ch->params.domain.ipv4.addr.sin_port = htons(ipv4Port);
+        DomainChannel *ch = NewInstance(DomainChannel);
+        DomainChannel_ctor(ch, NULL); // 初始化 station 为 NULL
+        Channel *super = (Channel *)ch;
+        super->id = idU8;
+        super->type = CHANNEL_DOMAIN;
+        super->keepaliveTimer = keepaliveU8;
+        ch->domain.domainStr = domainStr;
+        ch->domain.ipv4.addr.sin_family = AF_INET;
+        ch->domain.ipv4.addr.sin_port = htons(ipv4Port);
         // GET THE FIRST IP
-        ch->params.domain.ipv4.addr.sin_addr = *(struct in_addr *)hosts->h_addr_list[0];
-        return ch;
+        ch->domain.ipv4.addr.sin_addr = *(struct in_addr *)hosts->h_addr_list[0];
+        return (Channel *)ch;
     }
     else
     {
         return NULL;
     }
-}
-
-uint16_t Channel_seq(Channel *const me)
-{
-    return me->seq++;
-}
-
-void Channel_ipv4Keepalive(Channel *const me)
-{
-    assert(me);
-    assert(me->station);
-    if (!me->isConnnected)
-    {
-        return;
-    }
-    Config *config = Station_config(me->station);
-    // create keepalive package
-    UplinkMessage *msg = NewInstance(UplinkMessage);                                   // 选择是上行还是下行
-    UplinkMessage_ctor(msg, 0);                                                        // 调用构造函数,如果有要素，需要指定要素数量
-    Package *pkg = (Package *)msg;                                                     // 获取父结构Package
-    Head *head = &pkg->head;                                                           // 获取Head结构
-    head->centerAddr = me->centerAddr;                                                 // 填写Head结构
-    head->funcCode = KEEPALIVE;                                                        // 心跳功能码功能码
-    head->password = *config->password;                                                // 密码
-    head->stationAddr = *config->stationAddr;                                          // 站地址
-    pkg->tail.etxFlag = ETX;                                                           // 截至符
-    msg->messageHead.seq = Channel_seq(me);                                            // 根据功能码填写报文头
-    ByteBuffer *byteOut = pkg->vptr->encode(pkg);                                      // 编码
-    BB_Flip(byteOut);                                                                  // 转为读模式
-    send(me->params.ipv4.sock, (const char *)byteOut->buff, BB_Available(byteOut), 0); //发送
-    UplinkMessage_dtor((Package *)msg);                                                // 析构
-    DelInstance(msg);                                                                  // free
-    BB_dtor(byteOut);                                                                  // 析构
-    DelInstance(byteOut);                                                              // free
 }
 
 uint8_t Config_centerAddr(Config *const me, uint8_t id)
@@ -274,101 +664,6 @@ bool Config_isValid(Config *const config)
     return config != NULL && config->channels.length > 0;
 }
 
-void onIPV4ChannelData(Reactor *reactor, ev_io *w, int revents)
-{
-    int len = 0;
-    Channel *ch = (Channel *)w->data;
-    len = recv(w->fd, ch->readBuff, 1024, 0);
-    if (len <= 0)
-    {
-        ev_io_stop(reactor, ch->dataWatcher);
-        ch->isConnnected = false;
-#ifdef _WIN32
-        closesocket(w->fd);
-#else
-        close(w->fd);
-#endif
-        ch->connectWatcher->repeat = 10;
-        ev_timer_again(reactor, ch->connectWatcher);
-        return;
-    }
-    printf("recv :%s\n", ch->readBuff);
-}
-
-bool setSocketBlockingEnabled(int fd, bool blocking)
-{
-    if (fd < 0)
-        return false;
-
-#ifdef _WIN32
-    unsigned long mode = blocking ? 0 : 1;
-    return (ioctlsocket(fd, FIONBIO, &mode) == 0) ? true : false;
-#else
-    int flags = fcntl(fd, F_GETFL, 0);
-    if (flags == -1)
-        return false;
-    flags = blocking ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
-    return (fcntl(fd, F_SETFL, flags) == 0) ? true : false;
-#endif
-}
-
-void startAIPV4Channel(Reactor *reactor, ev_timer *w, int revents)
-{
-    Channel *ch = (Channel *)w->data;
-    if (ch->isConnnected)
-    {
-        Channel_ipv4Keepalive(ch);
-        return;
-    }
-    Ipv4 *ipv4 = NULL;
-    switch (ch->type)
-    {
-    case CHANNEL_IPV4:
-        ipv4 = &ch->params.ipv4;
-        break;
-    case CHANNEL_DOMAIN:
-        ipv4 = &ch->params.domain.ipv4;
-        printf("connect: %s\n", ch->params.domain.domainStr);
-        break;
-    default:
-        return;
-    }
-    int sock;
-    if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
-    {
-        ev_timer_again(reactor, w);
-        return;
-    }
-    if (connect(sock, (struct sockaddr *)ipv4, sizeof(struct sockaddr_in)) < 0)
-    {
-        close(sock);
-        ev_timer_again(reactor, w);
-        return;
-    }
-    // 开始一个io
-    setSocketBlockingEnabled(sock, false);
-    ipv4->sock = sock;
-    if (ch->dataWatcher != NULL)
-    {
-        ev_io_stop(reactor, ch->dataWatcher);
-        ev_io_set(ch->dataWatcher, sock, EV_READ);
-        ev_io_start(reactor, ch->dataWatcher);
-    }
-    else
-    {
-        ChannleDataWatcher *dataWatcher = NewInstance(ev_io);
-        if (dataWatcher != NULL)
-        {
-            ev_io_init(dataWatcher, onIPV4ChannelData, sock, EV_READ);
-            ch->dataWatcher = dataWatcher;
-            dataWatcher->data = ch;
-            ev_io_start(reactor, ch->dataWatcher);
-        }
-    }
-    ch->connectWatcher->repeat = ch->keepaliveTimer;
-    ch->isConnnected = true;
-}
-
 bool Station_startBy(Station *const me, char const *file)
 {
     assert(me);
@@ -391,16 +686,7 @@ bool Station_startBy(Station *const me, char const *file)
                 {
                     ch->station = me;
                     ch->centerAddr = Config_centerAddrOfChannel(&me->config, ch);
-                    ChannleConnectWatcher *connectWatcher = NewInstance(ChannleConnectWatcher); // 启动定时器，连接，如果出错，自动重连
-                    if (connectWatcher != NULL)
-                    {
-                        ev_init(connectWatcher, startAIPV4Channel);
-                        connectWatcher->repeat = 1; // start as fast as posible
-                        ch->reactor = me->reactor;
-                        connectWatcher->data = (void *)ch;
-                        ch->connectWatcher = connectWatcher;
-                        ev_timer_again(me->reactor, connectWatcher);
-                    }
+                    ch->vptr->start(ch);
                 }
             }
             // dead loop until no event to be handle

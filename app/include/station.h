@@ -87,7 +87,6 @@ extern "C"
     typedef struct
     {
         struct sockaddr_in addr;
-        int sock;
     } Ipv4;
 
     typedef struct
@@ -95,11 +94,6 @@ extern "C"
         Ipv4 ipv4;
         char *domainStr;
     } Domain;
-
-    typedef union {
-        Ipv4 ipv4;
-        Domain domain;
-    } ChannelParams;
 
     typedef struct ev_loop Reactor;
     typedef ev_timer ChannleConnectWatcher;
@@ -121,24 +115,83 @@ extern "C"
     struct _station;
     typedef struct _station Station;
 
+    struct ChannelVtbl;
+    struct Channel;
+
     typedef struct
     {
+        FunctionCode code;
+        bool (*cb)(Channel *const ch, Package *const request);
+    } ChannelHandler;
+
+    typedef vec_t(ChannelHandler *) ChannelHandlerPtrVector;
+
+    typedef struct Channel
+    {
+        struct ChannelVtbl const *vptr;
         uint8_t id; // 04~0B 对应规范里的 master / slave
         ChannelType type;
         bool isConnnected;
         char readBuff[1024];
         uint16_t seq;
         uint8_t keepaliveTimer;
-        ChannelParams params;
         uint8_t centerAddr;
-        //reference
+        // reference
         Station *station;
-        //libev
+        ChannelHandlerPtrVector handlers;
+    } Channel;
+
+    typedef struct ChannelVtbl
+    {
+        void (*start)(Channel *const me);
+        bool (*open)(Channel *const me);
+        void (*close)(Channel *const me);
+        void (*keepalive)(Channel *const me);
+        ByteBuffer *(*onRead)(Channel *const me);
+        bool (*send)(Channel *const me, ByteBuffer *const buff);
+        void (*dtor)(Channel *const me);
+    } ChannelVtbl;
+
+    typedef struct IOChannel
+    {
+        Channel supper;
+        int fd;
+        // libev
         Reactor *reactor; // just a reference NO NEED TO FREE by channel
-        //
+        // Watcher for IO
         ChannleConnectWatcher *connectWatcher;
         ChannleDataWatcher *dataWatcher;
-    } Channel;
+    } IOChannel;
+
+    typedef struct IOChannelVtbl
+    {
+        struct ChannelVtbl super;
+        void (*onConnectTimerEvent)(Reactor *reactor, ev_timer *w, int revents);
+        void (*onIOReadEvent)(Reactor *reactor, ev_io *w, int revents);
+    } IOChannelVtbl;
+
+    typedef struct SocketChannel
+    {
+        IOChannel supper;
+    } SocketChannel;
+
+    typedef struct SocketChannelVtbl
+    {
+        struct IOChannelVtbl super;
+        Ipv4 *(*ip)(SocketChannel *me);
+    } SocketChannelVtbl;
+
+    typedef struct Ipv4Channel
+    {
+        SocketChannel super;
+        Ipv4 ipv4;
+    } Ipv4Channel;
+
+    typedef struct DomainChannel
+    {
+        SocketChannel super;
+        Domain domain;
+    } DomainChannel;
 
     // Dynamic Array for Element @see https://github.com/rxi/vec
     typedef vec_t(Channel *) ChannelPtrVector;
