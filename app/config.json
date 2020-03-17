@@ -7,18 +7,20 @@
     },
     "remoteStationAddr": {
         "A5": 0,
-        "A4": 0,
-        "A3": 0,
-        "A2": 0,
-        "A1": 0,
+        "A4": 11,
+        "A3": 22,
+        "A2": 33,
+        "A1": 44,
         "A0": 0
     },
-    "password": 1234,
+    "password": 4660,
+    "enableDefaultChannel": true,
     "channels": [{
         "id": 4,
         "type": 2,
         "ipv4": "127.0.0.1",
-        "port": 60338
+        "port": 60338,
+        "keepaliveTimer": 60
     }, {
         "id": 5,
         "type": 99,

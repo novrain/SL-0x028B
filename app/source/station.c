@@ -1,139 +1,5 @@
-#include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <stdio.h>
 
-#ifdef _WIN32
-#include <winsock2.h>
-#include <winsock.h>
-#include <ws2tcpip.h>
-#else
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#endif
-
-#include "libev/ev.h"
-#include "cJSON/cJSON.h"
-#include "common/class.h"
-#include "common/error.h"
-#include "sl651/sl651.h"
-#include "vec/vec.h"
 #include "station.h"
-
-typedef enum
-{
-    SL651_APP_ERROR_SUCCESS = ERROR_ENUM_BEGIN_RANGE(0),
-} SL651AppError;
-
-typedef enum
-{
-    CONFIG_CENTER_ADDRS,
-    CONFIG_REMOTESTATION_ADDR,
-    CONFIG_PASSWORD,
-    CONFIG_CHANNEL_1,
-    CONFIG_CHANNEL_2,
-    CONFIG_CHANNEL_3,
-    CONFIG_CHANNEL_4,
-    CONFIG_WORK_MODE
-} ConfigIdentifer;
-
-typedef enum
-{
-    CHANNEL_DISABLED,
-    CHANNEL_SMS,
-    CHANNEL_IPV4,
-    CHANNEL_BEIDOU,
-    CHANNEL_INMARSAT,
-    CHANNEL_PSTN,
-    CHANNEL_ULTRASHORT_WAVE,
-    CHANNEL_DOMAIN = 99 // 实现按照域名的方式，规范中没有定义
-} ChannelType;
-
-typedef enum
-{
-    REPORT,
-    REPORT_CONFIRM,
-    QUERY_ACK,
-    MAINTAIN,
-} WorkMode;
-
-typedef struct
-{
-    uint8_t addr1;
-    uint8_t addr2;
-    uint8_t addr3;
-    uint8_t addr4;
-} CenterAddrs;
-
-typedef struct
-{
-    struct sockaddr_in addr;
-    int sock;
-} Ipv4;
-
-typedef struct
-{
-    Ipv4 ipv4;
-    char *domainStr;
-} Domain;
-
-typedef union {
-    Ipv4 ipv4;
-    Domain domain;
-} ChannelParams;
-
-typedef struct ev_loop Reactor;
-typedef ev_timer ChannleConnectWatcher;
-typedef ev_io ChannleDataWatcher;
-
-typedef enum
-{
-    CHANNEL_ID_MASTER_01 = 4,
-    CHANNEL_ID_SLAVE_01,
-    CHANNEL_ID_MASTER_02,
-    CHANNEL_ID_SLAVE_02,
-    CHANNEL_ID_MASTER_03,
-    CHANNEL_ID_SLAVE_03,
-    CHANNEL_ID_MASTER_04,
-    CHANNEL_ID_SLAVE_04,
-    CHANNEL_ID_FIXED = 99, // internal private id
-} ChannelId;
-
-typedef struct
-{
-    uint8_t id; // 04~0B 对应规范里的 master / slave
-    ChannelType type;
-    bool isConnnected;
-    char readBuff[1024];
-    ChannelParams params;
-    //libev
-    Reactor *reactor; // just a reference NO NEED TO FREE by channel
-    //
-    ChannleConnectWatcher *connectWatcher;
-    ChannleDataWatcher *dataWatcher;
-} Channel;
-
-// Dynamic Array for Element @see https://github.com/rxi/vec
-typedef vec_t(Channel *) ChannelPtrVector;
-/**
- * 都使用指针方式，解码编码都是可选项
- */
-typedef struct
-{
-    CenterAddrs *centerAddrs;
-    RemoteStationAddr *stationAddr;
-    uint16_t *password;
-    ChannelPtrVector channels;
-    uint8_t *workMode;
-} Config;
-
-typedef struct
-{
-    Reactor *reactor;
-    Config config;
-} Station;
 
 cJSON *cJSON_fromFile(char const *const file)
 {
@@ -169,18 +35,22 @@ Channel *Channel_ipv4FromJson(cJSON *const channelInJson)
     uint8_t idU8 = 0;
     char *ipv4Str = NULL;
     uint16_t ipv4Port = 0;
+    uint8_t keepaliveU8 = 40; // default value
     cJSON *id = NULL;
     cJSON *ipv4 = NULL;
     cJSON *port = NULL;
+    cJSON *keepalive = NULL;
     GET_VALUE(idU8, channelInJson, id, id->valuedouble);
     GET_VALUE(ipv4Str, channelInJson, ipv4, ipv4->valuestring);
     GET_VALUE(ipv4Port, channelInJson, port, port->valuedouble);
+    GET_VALUE(keepaliveU8, channelInJson, keepalive, keepalive->valuedouble);
     if (ipv4Str != NULL && port > 0 &&
         idU8 >= CHANNEL_ID_MASTER_01 && idU8 <= CHANNEL_ID_SLAVE_04)
     {
         Channel *ch = NewInstance(Channel);
         ch->id = idU8;
         ch->type = CHANNEL_IPV4;
+        ch->keepaliveTimer = keepaliveU8;
         ch->params.ipv4.addr.sin_family = AF_INET;
         ch->params.ipv4.addr.sin_port = htons(ipv4Port);
 #ifdef _WIN32
@@ -210,12 +80,15 @@ Channel *Channel_domainFromJson(cJSON *const channelInJson)
     uint8_t idU8 = 0;
     char *domainStr = NULL;
     uint16_t ipv4Port = 0;
+    uint8_t keepaliveU8 = 40; // default value
     cJSON *id = NULL;
     cJSON *domain = NULL;
     cJSON *port = NULL;
+    cJSON *keepalive = NULL;
     GET_VALUE(idU8, channelInJson, id, id->valuedouble);
     GET_VALUE(domainStr, channelInJson, domain, domain->valuestring);
     GET_VALUE(ipv4Port, channelInJson, port, port->valuedouble);
+    GET_VALUE(keepaliveU8, channelInJson, keepalive, keepalive->valuedouble);
     if (domainStr != NULL && strlen(domainStr) > 0 && port > 0 &&
         idU8 >= CHANNEL_ID_MASTER_01 && idU8 <= CHANNEL_ID_SLAVE_04)
     {
@@ -237,6 +110,7 @@ Channel *Channel_domainFromJson(cJSON *const channelInJson)
         Channel *ch = NewInstance(Channel);
         ch->id = idU8;
         ch->type = CHANNEL_DOMAIN;
+        ch->keepaliveTimer = keepaliveU8;
         ch->params.domain.domainStr = domainStr;
         ch->params.domain.ipv4.addr.sin_family = AF_INET;
         ch->params.domain.ipv4.addr.sin_port = htons(ipv4Port);
@@ -250,31 +124,112 @@ Channel *Channel_domainFromJson(cJSON *const channelInJson)
     }
 }
 
+uint16_t Channel_seq(Channel *const me)
+{
+    return me->seq++;
+}
+
+void Channel_ipv4Keepalive(Channel *const me)
+{
+    assert(me);
+    assert(me->station);
+    if (!me->isConnnected)
+    {
+        return;
+    }
+    Config *config = Station_config(me->station);
+    // create keepalive package
+    UplinkMessage *msg = NewInstance(UplinkMessage);                                   // 选择是上行还是下行
+    UplinkMessage_ctor(msg, 0);                                                        // 调用构造函数,如果有要素，需要指定要素数量
+    Package *pkg = (Package *)msg;                                                     // 获取父结构Package
+    Head *head = &pkg->head;                                                           // 获取Head结构
+    head->centerAddr = me->centerAddr;                                                 // 填写Head结构
+    head->funcCode = KEEPALIVE;                                                        // 心跳功能码功能码
+    head->password = *config->password;                                                // 密码
+    head->stationAddr = *config->stationAddr;                                          // 站地址
+    pkg->tail.etxFlag = ETX;                                                           // 截至符
+    msg->messageHead.seq = Channel_seq(me);                                            // 根据功能码填写报文头
+    ByteBuffer *byteOut = pkg->vptr->encode(pkg);                                      // 编码
+    BB_Flip(byteOut);                                                                  // 转为读模式
+    send(me->params.ipv4.sock, (const char *)byteOut->buff, BB_Available(byteOut), 0); //发送
+    UplinkMessage_dtor((Package *)msg);                                                // 析构
+    DelInstance(msg);                                                                  // free
+    BB_dtor(byteOut);                                                                  // 析构
+    DelInstance(byteOut);                                                              // free
+}
+
+uint8_t Config_centerAddr(Config *const me, uint8_t id)
+{
+    assert(me);
+    if (me->centerAddrs == NULL || id < 1 || id > 4)
+    {
+        return 0;
+    }
+    uint8_t *p = (uint8_t *)me->centerAddrs;
+    return *(p + id - 1);
+}
+
+bool Config_isCenterAddrEnable(Config *const me, uint8_t id)
+{
+    return Config_centerAddr(me, id) != 0;
+}
+
+uint8_t Config_centerAddrOfChannel(Config *const me, Channel *const ch)
+{
+    assert(me);
+    if (ch == NULL)
+    {
+        return 0;
+    }
+    uint8_t id = ch->id - CHANNEL_ID_MASTER_01 + 1; //
+    return Config_centerAddr(me, id);
+}
+
+bool Config_isChannelEnable(Config *const me, Channel *const ch)
+{
+    assert(me);
+    return ch->id == CHANNEL_ID_FIXED || Config_centerAddrOfChannel(me, ch) != CENTER_DISABLED;
+}
+
 bool Config_initFromJSON(Config *const me, cJSON *const json)
 {
     assert(me);
     assert(json);
+    // 中心地址
+    cJSON *centerAddrs = cJSON_GetObjectItemCaseSensitive(json, "centerAddrs");
+    // 站地址
+    cJSON *remoteStationAddr = cJSON_GetObjectItemCaseSensitive(json, "remoteStationAddr");
+    if (centerAddrs == NULL || remoteStationAddr == NULL)
+    {
+        return false;
+    }
     // init channel array
     vec_init(&me->channels);
     vec_reserve(&me->channels, 4); // channel 04~07
     // 中心地址
-    cJSON *centerAddrs = cJSON_GetObjectItemCaseSensitive(json, "centerAddrs");
-    if (centerAddrs != NULL)
-    {
-        me->centerAddrs = NewInstance(CenterAddrs); // we DO NOT care whether it is NULL
-        cJSON *addr1 = NULL;
-        GET_VALUE(me->centerAddrs->addr1, centerAddrs, addr1, addr1->valuedouble);
-        cJSON *addr2 = NULL;
-        GET_VALUE(me->centerAddrs->addr2, centerAddrs, addr2, addr2->valuedouble);
-        cJSON *addr3 = NULL;
-        GET_VALUE(me->centerAddrs->addr3, centerAddrs, addr3, addr3->valuedouble);
-        cJSON *addr4 = NULL;
-        GET_VALUE(me->centerAddrs->addr4, centerAddrs, addr4, addr4->valuedouble);
-    }
-    else
-    {
-        return false;
-    }
+    me->centerAddrs = NewInstance(CenterAddrs); // we DO NOT care whether it is NULL
+    cJSON *addr1 = NULL;
+    GET_VALUE(me->centerAddrs->addr1, centerAddrs, addr1, addr1->valuedouble);
+    cJSON *addr2 = NULL;
+    GET_VALUE(me->centerAddrs->addr2, centerAddrs, addr2, addr2->valuedouble);
+    cJSON *addr3 = NULL;
+    GET_VALUE(me->centerAddrs->addr3, centerAddrs, addr3, addr3->valuedouble);
+    cJSON *addr4 = NULL;
+    GET_VALUE(me->centerAddrs->addr4, centerAddrs, addr4, addr4->valuedouble);
+    // 站地址
+    me->stationAddr = NewInstance(RemoteStationAddr);
+    cJSON *A5 = NULL;
+    GET_VALUE(me->stationAddr->A5, remoteStationAddr, A5, A5->valuedouble);
+    cJSON *A4 = NULL;
+    GET_VALUE(me->stationAddr->A4, remoteStationAddr, A4, A4->valuedouble);
+    cJSON *A3 = NULL;
+    GET_VALUE(me->stationAddr->A3, remoteStationAddr, A3, A3->valuedouble);
+    cJSON *A2 = NULL;
+    GET_VALUE(me->stationAddr->A2, remoteStationAddr, A2, A2->valuedouble);
+    cJSON *A1 = NULL;
+    GET_VALUE(me->stationAddr->A1, remoteStationAddr, A1, A1->valuedouble);
+    cJSON *A0 = NULL;
+    GET_VALUE(me->stationAddr->A0, remoteStationAddr, A0, A0->valuedouble);
     // 密码
     me->password = NewInstance(uint16_t);
     *me->password = 0; // default but maybe not valid
@@ -310,6 +265,7 @@ bool Config_initFromJSON(Config *const me, cJSON *const json)
             vec_push(&me->channels, ch);
         }
     }
+    // @Todo add a fixed channel to make it reachalbe
     return true;
 }
 
@@ -332,6 +288,7 @@ void onIPV4ChannelData(Reactor *reactor, ev_io *w, int revents)
 #else
         close(w->fd);
 #endif
+        ch->connectWatcher->repeat = 10;
         ev_timer_again(reactor, ch->connectWatcher);
         return;
     }
@@ -357,10 +314,10 @@ bool setSocketBlockingEnabled(int fd, bool blocking)
 
 void startAIPV4Channel(Reactor *reactor, ev_timer *w, int revents)
 {
-    w->repeat = 10; // retry every ten seconds.
     Channel *ch = (Channel *)w->data;
     if (ch->isConnnected)
     {
+        Channel_ipv4Keepalive(ch);
         return;
     }
     Ipv4 *ipv4 = NULL;
@@ -408,6 +365,7 @@ void startAIPV4Channel(Reactor *reactor, ev_timer *w, int revents)
             ev_io_start(reactor, ch->dataWatcher);
         }
     }
+    ch->connectWatcher->repeat = ch->keepaliveTimer;
     ch->isConnnected = true;
 }
 
@@ -428,8 +386,11 @@ bool Station_startBy(Station *const me, char const *file)
             Channel *ch = NULL;
             vec_foreach(&me->config.channels, ch, i)
             {
-                if (ch->type == CHANNEL_IPV4 || ch->type == CHANNEL_DOMAIN)
+                if (Config_isChannelEnable(&me->config, ch) &&
+                    (ch->type == CHANNEL_IPV4 || ch->type == CHANNEL_DOMAIN))
                 {
+                    ch->station = me;
+                    ch->centerAddr = Config_centerAddrOfChannel(&me->config, ch);
                     ChannleConnectWatcher *connectWatcher = NewInstance(ChannleConnectWatcher); // 启动定时器，连接，如果出错，自动重连
                     if (connectWatcher != NULL)
                     {
