@@ -108,6 +108,8 @@ void Channel_ctor(Channel *me, Station *const station)
         &Channel_dtor};
     me->vptr = &vtbl;
     me->station = station;
+    vec_init(&me->handlers);
+    vec_reserve(&me->handlers, CHANNEL_RESERVED_HANDLER_SIZE);
 }
 // Virtual Channel END
 
@@ -313,7 +315,7 @@ ByteBuffer *SocketChannel_OnRead(Channel *const me)
     IOChannel *ioCh = (IOChannel *)me;
     Channel *ch = (Channel *)ioCh;
     int sock = ioCh->fd;
-    int len = recv(sock, ch->readBuff, 1024, 0);
+    int len = recv(sock, ch->readBuff, CHANNLE_RECIVE_BUFF_SIZE, 0);
     if (len <= 0)
     {
         return NULL;
