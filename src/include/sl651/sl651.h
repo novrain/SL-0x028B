@@ -135,7 +135,7 @@ extern "C"
         DRIAN_STATION = 0x4F
     };
 
-    enum FunctionCode
+    typedef enum
     {
         // 链路维持报
         KEEPALIVE = 0x2F,
@@ -197,7 +197,7 @@ extern "C"
         QUERY_LOG,
         // 中心站查询遥测站时钟
         QUERY_CLOCK
-    };
+    } FunctionCode;
 
     typedef enum
     {
