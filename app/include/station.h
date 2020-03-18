@@ -125,20 +125,21 @@ extern "C"
     } ChannelHandler;
 
     typedef vec_t(ChannelHandler *) ChannelHandlerPtrVector;
-
+#define CHANNEL_RESERVED_HANDLER_SIZE 10
+#define CHANNLE_RECIVE_BUFF_SIZE 2048
     typedef struct Channel
     {
         struct ChannelVtbl const *vptr;
         uint8_t id; // 04~0B 对应规范里的 master / slave
         ChannelType type;
         bool isConnnected;
-        char readBuff[1024];
+        char readBuff[CHANNLE_RECIVE_BUFF_SIZE];
         uint16_t seq;
         uint8_t keepaliveTimer;
         uint8_t centerAddr;
+        ChannelHandlerPtrVector handlers;
         // reference
         Station *station;
-        ChannelHandlerPtrVector handlers;
     } Channel;
 
     typedef struct ChannelVtbl
