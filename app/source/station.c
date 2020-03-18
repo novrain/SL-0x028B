@@ -27,9 +27,14 @@ cJSON *cJSON_fromFile(char const *const file)
 
 // Virtual Channel
 
-uint16_t Channel_seq(Channel *const me)
+uint16_t Channel_nextSeq(Channel *const me)
 {
     return me->seq++;
+}
+
+uint16_t Channel_lastSeq(Channel *const me)
+{
+    return me->seq;
 }
 
 void Channel_Start(Channel *const me)
@@ -67,10 +72,11 @@ void Channel_Keepalive(Channel *const me)
     head->password = *config->password;              // 密码
     head->stationAddr = *config->stationAddr;        // 站地址
     pkg->tail.etxFlag = ETX;                         // 截至符
-    msg->messageHead.seq = Channel_seq(me);          // 根据功能码填写报文头
+    msg->messageHead.seq = Channel_lastSeq(me);      // 根据功能码填写报文头
+    DateTime_now(&msg->messageHead.sendTime);        // 发送时间
     ByteBuffer *byteOut = pkg->vptr->encode(pkg);    // 编码
     BB_Flip(byteOut);                                // 转为读模式
-    me->vptr->send(me, byteOut);                     //
+    me->vptr->send(me, byteOut);                     // 调用发送实现
     UplinkMessage_dtor((Package *)msg);              // 析构
     DelInstance(msg);                                // free
     BB_dtor(byteOut);                                // 析构
@@ -93,6 +99,73 @@ void Channel_dtor(Channel *const me)
 {
     assert(me);
 }
+// HANDELERS
+bool handleTEST(Channel *const ch, Package *const request)
+{
+    assert(ch);
+    assert(request);
+    assert(request->head.funcCode == TEST);
+    DownlinkMessage *downMsg = (DownlinkMessage *)request;
+    Package *pkg = NULL;
+    LinkMessage *linkMsg = NULL;
+    UplinkMessage *upMsg = NULL;
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    // FROM AN FIX TEST PKG
+    BB_ctor_fromHexStr(byteBuff, "7E7E"
+                                 "01"
+                                 "0012345678"
+                                 "1234"
+                                 "30"
+                                 "002B"
+                                 "02"
+                                 "0003"
+                                 "591011154947"
+                                 "F1F1"
+                                 "0012345678"
+                                 "48"
+                                 "F0F0"
+                                 "5910111549"
+                                 "2019"
+                                 "000005"
+                                 "2619"
+                                 "000005"
+                                 "3923"
+                                 "00000127"
+                                 "3812"
+                                 "1115"
+                                 "03"
+                                 "20FA",
+                       120);
+    BB_Flip(byteBuff);
+    pkg = decodePackage(byteBuff);
+    linkMsg = (LinkMessage *)pkg;
+    upMsg = (UplinkMessage *)pkg;
+    // CHANGE VALUE BY CONFIG
+    Config *config = &ch->station->config;
+    pkg->head.centerAddr = ch->centerAddr;
+    pkg->head.stationAddr = *config->stationAddr;
+    pkg->head.password = *config->password;
+    upMsg->messageHead.seq = downMsg->messageHead.seq;
+    DateTime_now(&upMsg->messageHead.sendTime);
+    ObserveTime_now(&upMsg->messageHead.observeTimeElement.observeTime);
+    // encode
+    ByteBuffer *sendBuff = pkg->vptr->encode(pkg);
+    bool res = false;
+    if (sendBuff != NULL)
+    {
+        BB_Flip(sendBuff);
+        res = ch->vptr->send(ch, sendBuff);
+        BB_dtor(sendBuff);
+        DelInstance(sendBuff);
+    }
+    //release
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+    pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
+    return res;
+}
+// HANDLERS END
 
 void Channel_ctor(Channel *me, Station *const station)
 {
@@ -110,6 +183,9 @@ void Channel_ctor(Channel *me, Station *const station)
     me->station = station;
     vec_init(&me->handlers);
     vec_reserve(&me->handlers, CHANNEL_RESERVED_HANDLER_SIZE);
+    // register handler
+    static ChannelHandler const h = {TEST, &handleTEST};
+    vec_push(&me->handlers, (ChannelHandler *)&h);
 }
 // Virtual Channel END
 
@@ -212,6 +288,16 @@ void IOChannel_OnIOReadEvent(Reactor *reactor, ev_io *w, int revents)
     Package *pkg = decodePackage(buff);
     if (pkg != NULL)
     {
+        int i = 0;
+        ChannelHandler *h = NULL;
+        vec_foreach(&ch->handlers, h, i)
+        {
+            if (h != NULL && h->cb != NULL && h->code == pkg->head.funcCode)
+            {
+                h->cb(ch, pkg);
+                break;
+            }
+        }
         Package_dtor(pkg);
         DelInstance(pkg);
     }
@@ -323,6 +409,7 @@ ByteBuffer *SocketChannel_OnRead(Channel *const me)
     // printf("recv :%s\n", ch->readBuff);
     ByteBuffer *buff = NewInstance(ByteBuffer);
     BB_ctor_wrapped(buff, (uint8_t *)ch->readBuff, len);
+    BB_Flip(buff);
     return buff;
 }
 
@@ -336,7 +423,7 @@ bool SocketChannel_Send(Channel *const me, ByteBuffer *const buff)
         Channel *ch = (Channel *)ioCh;
         int sock = ioCh->fd;
         int len = BB_Available(buff);
-        return len == send(sock, (const char *)buff->buff, len, 0);
+        return send(sock, (const char *)buff->buff, len, 0) == len;
     }
     else
     {

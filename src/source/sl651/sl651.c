@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <math.h>
+#include <time.h>
 
 #include "sl651/sl651.h"
 
@@ -229,6 +230,20 @@ static bool RemoteStationAddr_Decode(RemoteStationAddr *const me, ByteBuffer *co
     return usedLen == REMOTE_STATION_ADDR_LEN || set_error_indicate(SL651_ERROR_INVALID_STATION_ADDR);
 }
 
+void DateTime_now(DateTime *const me)
+{
+    time_t nSeconds;
+    struct tm *pTM;
+    time(&nSeconds);
+    pTM = localtime(&nSeconds);
+    me->year = pTM->tm_year % 100;
+    me->month = pTM->tm_mon + 1;
+    me->day = pTM->tm_mday;
+    me->hour = pTM->tm_hour;
+    me->minute = pTM->tm_min;
+    me->second = pTM->tm_sec;
+}
+
 static bool DateTime_Encode(DateTime const *const me, ByteBuffer *byteBuff)
 {
     assert(me);
@@ -255,6 +270,19 @@ static bool DateTime_Decode(DateTime *const me, ByteBuffer *byteBuff)
     usedLen += BB_BCDGetUInt8(byteBuff, &me->minute);
     usedLen += BB_BCDGetUInt8(byteBuff, &me->second);
     return usedLen == DATETIME_LEN || set_error_indicate(SL651_ERROR_INVALID_DATATIME);
+}
+
+void ObserveTime_now(ObserveTime *const me)
+{
+    time_t nSeconds;
+    struct tm *pTM;
+    time(&nSeconds);
+    pTM = localtime(&nSeconds);
+    me->year = pTM->tm_year % 100;
+    me->month = pTM->tm_mon + 1;
+    me->day = pTM->tm_mday;
+    me->hour = pTM->tm_hour;
+    me->minute = pTM->tm_min;
 }
 
 static bool ObserveTime_Encode(ObserveTime const *const me, ByteBuffer *byteBuff)
@@ -638,7 +666,7 @@ static bool UplinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff)
             Element *el = decodeElement(&elBuff, Up);
             if (el != NULL)
             {
-                vec_push(&((UplinkMessage *const)me)->super.elements, el);
+                LinkMessage_PushElement((LinkMessage *const)me, el);
             }
             else
             {
@@ -833,7 +861,7 @@ static bool DownlinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff
             Element *el = decodeElement(&elBuff, Down);
             if (el != NULL)
             {
-                vec_push(&((UplinkMessage *const)me)->super.elements, el);
+                LinkMessage_PushElement((LinkMessage *const)me, el);
             }
             else
             {
