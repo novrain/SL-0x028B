@@ -414,6 +414,8 @@ extern "C"
         // 当 A5 非 0 时，A2 A1 A0 组成一个自定义地址，为BCD码，从原始的 A2A1 HEX 转来
         uint8_t A0;
     } RemoteStationAddr;
+    bool RemoteStationAddr_Encode(RemoteStationAddr const *const me, ByteBuffer *const byteBuff);
+    bool RemoteStationAddr_Decode(RemoteStationAddr *const me, ByteBuffer *const byteBuff);
 #define A5_HYDROLOGICAL_TELEMETRY_STATION 0
 #define REMOTE_STATION_ADDR_LEN 5
 

@@ -26,6 +26,19 @@ cJSON *cJSON_fromFile(char const *const file)
 // cJSON END
 
 // Virtual Channel
+void Channel_FillUplinkMessageHead(Channel *const me, UplinkMessage *const upMsg)
+{
+    assert(me);
+    assert(upMsg);
+    Package *pkg = (Package *)upMsg;
+    Config *config = &me->station->config;
+    pkg->head.centerAddr = me->centerAddr;
+    pkg->head.stationAddr = *config->stationAddr;
+    pkg->head.password = *config->password;
+    DateTime_now(&upMsg->messageHead.sendTime);
+    ObserveTime_now(&upMsg->messageHead.observeTimeElement.observeTime);
+    upMsg->messageHead.stationAddrElement.stationAddr = *config->stationAddr;
+}
 
 uint16_t Channel_nextSeq(Channel *const me)
 {
@@ -61,19 +74,15 @@ void Channel_Keepalive(Channel *const me)
     {
         return;
     }
-    Config *config = Station_config(me->station);
     // create keepalive package
     UplinkMessage *msg = NewInstance(UplinkMessage); // 选择是上行还是下行
     UplinkMessage_ctor(msg, 0);                      // 调用构造函数,如果有要素，需要指定要素数量
     Package *pkg = (Package *)msg;                   // 获取父结构Package
     Head *head = &pkg->head;                         // 获取Head结构
-    head->centerAddr = me->centerAddr;               // 填写Head结构
+    Channel_FillUplinkMessageHead(me, msg);          // Fill head by config
     head->funcCode = KEEPALIVE;                      // 心跳功能码功能码
-    head->password = *config->password;              // 密码
-    head->stationAddr = *config->stationAddr;        // 站地址
-    pkg->tail.etxFlag = ETX;                         // 截至符
     msg->messageHead.seq = Channel_lastSeq(me);      // 根据功能码填写报文头
-    DateTime_now(&msg->messageHead.sendTime);        // 发送时间
+    pkg->tail.etxFlag = ETX;                         // 截止符
     ByteBuffer *byteOut = pkg->vptr->encode(pkg);    // 编码
     BB_Flip(byteOut);                                // 转为读模式
     me->vptr->send(me, byteOut);                     // 调用发送实现
@@ -90,6 +99,12 @@ ByteBuffer *Channel_OnRead(Channel *const me)
 }
 
 bool Channel_Send(Channel *const me, ByteBuffer *const buff)
+{
+    assert(0);
+    return false;
+}
+
+bool Channel_ExpandEncode(Channel *const me, ByteBuffer *const buff)
 {
     assert(0);
     return false;
@@ -142,13 +157,8 @@ bool handleTEST(Channel *const ch, Package *const request)
     linkMsg = (LinkMessage *)pkg;
     upMsg = (UplinkMessage *)pkg;
     // CHANGE VALUE BY CONFIG
-    Config *config = &ch->station->config;
-    pkg->head.centerAddr = ch->centerAddr;
-    pkg->head.stationAddr = *config->stationAddr;
-    pkg->head.password = *config->password;
-    upMsg->messageHead.seq = downMsg->messageHead.seq;
-    DateTime_now(&upMsg->messageHead.sendTime);
-    ObserveTime_now(&upMsg->messageHead.observeTimeElement.observeTime);
+    Channel_FillUplinkMessageHead(ch, upMsg);
+    upMsg->messageHead.seq = downMsg->messageHead.seq; // @Todo 这里是否要填写请求端对应的流水号 upMsg->messageHead.seq = Channel_nextSeq(ch)
     // encode
     ByteBuffer *sendBuff = pkg->vptr->encode(pkg);
     bool res = false;
@@ -166,6 +176,140 @@ bool handleTEST(Channel *const ch, Package *const request)
     DelInstance(pkg);
     return res;
 }
+
+bool handleBASIC_CONFIG(Channel *const ch, Package *const request)
+{
+    assert(ch);
+    assert(request);
+    assert(request->head.funcCode == BASIC_CONFIG);
+    if (request->tail.etxFlag == ESC)
+    {
+        return true;
+    }
+    LinkMessage *reqLinkMsg = (LinkMessage *)request;
+    DownlinkMessage *reqDownlinkMsg = (DownlinkMessage *)request;
+    UplinkMessage *upMsg = NewInstance(UplinkMessage);
+    //解析获取对应要查询的配置型标识符
+    ByteBuffer *reqBuff = reqLinkMsg->rawBuff;
+    UplinkMessage_ctor(upMsg, 10);
+    Package *pkg = (Package *)upMsg;              // 获取父结构Package
+    Head *head = &pkg->head;                      // 获取Head结构
+    Channel_FillUplinkMessageHead(ch, upMsg);     // Fill head by config
+    head->funcCode = BASIC_CONFIG;                // 心跳功能码功能码
+    upMsg->messageHead.seq = Channel_nextSeq(ch); // 根据功能码填写报文头 @Todo 这里是否要填写请求端对应的流水号
+    if (reqBuff != NULL)
+    {
+        LinkMessage *uplinkMsg = (LinkMessage *)upMsg;
+        ByteBuffer *rawBuff = uplinkMsg->rawBuff = NewInstance(ByteBuffer);
+        BB_ctor(rawBuff, 0);
+        Config *config = &ch->station->config;
+        while (BB_Available(reqBuff) >= 2) // 标识符两个字节，前一个是标识符，后一个固定为 0；成对，如果多余，就丢弃
+        {
+            uint8_t u8 = 0;
+            Channel *ch = NULL;
+            BB_GetUInt8(reqBuff, &u8);
+            // 同时 计算实际内容部分的长度，开ByteBuffer
+            switch (u8)
+            {
+            case CONFIG_CENTER_ADDRS:
+                if (config->centerAddrs != NULL)
+                {
+                    BB_Expand(rawBuff, ELEMENT_IDENTIFER_LEN + 4); // 2+4
+                    BB_PutUInt8(rawBuff, CONFIG_CENTER_ADDRS);
+                    BB_PutUInt8(rawBuff, 4 << NUMBER_ELEMENT_LEN_OFFSET); // 0x20
+                    BB_PutUInt8(rawBuff, config->centerAddrs->addr1);
+                    BB_PutUInt8(rawBuff, config->centerAddrs->addr2);
+                    BB_PutUInt8(rawBuff, config->centerAddrs->addr3);
+                    BB_PutUInt8(rawBuff, config->centerAddrs->addr4);
+                }
+                break;
+            case CONFIG_REMOTESTATION_ADDR:
+                if (config->stationAddr != NULL)
+                {
+                    BB_Expand(rawBuff, ELEMENT_IDENTIFER_LEN + REMOTE_STATION_ADDR_LEN); // 2+5
+                    BB_PutUInt8(rawBuff, CONFIG_REMOTESTATION_ADDR);
+                    BB_PutUInt8(rawBuff, 5 << NUMBER_ELEMENT_LEN_OFFSET); // 0x28
+                    RemoteStationAddr_Encode(config->stationAddr, rawBuff);
+                }
+                break;
+            case CONFIG_PASSWORD:
+                if (config->password != NULL)
+                {
+                    BB_Expand(rawBuff, ELEMENT_IDENTIFER_LEN + 2); // 2+2
+                    BB_PutUInt8(rawBuff, CONFIG_PASSWORD);
+                    BB_PutUInt8(rawBuff, 2 << 3); // 0x10
+                    BB_BE_PutUInt16(rawBuff, *config->password);
+                }
+                break;
+            case CONFIG_WORK_MODE:
+                if (config->workMode != NULL)
+                {
+                    BB_Expand(rawBuff, ELEMENT_IDENTIFER_LEN + 1); // 2+1
+                    BB_PutUInt8(rawBuff, CONFIG_WORK_MODE);
+                    BB_PutUInt8(rawBuff, 1 << 3); // 0x08
+                    BB_BCDPutUInt8(rawBuff, *config->workMode);
+                }
+            case CONFIG_CHANNEL_1_MASTER ... CONFIG_CHANNEL_4_SLAVE:
+                ch = Config_findChannel(config, u8);
+                if (ch != NULL &&
+                    ch->id != CHANNEL_ID_FIXED &&
+                    ch->type != CHANNEL_DISABLED)
+                {
+                    if (ch->vptr->expandEncode != NULL)
+                    {
+                        ch->vptr->expandEncode(ch, rawBuff);
+                    }
+                }
+                break;
+            default:
+                break;
+            }
+            BB_Skip(reqBuff, 1);
+        }
+        BB_Flip(rawBuff);
+    }
+    pkg->tail.etxFlag = ETX; // 截止符
+    // encode
+    ByteBuffer *sendBuff = pkg->vptr->encode(pkg);
+    bool res = false;
+    if (sendBuff != NULL)
+    {
+        BB_Flip(sendBuff);
+        res = ch->vptr->send(ch, sendBuff);
+        BB_dtor(sendBuff);
+        DelInstance(sendBuff);
+    }
+    //release
+    pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
+    return res;
+}
+
+bool handleMODIFY_BASIC_CONFIG(Channel *const ch, Package *const request)
+{
+    assert(ch);
+    assert(request);
+    assert(request->head.funcCode == MODIFY_BASIC_CONFIG);
+    if (request->tail.etxFlag == ESC)
+    {
+        return true;
+    }
+    LinkMessage *reqLinkMsg = (LinkMessage *)request;
+    DownlinkMessage *reqDownlinkMsg = (DownlinkMessage *)request;
+    ByteBuffer *reqBuff = reqLinkMsg->rawBuff;
+    //解析获取对应要查询的配置型标识符
+    if (reqBuff != NULL && BB_Available(reqBuff) > 0) // 应答包或者空包不处理
+    {
+        UplinkMessage *upMsg = NewInstance(UplinkMessage);
+        UplinkMessage_ctor(upMsg, 10);
+        Package *pkg = (Package *)upMsg;              // 获取父结构Package
+        Head *head = &pkg->head;                      // 获取Head结构
+        Channel_FillUplinkMessageHead(ch, upMsg);     // Fill head by config
+        head->funcCode = BASIC_CONFIG;                // 心跳功能码功能码
+        upMsg->messageHead.seq = Channel_nextSeq(ch); // 根据功能码填写报文头 @Todo 这里是否要填写请求端对应的流水号
+    }
+    return true;
+}
 // HANDLERS END
 
 void Channel_ctor(Channel *me, Station *const station)
@@ -179,6 +323,7 @@ void Channel_ctor(Channel *me, Station *const station)
         &Channel_Keepalive,
         &Channel_OnRead,
         &Channel_Send,
+        &Channel_ExpandEncode,
         &Channel_dtor};
     me->vptr = &vtbl;
     me->station = station;
@@ -187,6 +332,10 @@ void Channel_ctor(Channel *me, Station *const station)
     // register handler
     static ChannelHandler const h_TEST = {TEST, &handleTEST}; // TEST
     vec_push(&me->handlers, (ChannelHandler *)&h_TEST);
+    static ChannelHandler const h_BASIC_CONFIG = {BASIC_CONFIG, &handleBASIC_CONFIG}; // BASIC_CONFIG
+    vec_push(&me->handlers, (ChannelHandler *)&h_BASIC_CONFIG);
+    static ChannelHandler const h_MODIFY_BASIC_CONFIG = {MODIFY_BASIC_CONFIG, &handleMODIFY_BASIC_CONFIG}; // MODIFY_BASIC_CONFIG
+    vec_push(&me->handlers, (ChannelHandler *)&h_MODIFY_BASIC_CONFIG);
 }
 // Virtual Channel END
 
@@ -230,6 +379,12 @@ ByteBuffer *IOChannel_OnRead(Channel *const me)
 }
 
 bool IOChannel_Send(Channel *const me, ByteBuffer *buff)
+{
+    assert(0);
+    return false;
+}
+
+bool IOChannel_ExpandEncode(Channel *const me, ByteBuffer *const buff)
 {
     assert(0);
     return false;
@@ -292,20 +447,23 @@ void IOChannel_OnIOReadEvent(Reactor *reactor, ev_io *w, int revents)
     {
         int i = 0;
         ChannelHandler *h = NULL;
+        bool handled = false;
         vec_foreach(&ch->handlers, h, i)
         {
             if (h != NULL && h->cb != NULL && h->code == pkg->head.funcCode)
             {
+                handled = true;
                 h->cb(ch, pkg);
                 break;
             }
         }
+        printf("ch[%2d] %7s request[%4X]\r\n", ch->id, handled == true ? "handled" : "droped", pkg->head.funcCode);
         Package_dtor(pkg);
         DelInstance(pkg);
     }
     else
     {
-        printf("recv :%s\n", ch->readBuff);
+        printf("ch[%2d] invalid request, errno:[%3d], hex:[%s]\r\n", ch->id, last_error(), ch->readBuff);
     }
     BB_dtor(buff);
     DelInstance(buff);
@@ -328,6 +486,7 @@ void IOChannel_ctor(IOChannel *me, Station *const station)
          &IOChannel_Keepalive,
          &IOChannel_OnRead,
          &IOChannel_Send,
+         &IOChannel_ExpandEncode,
          &IOChannel_dtor},
         &IOChannel_OnConnectTimerEvent,
         &IOChannel_OnIOReadEvent};
@@ -434,6 +593,12 @@ bool SocketChannel_Send(Channel *const me, ByteBuffer *const buff)
     }
 }
 
+bool SocketChannel_ExpandEncode(Channel *const me, ByteBuffer *const buff)
+{
+    assert(0);
+    return false;
+}
+
 void SocketChannel_OnConnectTimerEvent(Reactor *reactor, ev_timer *w, int revents)
 {
     IOChannel_OnConnectTimerEvent(reactor, w, revents);
@@ -467,6 +632,7 @@ void SocketChannel_ctor(SocketChannel *me, Station *const station)
           &SocketChannel_Keepalive,
           &SocketChannel_OnRead,
           &SocketChannel_Send,
+          &SocketChannel_ExpandEncode,
           &SocketChannel_dtor},
          &SocketChannel_OnConnectTimerEvent,
          &SocketChannel_OnIOReadEvent},
@@ -483,6 +649,21 @@ Ipv4 *Ipv4Channel_Ip(SocketChannel *me)
 {
     assert(me);
     return &((Ipv4Channel *)me)->ipv4;
+}
+
+bool Ipv4Channel_ExpandEncode(Channel *const me, ByteBuffer *const buff)
+{
+    BB_Expand(buff, ELEMENT_IDENTIFER_LEN + 6); // 2+6
+    BB_PutUInt8(buff, me->id);
+    BB_PutUInt8(buff, 6 << 3); // 0x30
+    Ipv4Channel *ipv4Channel = (Ipv4Channel *)me;
+    struct in_addr addr = ipv4Channel->ipv4.addr.sin_addr;
+    uint64_t ipIn64 = addr.s_net * 10e9 +
+                      addr.s_host * 10e6 +
+                      addr.s_lh * 10e3 +
+                      addr.s_impno;
+    BB_BE_BCDPutUInt(buff, &ipIn64, 6);
+    return true;
 }
 
 void Ipv4Channel_dtor(Channel *me)
@@ -502,6 +683,7 @@ void Ipv4Channel_ctor(Ipv4Channel *me, Station *const station)
           &SocketChannel_Keepalive,
           &SocketChannel_OnRead,
           &SocketChannel_Send,
+          &Ipv4Channel_ExpandEncode,
           &Ipv4Channel_dtor},
          &SocketChannel_OnConnectTimerEvent,
          &SocketChannel_OnIOReadEvent},
@@ -520,6 +702,25 @@ Ipv4 *DomainChannel_Ip(SocketChannel *me)
     return &((DomainChannel *)me)->domain.ipv4;
 }
 
+bool DomainChannel_ExpandEncode(Channel *const me, ByteBuffer *const buff)
+{
+    DomainChannel *domainCh = (DomainChannel *)me;
+    uint8_t domainLen = strlen(domainCh->domain.domainStr) + 10; // 10 more for port
+    char domainStr[domainLen];
+    BB_Expand(buff, ELEMENT_IDENTIFER_LEN + domainLen); // 2+6
+    BB_PutUInt8(buff, me->id);
+    BB_PutUInt8(buff, domainLen << 3);
+    snprintf(domainStr, domainLen, "%s:%d", domainCh->domain.domainStr, domainCh->domain.ipv4.addr.sin_port);
+    BB_PutString(buff, domainStr);
+    return true;
+}
+
+void DomainChannel_dtor(Channel *me)
+{
+    assert(me);
+    SocketChannel_dtor(me);
+}
+
 void DomainChannel_ctor(DomainChannel *me, Station *const station)
 {
     assert(me);
@@ -531,7 +732,8 @@ void DomainChannel_ctor(DomainChannel *me, Station *const station)
           &SocketChannel_Keepalive,
           &SocketChannel_OnRead,
           &SocketChannel_Send,
-          &SocketChannel_dtor},
+          &DomainChannel_ExpandEncode,
+          &DomainChannel_dtor},
          &SocketChannel_OnConnectTimerEvent,
          &SocketChannel_OnIOReadEvent},
         &DomainChannel_Ip};
@@ -704,6 +906,20 @@ bool Config_isChannelEnable(Config *const me, Channel *const ch)
     return ch->id == CHANNEL_ID_FIXED || Config_centerAddrOfChannel(me, ch) != CENTER_DISABLED;
 }
 
+Channel *Config_findChannel(Config *const me, uint8_t chId)
+{
+    int i = 0;
+    Channel *ch;
+    vec_foreach(&me->channels, ch, i)
+    {
+        if (ch->id == chId)
+        {
+            return ch;
+        }
+    }
+    return NULL;
+}
+
 bool Config_initFromJSON(Config *const me, cJSON *const json)
 {
     assert(me);
@@ -748,6 +964,15 @@ bool Config_initFromJSON(Config *const me, cJSON *const json)
     *me->password = 0; // default but maybe not valid
     cJSON *password = NULL;
     GET_VALUE(*me->password, json, password, (uint16_t)password->valuedouble);
+    // 处理为 BCD 方式，便于用户配置在配置文件里
+    int pwdInBcd = 0;
+    int shift = 0;
+    while (*me->password > 0)
+    {
+        pwdInBcd |= (*me->password % 10) << (shift++ << 2);
+        *me->password /= 10;
+    }
+    *me->password = pwdInBcd;
     // 工作模式
     me->workMode = NewInstance(uint8_t);
     *me->workMode = QUERY_ACK; //

@@ -8,6 +8,7 @@ extern "C"
 #include <assert.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "common/class.h"
 
@@ -84,8 +85,6 @@ extern "C"
     // Test Only
     void BB_ctor_fromHexStr(ByteBuffer *const me, char const *const buff, uint32_t len);
 
-    void BB_dtor(ByteBuffer *const me);
-
     /**
      * Destructor
      */
@@ -113,6 +112,8 @@ extern "C"
 
     void BB_Skip(ByteBuffer *const me, uint32_t size);
 
+    void BB_Expand(ByteBuffer *const me, uint32_t size);
+
     /**
      * CRC16
      */
@@ -121,6 +122,7 @@ extern "C"
     ByteBuffer *BB_GetByteBuffer(ByteBuffer *const me, uint32_t size);
     bool BB_PutByteBuffer(ByteBuffer *const me, ByteBuffer *const src);
     ByteBuffer *BB_PeekByteBuffer(ByteBuffer *const me, uint32_t start, uint32_t size);
+    bool BB_PutString(ByteBuffer *const me, char *src);
 
     uint8_t BB_PeekUInt8(ByteBuffer *const me, uint8_t *val);
     uint8_t BB_PeekUInt8At(ByteBuffer *const me, uint32_t index, uint8_t *val);

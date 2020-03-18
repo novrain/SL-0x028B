@@ -13,6 +13,23 @@ GTEST_TEST(ByteBuffer, Ctor)
     DelInstance(buf);
 }
 
+GTEST_TEST(ByteBuffer, Expand)
+{
+    ByteBuffer *buf = NewInstance(ByteBuffer);
+    BB_ctor(buf, 0);
+    ASSERT_EQ(buf->position, 0);
+    ASSERT_EQ(buf->limit, 0);
+    ASSERT_EQ(buf->size, 0);
+
+    BB_Expand(buf, 10);
+    ASSERT_EQ(buf->position, 0);
+    ASSERT_EQ(buf->limit, 10);
+    ASSERT_EQ(buf->size, 10);
+
+    BB_dtor(buf);
+    DelInstance(buf);
+}
+
 GTEST_TEST(ByteBuffer, Ctor_cpoy)
 {
     ByteBuffer *buf = NewInstance(ByteBuffer);
