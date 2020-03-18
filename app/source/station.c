@@ -99,6 +99,7 @@ void Channel_dtor(Channel *const me)
 {
     assert(me);
 }
+
 // HANDELERS
 bool handleTEST(Channel *const ch, Package *const request)
 {
@@ -184,8 +185,8 @@ void Channel_ctor(Channel *me, Station *const station)
     vec_init(&me->handlers);
     vec_reserve(&me->handlers, CHANNEL_RESERVED_HANDLER_SIZE);
     // register handler
-    static ChannelHandler const h = {TEST, &handleTEST};
-    vec_push(&me->handlers, (ChannelHandler *)&h);
+    static ChannelHandler const h_TEST = {TEST, &handleTEST}; // TEST
+    vec_push(&me->handlers, (ChannelHandler *)&h_TEST);
 }
 // Virtual Channel END
 
@@ -245,6 +246,7 @@ void IOChannel_OnConnectTimerEvent(Reactor *reactor, ev_timer *w, int revents)
     }
     if (!ch->vptr->open(ch))
     {
+        w->repeat = 10; // slow down
         ev_timer_again(reactor, w);
         return;
     }
@@ -365,6 +367,7 @@ bool SocketChannel_Connect(Channel *const me)
     IOChannel *ioCh = (IOChannel *)me;
     Channel *ch = (Channel *)ioCh;
     Ipv4 *ipv4 = ((SocketChannelVtbl *)ch->vptr)->ip((SocketChannel *)me);
+    printf("ch[%2d] connecting to %15s:%5d\r\n", ch->id, inet_ntoa(ipv4->addr.sin_addr), ntohs(ipv4->addr.sin_port));
     int sock;
     if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
     {
@@ -377,6 +380,7 @@ bool SocketChannel_Connect(Channel *const me)
     }
     setSocketBlockingEnabled(sock, false);
     ioCh->fd = sock;
+    printf("ch[%2d] connected\r\n", ch->id);
     return true;
 }
 
@@ -406,7 +410,6 @@ ByteBuffer *SocketChannel_OnRead(Channel *const me)
     {
         return NULL;
     }
-    // printf("recv :%s\n", ch->readBuff);
     ByteBuffer *buff = NewInstance(ByteBuffer);
     BB_ctor_wrapped(buff, (uint8_t *)ch->readBuff, len);
     BB_Flip(buff);
@@ -637,6 +640,37 @@ Channel *Channel_domainFromJson(cJSON *const channelInJson)
     }
 }
 
+Channel *Channel_toiOTA()
+{
+#ifdef _WIN32
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
+    {
+        return NULL;
+    }
+#else
+
+#endif
+    static char const *iOTA = "console.theiota.cn";
+    struct hostent *hosts = gethostbyname(iOTA);
+    if (hosts == NULL || hosts->h_addrtype != AF_INET)
+    {
+        return NULL;
+    }
+    DomainChannel *ch = NewInstance(DomainChannel);
+    DomainChannel_ctor(ch, NULL); // 初始化 station 为 NULL
+    Channel *super = (Channel *)ch;
+    super->id = CHANNEL_ID_FIXED;
+    super->type = CHANNEL_DOMAIN;
+    super->keepaliveTimer = 60;
+    ch->domain.domainStr = (char *)iOTA;
+    ch->domain.ipv4.addr.sin_family = AF_INET;
+    ch->domain.ipv4.addr.sin_port = htons(60338);
+    // GET THE FIRST IP
+    ch->domain.ipv4.addr.sin_addr = *(struct in_addr *)hosts->h_addr_list[0];
+    return (Channel *)ch;
+}
+
 uint8_t Config_centerAddr(Config *const me, uint8_t id)
 {
     assert(me);
@@ -744,7 +778,12 @@ bool Config_initFromJSON(Config *const me, cJSON *const json)
             vec_push(&me->channels, ch);
         }
     }
-    // @Todo add a fixed channel to make it reachalbe
+    // add a fixed channel to make it reachable
+    Channel *ch = Channel_toiOTA();
+    if (ch != NULL)
+    {
+        vec_push(&me->channels, ch);
+    }
     return true;
 }
 
