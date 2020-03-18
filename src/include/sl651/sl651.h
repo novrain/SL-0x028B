@@ -428,6 +428,8 @@ extern "C"
         uint8_t second;
     } DateTime;
 
+    void DateTime_now(DateTime *const me);
+
 #define DATETIME_LEN 6
 
     typedef struct
@@ -439,6 +441,8 @@ extern "C"
         uint8_t hour;
         uint8_t minute;
     } ObserveTime;
+
+    void ObserveTime_now(ObserveTime *const me);
 
 #define OBSERVETIME_LEN 5
 
