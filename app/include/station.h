@@ -6,29 +6,17 @@
 extern "C"
 {
 #endif
-
-#include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <stdio.h>
-
 #ifdef _WIN32
 #include <winsock2.h>
-#include <winsock.h>
-#include <ws2tcpip.h>
 #else
 #include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #endif
 
 #include "libev/ev.h"
 #include "cJSON/cJSON.h"
-#include "common/class.h"
+#include "vec/vec.h"
 #include "common/error.h"
 #include "sl651/sl651.h"
-#include "vec/vec.h"
 
 #define GET_VALUE(target, jParent, jChild, vField)                   \
     (jChild) = cJSON_GetObjectItemCaseSensitive((jParent), #jChild); \
@@ -224,6 +212,10 @@ extern "C"
         Reactor *reactor;
         Config config;
     };
+    bool Station_start(Station *const me);
+    bool Station_startBy(Station *const me, char const *file);
+    void Station_dtor(Station *const me);
+#define SL651_DEFAULT_CONFIGFILE "/sl651/config.json"
 
 #define Station_config(_ptr) &(_ptr->config)
 

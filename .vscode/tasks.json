@@ -51,6 +51,7 @@
             "-L",
             "${workspaceFolder}/lib",
             "-g",
+            "${workspaceFolder}/test/app/station.c",
             "${workspaceFolder}/app/source/station.c",
             "${workspaceFolder}/src/source/common/*.c",
             "${workspaceFolder}/src/source/bytebuffer/*.c",
@@ -58,7 +59,7 @@
             "${workspaceFolder}/src/source/sl651/*.c",
             "${workspaceFolder}/src/source/cJSON/*.c",
             "-o",
-            "${workspaceFolder}/app/station.exe",
+            "${workspaceFolder}/test/app/station.exe",
             "-lev",
             "-lpthread",
             "-lws2_32"

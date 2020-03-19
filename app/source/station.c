@@ -1,5 +1,22 @@
+#include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <assert.h>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#include <winsock.h>
+#include <ws2tcpip.h>
+#else
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#endif
 
 #include "cJSON/cJSON_Utils.h"
+#include "common/class.h"
 
 #include "station.h"
 
@@ -1275,8 +1292,6 @@ bool Station_startBy(Station *const me, char const *file)
     }
 }
 
-#define SL651_DEFAULT_CONFIGFILE "/sl651/config.json"
-
 bool Station_start(Station *const me)
 {
     char const *defaultFile = SL651_DEFAULT_CONFIGFILE;
@@ -1299,15 +1314,4 @@ void Station_dtor(Station *const me)
     {
         ev_loop_destroy(me->reactor);
     }
-}
-
-int main()
-{
-    Station station = {0};
-    char const *configFile = "./config.json";
-
-    int res = Station_startBy(&station, configFile);
-    // loop exit
-    Station_dtor(&station);
-    return res;
 }
