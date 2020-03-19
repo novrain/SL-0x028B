@@ -1,11 +1,3 @@
-/*
- * @Author: your name
- * @Date: 2020-03-03 11:02:48
- * @LastEditTime: 2020-03-19 13:52:33
- * @LastEditors: Please set LastEditors
- * @Description: In User Settings Edit
- * @FilePath: \SL-651\src\include\common\macros.h
- */
 #if defined(_MSC_VER)
 #define THREAD_LOCAL __declspec(thread)
 #else
