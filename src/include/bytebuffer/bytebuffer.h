@@ -5,12 +5,8 @@
 extern "C"
 {
 #endif
-#include <assert.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <string.h>
-
-#include "common/class.h"
 
     typedef enum
     {

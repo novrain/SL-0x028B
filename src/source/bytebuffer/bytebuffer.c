@@ -1,3 +1,8 @@
+
+#include <assert.h>
+#include <string.h>
+#include "common/class.h"
+
 #include "bytebuffer/bytebuffer.h"
 
 static size_t binToBeUInt(const uint8_t *bin, void *val, const size_t size)
