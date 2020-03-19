@@ -337,6 +337,30 @@ bool BB_PutString(ByteBuffer *const me, char *const src)
     }
 }
 
+char *BB_GetString(ByteBuffer *const me, uint32_t size)
+{
+    char *val = BB_PeekString(me, me->position, size);
+    if (val != NULL)
+    {
+        me->position += size;
+    }
+    return val;
+}
+
+char *BB_PeekString(ByteBuffer *const me, uint32_t start, uint32_t size)
+{
+    assert(me);
+    assert(me->buff);
+    if (start < 0 || size <= 0 || start + size > me->limit)
+    {
+        return NULL;
+    }
+    char *val = (char *)malloc(size + 1);
+    memset(val, 0, size + 1);
+    memcpy(val, me->buff + start, size);
+    return val;
+}
+
 uint8_t BB_BE_PeekUIntAt(ByteBuffer *const me, uint32_t index, void *val, uint8_t size)
 {
     assert(me);
@@ -495,6 +519,23 @@ uint8_t BB_LE_GetUInt64(ByteBuffer *const me, uint64_t *val)
 {
     // *val = 0; // 副作用
     return BB_LE_GetUInt(me, val, 8);
+}
+
+uint8_t BB_BE_PutUInt(ByteBuffer *const me, uint64_t val, uint8_t size)
+{
+    assert(me);
+    assert(me->buff);
+    if (me->position + size - 1 >= me->limit)
+    {
+        return 0;
+    }
+    uint8_t count = size;
+    while (count > 0)
+    {
+        me->buff[me->position++] = val >> (8 * (count - 1));
+        count--;
+    }
+    return size;
 }
 
 uint8_t BB_BE_PutUInt16(ByteBuffer *const me, uint16_t val)
@@ -657,23 +698,7 @@ uint8_t BB_BE_BCDPutUInt(ByteBuffer *const me, void *val, uint8_t size)
         bcd |= (u64 % 10) << (shift++ << 2);
         u64 /= 10;
     }
-
-    if (size <= 1)
-    {
-        return BB_PutUInt8(me, (uint8_t)bcd);
-    }
-    else if (size <= 2)
-    {
-        return BB_BE_PutUInt16(me, (uint16_t)bcd);
-    }
-    else if (size <= 4)
-    {
-        return BB_BE_PutUInt32(me, (uint32_t)bcd);
-    }
-    else
-    {
-        return BB_BE_PutUInt64(me, bcd);
-    }
+    return BB_BE_PutUInt(me, bcd, size);
 }
 
 uint8_t BB_BCDPutUInt8(ByteBuffer *const me, uint8_t val)

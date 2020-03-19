@@ -87,6 +87,7 @@ const char *error_debug_str(int err)
 
 void set_error(int err)
 {
+    printf("err[%3d]\r\n", err);
     tl_last_error = err;
 }
 

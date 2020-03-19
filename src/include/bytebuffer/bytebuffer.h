@@ -123,6 +123,8 @@ extern "C"
     bool BB_PutByteBuffer(ByteBuffer *const me, ByteBuffer *const src);
     ByteBuffer *BB_PeekByteBuffer(ByteBuffer *const me, uint32_t start, uint32_t size);
     bool BB_PutString(ByteBuffer *const me, char *src);
+    char *BB_GetString(ByteBuffer *const me, uint32_t size);
+    char *BB_PeekString(ByteBuffer *const me, uint32_t start, uint32_t size);
 
     uint8_t BB_PeekUInt8(ByteBuffer *const me, uint8_t *val);
     uint8_t BB_PeekUInt8At(ByteBuffer *const me, uint32_t index, uint8_t *val);
@@ -146,6 +148,7 @@ extern "C"
     uint8_t BB_LE_GetUInt16(ByteBuffer *const me, uint16_t *val);
     uint8_t BB_LE_GetUInt32(ByteBuffer *const me, uint32_t *val);
     uint8_t BB_LE_GetUInt64(ByteBuffer *const me, uint64_t *val);
+    uint8_t BB_BE_PutUInt(ByteBuffer *const me, uint64_t val, uint8_t size);
     uint8_t BB_BE_PutUInt16(ByteBuffer *const me, uint16_t val);
     uint8_t BB_BE_PutUInt32(ByteBuffer *const me, uint32_t val);
     uint8_t BB_BE_PutUInt64(ByteBuffer *const me, uint64_t val);

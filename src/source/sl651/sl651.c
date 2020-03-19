@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <math.h>
 #include <time.h>
+#include <stdio.h>
 
 #include "sl651/sl651.h"
 
@@ -2117,6 +2118,7 @@ Package *decodePackage(ByteBuffer *const byteBuff)
     if (crcCalc != crcInBuf)
     {
         set_error(SL651_ERROR_DECODE_INVALID_CRC);
+        printf("sl651 invalid CRC, E[%4x] A[%4X]\r\n", crcCalc, crcInBuf);
         return NULL;
     }
     // Direction
