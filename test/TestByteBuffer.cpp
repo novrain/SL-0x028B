@@ -1,5 +1,6 @@
 #include "gtest/gtest.h"
 
+#include "common/class.h"
 #include "bytebuffer/bytebuffer.h"
 
 GTEST_TEST(ByteBuffer, Ctor)

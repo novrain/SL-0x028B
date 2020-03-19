@@ -1,8 +1,10 @@
 #include <assert.h>
 #include <math.h>
+#include <memory.h>
 #include <time.h>
 #include <stdio.h>
 
+#include "common/class.h"
 #include "sl651/sl651.h"
 
 /* init and register error info before main. */

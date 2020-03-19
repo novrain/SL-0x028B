@@ -7,12 +7,10 @@ extern "C"
 #endif
 // std
 #include <stdint.h>
-#include <memory.h>
 #include <stdbool.h>
 // others
 #include "vec/vec.h"
 
-#include "common/class.h"
 #include "common/error.h"
 #include "bytebuffer/bytebuffer.h"
 
