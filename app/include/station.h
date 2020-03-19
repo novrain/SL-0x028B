@@ -44,13 +44,17 @@ extern "C"
 
     typedef enum
     {
-        CONFIG_CENTER_ADDRS,
+        CONFIG_CENTER_ADDRS = 1,
         CONFIG_REMOTESTATION_ADDR,
         CONFIG_PASSWORD,
-        CONFIG_CHANNEL_1,
-        CONFIG_CHANNEL_2,
-        CONFIG_CHANNEL_3,
-        CONFIG_CHANNEL_4,
+        CONFIG_CHANNEL_1_MASTER,
+        CONFIG_CHANNEL_1_SLAVE,
+        CONFIG_CHANNEL_2_MASTER,
+        CONFIG_CHANNEL_2_SLAVE,
+        CONFIG_CHANNEL_3_MASTER,
+        CONFIG_CHANNEL_3_SLAVE,
+        CONFIG_CHANNEL_4_MASTER,
+        CONFIG_CHANNEL_4_SLAVE,
         CONFIG_WORK_MODE
     } ConfigIdentifer;
 
@@ -150,6 +154,7 @@ extern "C"
         void (*keepalive)(Channel *const me);
         ByteBuffer *(*onRead)(Channel *const me);
         bool (*send)(Channel *const me, ByteBuffer *const buff);
+        bool (*expandEncode)(Channel *const me, ByteBuffer *const buff);
         void (*dtor)(Channel *const me);
     } ChannelVtbl;
 
@@ -208,6 +213,7 @@ extern "C"
         ChannelPtrVector channels;
         uint8_t *workMode;
     } Config;
+    Channel *Config_findChannel(Config *const me, uint8_t chId);
 
     struct _station
     {

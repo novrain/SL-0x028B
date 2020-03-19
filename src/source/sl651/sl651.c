@@ -177,7 +177,7 @@ __attribute__((constructor)) void register_error()
 }
 /* register error end*/
 
-static bool RemoteStationAddr_Encode(RemoteStationAddr const *const me, ByteBuffer *const byteBuff)
+bool RemoteStationAddr_Encode(RemoteStationAddr const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
     assert(byteBuff);
@@ -198,7 +198,7 @@ static bool RemoteStationAddr_Encode(RemoteStationAddr const *const me, ByteBuff
     return writeLen == REMOTE_STATION_ADDR_LEN || set_error_indicate(SL651_ERROR_INVALID_STATION_ADDR);
 }
 
-static bool RemoteStationAddr_Decode(RemoteStationAddr *const me, ByteBuffer *const byteBuff)
+bool RemoteStationAddr_Decode(RemoteStationAddr *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
     assert(byteBuff);

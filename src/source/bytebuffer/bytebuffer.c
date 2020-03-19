@@ -231,6 +231,16 @@ void BB_Skip(ByteBuffer *const me, uint32_t size)
     me->position += size;
 }
 
+void BB_Expand(ByteBuffer *const me, uint32_t size)
+{
+    assert(me);
+    assert(size > 0);
+    assert(me->limit == me->size);
+    assert(me->wrapped != true);
+    me->buff = (uint8_t *)realloc(me->buff, me->size + size);
+    me->limit = me->size = me->size + size;
+}
+
 #define CRC_POLY_VALUE 0xA001
 static void CRC16(const uint8_t *bin, uint16_t *crc16, uint32_t size)
 {
@@ -304,6 +314,27 @@ ByteBuffer *BB_PeekByteBuffer(ByteBuffer *const me, uint32_t start, uint32_t siz
     ByteBuffer *val = NewInstance(ByteBuffer);
     BB_ctor_copy(val, me->buff + start, size);
     return val;
+}
+
+bool BB_PutString(ByteBuffer *const me, char *const src)
+{
+    assert(me);
+    assert(src);
+    uint32_t size = strlen(src);
+    if (size == 0)
+    {
+        return true;
+    }
+    if (me->position + size <= me->size)
+    {
+        memcpy(me->buff + me->position, src, size);
+        me->position += size;
+        return true;
+    }
+    else
+    {
+        return false;
+    }
 }
 
 uint8_t BB_BE_PeekUIntAt(ByteBuffer *const me, uint32_t index, void *val, uint8_t size)
