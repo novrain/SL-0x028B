@@ -131,6 +131,7 @@ extern "C"
     typedef vec_t(ChannelHandler *) ChannelHandlerPtrVector;
 #define CHANNEL_RESERVED_HANDLER_SIZE 10
 #define CHANNLE_RECIVE_BUFF_SIZE 2048
+#define CHANNLE_DEFAULT_KEEPALIVE_INTERVAL 40
     typedef struct Channel
     {
         struct ChannelVtbl const *vptr;
@@ -212,8 +213,11 @@ extern "C"
         uint16_t *password;
         ChannelPtrVector channels;
         uint8_t *workMode;
+        cJSON *configInJSON;
+        char *file;
     } Config;
     Channel *Config_findChannel(Config *const me, uint8_t chId);
+    int32_t Config_indexOfChannel(Config *const me, uint8_t chid);
 
     struct _station
     {

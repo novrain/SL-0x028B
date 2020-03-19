@@ -1,4 +1,6 @@
 
+#include "cJSON/cJSON_Utils.h"
+
 #include "station.h"
 
 // cJSON read write helper
@@ -22,6 +24,21 @@ cJSON *cJSON_fromFile(char const *const file)
         }
     }
     return json;
+}
+
+int cJSON_writeFile(cJSON *const json, char const *const file)
+{
+    int fd = open(file, O_RDWR | O_CREAT | O_TRUNC);
+    int lenWrite = 0;
+    if (fd > 0)
+    {
+        char *jstr = cJSON_Print(json);
+        int len = strlen(jstr);
+        lenWrite = write(fd, jstr, len);
+        DelInstance(jstr);
+        close(fd);
+    }
+    return lenWrite;
 }
 // cJSON END
 
@@ -205,11 +222,11 @@ bool handleBASIC_CONFIG(Channel *const ch, Package *const request)
         Config *config = &ch->station->config;
         while (BB_Available(reqBuff) >= 2) // 标识符两个字节，前一个是标识符，后一个固定为 0；成对，如果多余，就丢弃
         {
-            uint8_t u8 = 0;
+            uint8_t identifier = 0;
             Channel *ch = NULL;
-            BB_GetUInt8(reqBuff, &u8);
+            BB_GetUInt8(reqBuff, &identifier);
             // 同时 计算实际内容部分的长度，开ByteBuffer
-            switch (u8)
+            switch (identifier)
             {
             case CONFIG_CENTER_ADDRS:
                 if (config->centerAddrs != NULL)
@@ -250,7 +267,7 @@ bool handleBASIC_CONFIG(Channel *const ch, Package *const request)
                     BB_BCDPutUInt8(rawBuff, *config->workMode);
                 }
             case CONFIG_CHANNEL_1_MASTER ... CONFIG_CHANNEL_4_SLAVE:
-                ch = Config_findChannel(config, u8);
+                ch = Config_findChannel(config, identifier);
                 if (ch != NULL &&
                     ch->id != CHANNEL_ID_FIXED &&
                     ch->type != CHANNEL_DISABLED)
@@ -298,8 +315,161 @@ bool handleMODIFY_BASIC_CONFIG(Channel *const ch, Package *const request)
     DownlinkMessage *reqDownlinkMsg = (DownlinkMessage *)request;
     ByteBuffer *reqBuff = reqLinkMsg->rawBuff;
     //解析获取对应要查询的配置型标识符
-    if (reqBuff != NULL && BB_Available(reqBuff) > 0) // 应答包或者空包不处理
+    if (reqBuff != NULL && BB_Available(reqBuff) > 0) // 空包不处理
     {
+        Config *config = &ch->station->config; //
+        cJSON *patches = cJSON_CreateArray();  //
+        while (BB_Available(reqBuff) >= 2)     // 标识符两个字节，前一个是标识符，后一个固定为 0；成对，如果多余，就丢弃
+        {
+            uint8_t identifier = 0;
+            uint8_t len = 0;
+            uint8_t u8 = 0;
+            uint16_t u16 = 0;
+            BB_GetUInt8(reqBuff, &identifier);
+            BB_GetUInt8(reqBuff, &len);
+            len = len >> NUMBER_ELEMENT_LEN_OFFSET;
+            // 同时 计算实际内容部分的长度，开ByteBuffer
+            if (BB_Available(reqBuff) >= len)
+            {
+                switch (identifier)
+                {
+                case CONFIG_CENTER_ADDRS:
+                    BB_GetUInt8(reqBuff, &u8);
+                    cJSONUtils_AddPatchToArray(patches, "replace", "/centerAddrs/addr1", cJSON_CreateNumber(u8));
+                    BB_GetUInt8(reqBuff, &u8);
+                    cJSONUtils_AddPatchToArray(patches, "replace", "/centerAddrs/addr2", cJSON_CreateNumber(u8));
+                    BB_GetUInt8(reqBuff, &u8);
+                    cJSONUtils_AddPatchToArray(patches, "replace", "/centerAddrs/addr3", cJSON_CreateNumber(u8));
+                    BB_GetUInt8(reqBuff, &u8);
+                    cJSONUtils_AddPatchToArray(patches, "replace", "/centerAddrs/addr4", cJSON_CreateNumber(u8));
+                    break;
+                case CONFIG_REMOTESTATION_ADDR:
+                {
+                    RemoteStationAddr *stationAddr = NewInstance(RemoteStationAddr);
+                    RemoteStationAddr_Decode(stationAddr, reqBuff);
+                    cJSONUtils_AddPatchToArray(patches, "replace", "/remoteStationAddr/A5",
+                                               cJSON_CreateNumber(stationAddr->A5));
+                    cJSONUtils_AddPatchToArray(patches, "replace", "/remoteStationAddr/A4",
+                                               cJSON_CreateNumber(stationAddr->A4));
+                    cJSONUtils_AddPatchToArray(patches, "replace", "/remoteStationAddr/A3",
+                                               cJSON_CreateNumber(stationAddr->A3));
+                    cJSONUtils_AddPatchToArray(patches, "replace", "/remoteStationAddr/A2",
+                                               cJSON_CreateNumber(stationAddr->A2));
+                    cJSONUtils_AddPatchToArray(patches, "replace", "/remoteStationAddr/A1",
+                                               cJSON_CreateNumber(stationAddr->A1));
+                    cJSONUtils_AddPatchToArray(patches, "replace", "/remoteStationAddr/A0",
+                                               cJSON_CreateNumber(stationAddr->A0));
+                }
+                break;
+                case CONFIG_PASSWORD:
+                    BB_BCDGetUInt(reqBuff, &u16, 2);
+                    cJSONUtils_AddPatchToArray(patches, "replace", "/password", cJSON_CreateNumber(u16));
+                    break;
+                case CONFIG_WORK_MODE:
+                    BB_GetUInt8(reqBuff, &u8);
+                    cJSONUtils_AddPatchToArray(patches, "replace", "/workMode", cJSON_CreateNumber(u8));
+                    break;
+                case CONFIG_CHANNEL_1_MASTER ... CONFIG_CHANNEL_4_SLAVE:
+                {
+                    uint8_t cType = CHANNEL_DISABLED;
+                    BB_GetUInt8(reqBuff, &cType);
+                    if (cType != CHANNEL_DOMAIN &&
+                        cType != CHANNEL_IPV4 &&
+                        cType != CHANNEL_DISABLED)
+                    {
+                        BB_Skip(reqBuff, len);
+                        break;
+                    }
+                    int32_t chIndex = -1;
+                    chIndex = Config_indexOfChannel(config, identifier);
+                    if (cType == CHANNEL_DISABLED)
+                    {
+                        if (chIndex != -1) // remove
+                        {
+                            char path[20] = {0}; // enough
+                            snprintf(path, 20, "/channels/%d", chIndex);
+                            cJSONUtils_AddPatchToArray(patches, "remove", path, NULL);
+                        }
+                        BB_Skip(reqBuff, len);
+                        break;
+                    }
+                    char path[20] = {0}; // enough
+                    if (chIndex != -1)
+                    {
+                        snprintf(path, 20, "/channels/%d", chIndex);
+                    }
+                    else
+                    {
+                        snprintf(path, 20, "/channels/-", chIndex);
+                    }
+                    cJSON *ch = NULL;
+                    switch (cType)
+                    {
+                    case CHANNEL_IPV4:
+                    {
+                        ch = cJSON_CreateObject();
+                        cJSON_AddItemToObject(ch, "id", cJSON_CreateNumber(identifier));
+                        cJSON_AddItemToObject(ch, "type", cJSON_CreateNumber(cType));
+                        cJSON_AddItemToObject(ch, "keepaliveTimer", cJSON_CreateNumber(CHANNLE_DEFAULT_KEEPALIVE_INTERVAL));
+                        uint64_t u64 = 0;
+                        BB_BCDGetUInt(reqBuff, &u64, 6);
+                        char path[20] = {0}; // enough
+                        snprintf(path, 20, "%d.%d.%d.%d",
+                                 (u64 / 1000000000) % 1000,
+                                 (u64 / 1000000) % 1000,
+                                 (u64 / 1000) % 1000,
+                                 u64 % 1000);
+                        cJSON_AddItemToObject(ch, "ipv4", cJSON_CreateString(path));
+                        BB_BCDGetUInt(reqBuff, &u16, 3);
+                        cJSON_AddItemToObject(ch, "port", cJSON_CreateNumber(u16));
+                    }
+                    break;
+                    case CHANNEL_DOMAIN:
+                    {
+                        char *domainStr = BB_GetString(reqBuff, len);
+                        ch = cJSON_CreateObject();
+                        cJSON_AddItemToObject(ch, "id", cJSON_CreateNumber(identifier));
+                        cJSON_AddItemToObject(ch, "type", cJSON_CreateNumber(cType));
+                        cJSON_AddItemToObject(ch, "keepaliveTimer", cJSON_CreateNumber(CHANNLE_DEFAULT_KEEPALIVE_INTERVAL));
+                        char *colon = strchr(domainStr, ':');
+                        if (colon != NULL)
+                        {
+                            cJSON_AddItemToObject(ch, "port", cJSON_CreateNumber(atoi(colon + 1)));
+                            *colon = '\0'; // make a break here
+                        }
+                        else
+                        {
+                            cJSON_AddItemToObject(ch, "port", cJSON_CreateNumber(60338));
+                        }
+                        cJSON_AddItemToObject(ch, "domain", cJSON_CreateString(domainStr));
+                        DelInstance(domainStr);
+                    }
+                    break;
+                    default:
+                        BB_Skip(reqBuff, len);
+                        break;
+                    }
+                    if (ch != NULL)
+                    {
+                        cJSONUtils_AddPatchToArray(patches, chIndex != -1 ? "replace" : "add", path, ch);
+                    }
+                }
+                break;
+                default:
+                    BB_Skip(reqBuff, len);
+                    break;
+                }
+            }
+        }
+        char *jsonStr = cJSON_Print(patches);
+        printf("ch[%2d] config patches:      \r\n%s\r\n ============================================ \r\n", ch->id, jsonStr);
+        DelInstance(jsonStr);
+        cJSONUtils_ApplyPatchesCaseSensitive(config->configInJSON, patches);
+        jsonStr = cJSON_Print(config->configInJSON);
+        printf("ch[%2d] config after patched:\r\n%s\r\n ============================================ \r\n", ch->id, jsonStr);
+        cJSON_Delete(patches);
+        cJSON_writeFile(config->configInJSON, config->file);
+        // 应答
         UplinkMessage *upMsg = NewInstance(UplinkMessage);
         UplinkMessage_ctor(upMsg, 10);
         Package *pkg = (Package *)upMsg;              // 获取父结构Package
@@ -307,6 +477,25 @@ bool handleMODIFY_BASIC_CONFIG(Channel *const ch, Package *const request)
         Channel_FillUplinkMessageHead(ch, upMsg);     // Fill head by config
         head->funcCode = BASIC_CONFIG;                // 心跳功能码功能码
         upMsg->messageHead.seq = Channel_nextSeq(ch); // 根据功能码填写报文头 @Todo 这里是否要填写请求端对应的流水号
+        LinkMessage *uplinkMsg = (LinkMessage *)upMsg;
+        uplinkMsg->rawBuff = NewInstance(ByteBuffer);
+        BB_ctor_wrappedAnother(uplinkMsg->rawBuff, reqBuff, 0, BB_Limit(reqBuff));
+        BB_Flip(uplinkMsg->rawBuff);
+        pkg->tail.etxFlag = ETX; // 截止符
+        // encode
+        ByteBuffer *sendBuff = pkg->vptr->encode(pkg);
+        bool res = false;
+        if (sendBuff != NULL)
+        {
+            BB_Flip(sendBuff);
+            res = ch->vptr->send(ch, sendBuff);
+            BB_dtor(sendBuff);
+            DelInstance(sendBuff);
+        }
+        //release
+        pkg->vptr->dtor(pkg);
+        DelInstance(pkg);
+        return res;
     }
     return true;
 }
@@ -653,16 +842,19 @@ Ipv4 *Ipv4Channel_Ip(SocketChannel *me)
 
 bool Ipv4Channel_ExpandEncode(Channel *const me, ByteBuffer *const buff)
 {
-    BB_Expand(buff, ELEMENT_IDENTIFER_LEN + 6); // 2+6
+    BB_Expand(buff, ELEMENT_IDENTIFER_LEN + 6 + 3 + 1); // 2+6
     BB_PutUInt8(buff, me->id);
-    BB_PutUInt8(buff, 6 << 3); // 0x30
+    BB_PutUInt8(buff, (6 + 3 + 1) << 3); // 0x30
+    BB_PutUInt8(buff, CHANNEL_IPV4);
     Ipv4Channel *ipv4Channel = (Ipv4Channel *)me;
     struct in_addr addr = ipv4Channel->ipv4.addr.sin_addr;
-    uint64_t ipIn64 = addr.s_net * 10e9 +
-                      addr.s_host * 10e6 +
-                      addr.s_lh * 10e3 +
+    uint64_t ipIn64 = addr.s_net * 10e8 +
+                      addr.s_host * 10e5 +
+                      addr.s_lh * 10e2 +
                       addr.s_impno;
     BB_BE_BCDPutUInt(buff, &ipIn64, 6);
+    uint32_t port = ntohs(ipv4Channel->ipv4.addr.sin_port);
+    BB_BE_BCDPutUInt(buff, &port, 3);
     return true;
 }
 
@@ -705,12 +897,15 @@ Ipv4 *DomainChannel_Ip(SocketChannel *me)
 bool DomainChannel_ExpandEncode(Channel *const me, ByteBuffer *const buff)
 {
     DomainChannel *domainCh = (DomainChannel *)me;
-    uint8_t domainLen = strlen(domainCh->domain.domainStr) + 10; // 10 more for port
-    char domainStr[domainLen];
-    BB_Expand(buff, ELEMENT_IDENTIFER_LEN + domainLen); // 2+6
+    char portInStr[10] = {0};
+    itoa(ntohs(domainCh->domain.ipv4.addr.sin_port), portInStr, 10);
+    uint8_t domainLen = strlen(domainCh->domain.domainStr) + strlen(portInStr) + 1; // one for :
+    char domainStr[domainLen + 1];
+    BB_Expand(buff, ELEMENT_IDENTIFER_LEN + domainLen + 1); // one more for type
     BB_PutUInt8(buff, me->id);
     BB_PutUInt8(buff, domainLen << 3);
-    snprintf(domainStr, domainLen, "%s:%d", domainCh->domain.domainStr, domainCh->domain.ipv4.addr.sin_port);
+    BB_PutUInt8(buff, CHANNEL_DOMAIN);
+    snprintf(domainStr, domainLen, "%s:%s", domainCh->domain.domainStr, portInStr);
     BB_PutString(buff, domainStr);
     return true;
 }
@@ -750,7 +945,7 @@ Channel *Channel_ipv4FromJson(cJSON *const channelInJson)
     uint8_t idU8 = 0;
     char *ipv4Str = NULL;
     uint16_t ipv4Port = 0;
-    uint8_t keepaliveU8 = 40; // default value
+    uint8_t keepaliveU8 = CHANNLE_DEFAULT_KEEPALIVE_INTERVAL; // default value
     cJSON *id = NULL;
     cJSON *ipv4 = NULL;
     cJSON *port = NULL;
@@ -797,7 +992,7 @@ Channel *Channel_domainFromJson(cJSON *const channelInJson)
     uint8_t idU8 = 0;
     char *domainStr = NULL;
     uint16_t ipv4Port = 0;
-    uint8_t keepaliveU8 = 40; // default value
+    uint8_t keepaliveU8 = CHANNLE_DEFAULT_KEEPALIVE_INTERVAL; // default value
     cJSON *id = NULL;
     cJSON *domain = NULL;
     cJSON *port = NULL;
@@ -896,7 +1091,7 @@ uint8_t Config_centerAddrOfChannel(Config *const me, Channel *const ch)
     {
         return 0;
     }
-    uint8_t id = ch->id - CHANNEL_ID_MASTER_01 + 1; //
+    uint8_t id = (ch->id / 2) - 1; //
     return Config_centerAddr(me, id);
 }
 
@@ -908,7 +1103,7 @@ bool Config_isChannelEnable(Config *const me, Channel *const ch)
 
 Channel *Config_findChannel(Config *const me, uint8_t chId)
 {
-    int i = 0;
+    size_t i = 0;
     Channel *ch;
     vec_foreach(&me->channels, ch, i)
     {
@@ -918,6 +1113,20 @@ Channel *Config_findChannel(Config *const me, uint8_t chId)
         }
     }
     return NULL;
+}
+
+int32_t Config_indexOfChannel(Config *const me, uint8_t chId)
+{
+    size_t i = 0;
+    Channel *ch;
+    vec_foreach(&me->channels, ch, i)
+    {
+        if (ch->id == chId)
+        {
+            return i;
+        }
+    }
+    return -1;
 }
 
 bool Config_initFromJSON(Config *const me, cJSON *const json)
@@ -1020,13 +1229,19 @@ bool Config_isValid(Config *const config)
 bool Station_startBy(Station *const me, char const *file)
 {
     assert(me);
-    assert(file && strlen(file) > 0);
+    assert(file);
+    int len = strlen(file) + 1;
+    assert(len > 0);
     assert(me->config.centerAddrs == NULL); // assert all config is empty
     cJSON *json = cJSON_fromFile(file);
     if (json != NULL &&
         Config_initFromJSON(&me->config, json) &&
         Config_isValid(&me->config))
     {
+        me->config.file = (char *)malloc(len);
+        memset(me->config.file, '\0', len);
+        memcpy(me->config.file, file, len);
+        me->config.configInJSON = json;
         me->reactor = ev_loop_new(0);
         if (me->reactor != NULL)
         {
