@@ -132,7 +132,7 @@ extern "C"
         uint16_t seq;
         uint8_t keepaliveTimer;
         uint8_t centerAddr;
-        ChannelHandlerPtrVector handlers;
+        ChannelHandlerPtrVector handlers; // 静态引用，不需要释放
         // reference
         Station *station;
     } Channel;
