@@ -665,7 +665,10 @@ void IOChannel_OnIOReadEvent(Reactor *reactor, ev_io *w, int revents)
             }
         }
         printf("ch[%2d] %7s request[%4X]\r\n", ch->id, handled == true ? "handled" : "droped", pkg->head.funcCode);
-        Package_dtor(pkg);
+        if (pkg->vptr->dtor != NULL) // 实现了析构函数
+        {                            //
+            pkg->vptr->dtor(pkg);    // 调用析构，规范步骤
+        }                            //
         DelInstance(pkg);
     }
     else
@@ -679,6 +682,15 @@ void IOChannel_OnIOReadEvent(Reactor *reactor, ev_io *w, int revents)
 void IOChannel_dtor(Channel *const me)
 {
     assert(me);
+    IOChannel *ioCh = (IOChannel *)me;
+    if (ioCh->dataWatcher != NULL)
+    {
+        ev_io_stop(me->station->reactor, ioCh->dataWatcher);
+    }
+    if (ioCh->connectWatcher != NULL)
+    {
+        ev_timer_stop(me->station->reactor, ioCh->connectWatcher);
+    }
     Channel_dtor(me);
 }
 
@@ -1318,7 +1330,11 @@ void Station_dtor(Station *const me)
     {
         if (ch != NULL)
         {
-            Channel_dtor(ch);
+            if (ch->vptr->dtor != NULL)
+            {
+                ch->vptr->dtor(ch);
+            }
+            DelInstance(ch);
         }
     }
 
