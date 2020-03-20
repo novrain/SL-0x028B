@@ -4,15 +4,14 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <assert.h>
+#include <errno.h>
 
 #ifdef _WIN32
 #include <winsock2.h>
 #include <winsock.h>
 #include <ws2tcpip.h>
 #else
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+#include <netdb.h>
 #endif
 
 #include "cJSON/cJSON_Utils.h"
@@ -376,6 +375,7 @@ bool handleMODIFY_BASIC_CONFIG(Channel *const ch, Package *const request)
                                                cJSON_CreateNumber(stationAddr->A1));
                     cJSONUtils_AddPatchToArray(patches, "replace", "/remoteStationAddr/A0",
                                                cJSON_CreateNumber(stationAddr->A0));
+                    DelInstance(stationAddr);
                 }
                 break;
                 case CONFIG_PASSWORD:
@@ -417,7 +417,7 @@ bool handleMODIFY_BASIC_CONFIG(Channel *const ch, Package *const request)
                     }
                     else
                     {
-                        snprintf(path, 20, "/channels/-", chIndex);
+                        snprintf(path, 20, "/channels/-");
                     }
                     cJSON *ch = NULL;
                     switch (cType)
@@ -432,10 +432,10 @@ bool handleMODIFY_BASIC_CONFIG(Channel *const ch, Package *const request)
                         BB_BCDGetUInt(reqBuff, &u64, 6);
                         char path[20] = {0}; // enough
                         snprintf(path, 20, "%d.%d.%d.%d",
-                                 (u64 / 1000000000) % 1000,
-                                 (u64 / 1000000) % 1000,
-                                 (u64 / 1000) % 1000,
-                                 u64 % 1000);
+                                 (uint16_t)((u64 / 1000000000) % 1000),
+                                 (uint16_t)((u64 / 1000000) % 1000),
+                                 (uint16_t)((u64 / 1000) % 1000),
+                                 (uint16_t)(u64 % 1000));
                         cJSON_AddItemToObject(ch, "ipv4", cJSON_CreateString(path));
                         BB_BCDGetUInt(reqBuff, &u16, 3);
                         cJSON_AddItemToObject(ch, "port", cJSON_CreateNumber(u16));
@@ -483,6 +483,7 @@ bool handleMODIFY_BASIC_CONFIG(Channel *const ch, Package *const request)
         DelInstance(jsonStr);
         cJSONUtils_ApplyPatchesCaseSensitive(config->configInJSON, patches);
         jsonStr = cJSON_Print(config->configInJSON);
+        DelInstance(jsonStr);
         printf("ch[%2d] config after patched:\r\n%s\r\n ============================================ \r\n", ch->id, jsonStr);
         cJSON_Delete(patches);
         cJSON_WriteFile(config->configInJSON, config->file);
@@ -773,6 +774,7 @@ ByteBuffer *SocketChannel_OnRead(Channel *const me)
     int len = recv(sock, ch->readBuff, CHANNLE_RECIVE_BUFF_SIZE, 0);
     if (len <= 0)
     {
+        printf("ch[%d] sock error[%02d] %s\r\n", ch->id, errno, strerror(errno));
         return NULL;
     }
     ByteBuffer *buff = NewInstance(ByteBuffer);
@@ -865,10 +867,15 @@ bool Ipv4Channel_ExpandEncode(Channel *const me, ByteBuffer *const buff)
     BB_PutUInt8(buff, CHANNEL_IPV4);
     Ipv4Channel *ipv4Channel = (Ipv4Channel *)me;
     struct in_addr addr = ipv4Channel->ipv4.addr.sin_addr;
-    uint64_t ipIn64 = addr.s_net * 10e8 +
-                      addr.s_host * 10e5 +
-                      addr.s_lh * 10e2 +
-                      addr.s_impno;
+#ifdef _WIN32
+    unsigned long addrInLong = addr.S_un.S_addr;
+#else
+    unsigned long addrInLong = addr.s_addr;
+#endif
+    uint64_t ipIn64 = (addrInLong & 0xFF) * 10e8 +
+                      ((addrInLong >> 8) & 0xFF) * 10e5 +
+                      ((addrInLong >> 16) & 0xFF) * 10e2 +
+                      ((addrInLong >> 24) & 0xFF);
     BB_BE_BCDPutUInt(buff, &ipIn64, 6);
     uint32_t port = ntohs(ipv4Channel->ipv4.addr.sin_port);
     BB_BE_BCDPutUInt(buff, &port, 3);
@@ -915,7 +922,8 @@ bool DomainChannel_ExpandEncode(Channel *const me, ByteBuffer *const buff)
 {
     DomainChannel *domainCh = (DomainChannel *)me;
     char portInStr[10] = {0};
-    itoa(ntohs(domainCh->domain.ipv4.addr.sin_port), portInStr, 10);
+    snprintf(portInStr, 10, "%d", ntohs(domainCh->domain.ipv4.addr.sin_port));
+    // itoa(ntohs(domainCh->domain.ipv4.addr.sin_port), portInStr, 10);
     uint8_t domainLen = strlen(domainCh->domain.domainStr) + strlen(portInStr) + 1; // one for :
     char domainStr[domainLen + 1];
     BB_Expand(buff, ELEMENT_IDENTIFER_LEN + domainLen + 1); // one more for type
@@ -985,7 +993,7 @@ Channel *Channel_Ipv4FromJson(cJSON *const channelInJson)
 #ifdef _WIN32
         if (inet_pton(AF_INET, ipv4Str, &ch->ipv4.addr.sin_addr) == 1)
 #else
-        if (inet_aton(ipv4Str, &ch->ipv4.sin_addr) == 1)
+        if (inet_aton(ipv4Str, &ch->ipv4.addr.sin_addr) == 1)
 #endif
         {
             return (Channel *)ch;
@@ -1230,11 +1238,11 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
         }
     }
     // add a fixed channel to make it reachable
-    Channel *ch = Channel_ToiOTA();
-    if (ch != NULL)
-    {
-        vec_push(&me->channels, ch);
-    }
+    // Channel *ch = Channel_ToiOTA();
+    // if (ch != NULL)
+    // {
+    //     vec_push(&me->channels, ch);
+    // }
     return true;
 }
 
