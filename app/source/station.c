@@ -21,7 +21,7 @@
 #include "station.h"
 
 // cJSON read write helper
-cJSON *cJSON_fromFile(char const *const file)
+cJSON *cJSON_FromFile(char const *const file)
 {
     cJSON *json = NULL;
     struct stat fStat = {0};
@@ -43,7 +43,7 @@ cJSON *cJSON_fromFile(char const *const file)
     return json;
 }
 
-int cJSON_writeFile(cJSON *const json, char const *const file)
+int cJSON_WriteFile(cJSON *const json, char const *const file)
 {
     int fd = open(file, O_RDWR | O_CREAT | O_TRUNC);
     int lenWrite = 0;
@@ -74,12 +74,12 @@ void Channel_FillUplinkMessageHead(Channel *const me, UplinkMessage *const upMsg
     upMsg->messageHead.stationAddrElement.stationAddr = *config->stationAddr;
 }
 
-uint16_t Channel_nextSeq(Channel *const me)
+uint16_t Channel_NextSeq(Channel *const me)
 {
     return me->seq++;
 }
 
-uint16_t Channel_lastSeq(Channel *const me)
+uint16_t Channel_LastSeq(Channel *const me)
 {
     return me->seq;
 }
@@ -115,7 +115,7 @@ void Channel_Keepalive(Channel *const me)
     Head *head = &pkg->head;                         // 获取Head结构
     Channel_FillUplinkMessageHead(me, msg);          // Fill head by config
     head->funcCode = KEEPALIVE;                      // 心跳功能码功能码
-    msg->messageHead.seq = Channel_lastSeq(me);      // 根据功能码填写报文头
+    msg->messageHead.seq = Channel_LastSeq(me);      // 根据功能码填写报文头
     pkg->tail.etxFlag = ETX;                         // 截止符
     ByteBuffer *byteOut = pkg->vptr->encode(pkg);    // 编码
     BB_Flip(byteOut);                                // 转为读模式
@@ -192,7 +192,7 @@ bool handleTEST(Channel *const ch, Package *const request)
     upMsg = (UplinkMessage *)pkg;
     // CHANGE VALUE BY CONFIG
     Channel_FillUplinkMessageHead(ch, upMsg);
-    upMsg->messageHead.seq = downMsg->messageHead.seq; // @Todo 这里是否要填写请求端对应的流水号 upMsg->messageHead.seq = Channel_nextSeq(ch)
+    upMsg->messageHead.seq = downMsg->messageHead.seq; // @Todo 这里是否要填写请求端对应的流水号 upMsg->messageHead.seq = Channel_NextSeq(ch)
     // encode
     ByteBuffer *sendBuff = pkg->vptr->encode(pkg);
     bool res = false;
@@ -230,7 +230,7 @@ bool handleBASIC_CONFIG(Channel *const ch, Package *const request)
     Head *head = &pkg->head;                      // 获取Head结构
     Channel_FillUplinkMessageHead(ch, upMsg);     // Fill head by config
     head->funcCode = BASIC_CONFIG;                // 心跳功能码功能码
-    upMsg->messageHead.seq = Channel_nextSeq(ch); // 根据功能码填写报文头 @Todo 这里是否要填写请求端对应的流水号
+    upMsg->messageHead.seq = Channel_NextSeq(ch); // 根据功能码填写报文头 @Todo 这里是否要填写请求端对应的流水号
     if (reqBuff != NULL)
     {
         LinkMessage *uplinkMsg = (LinkMessage *)upMsg;
@@ -284,7 +284,7 @@ bool handleBASIC_CONFIG(Channel *const ch, Package *const request)
                     BB_BCDPutUInt8(rawBuff, *config->workMode);
                 }
             case CONFIG_CHANNEL_1_MASTER ... CONFIG_CHANNEL_4_SLAVE:
-                ch = Config_findChannel(config, identifier);
+                ch = Config_FindChannel(config, identifier);
                 if (ch != NULL &&
                     ch->id != CHANNEL_ID_FIXED &&
                     ch->type != CHANNEL_DISABLED)
@@ -398,7 +398,7 @@ bool handleMODIFY_BASIC_CONFIG(Channel *const ch, Package *const request)
                         break;
                     }
                     int32_t chIndex = -1;
-                    chIndex = Config_indexOfChannel(config, identifier);
+                    chIndex = Config_IndexOfChannel(config, identifier);
                     if (cType == CHANNEL_DISABLED)
                     {
                         if (chIndex != -1) // remove
@@ -485,7 +485,7 @@ bool handleMODIFY_BASIC_CONFIG(Channel *const ch, Package *const request)
         jsonStr = cJSON_Print(config->configInJSON);
         printf("ch[%2d] config after patched:\r\n%s\r\n ============================================ \r\n", ch->id, jsonStr);
         cJSON_Delete(patches);
-        cJSON_writeFile(config->configInJSON, config->file);
+        cJSON_WriteFile(config->configInJSON, config->file);
         // 应答
         UplinkMessage *upMsg = NewInstance(UplinkMessage);
         UplinkMessage_ctor(upMsg, 10);
@@ -493,7 +493,7 @@ bool handleMODIFY_BASIC_CONFIG(Channel *const ch, Package *const request)
         Head *head = &pkg->head;                      // 获取Head结构
         Channel_FillUplinkMessageHead(ch, upMsg);     // Fill head by config
         head->funcCode = BASIC_CONFIG;                // 心跳功能码功能码
-        upMsg->messageHead.seq = Channel_nextSeq(ch); // 根据功能码填写报文头 @Todo 这里是否要填写请求端对应的流水号
+        upMsg->messageHead.seq = Channel_NextSeq(ch); // 根据功能码填写报文头 @Todo 这里是否要填写请求端对应的流水号
         LinkMessage *uplinkMsg = (LinkMessage *)upMsg;
         uplinkMsg->rawBuff = NewInstance(ByteBuffer);
         BB_ctor_wrappedAnother(uplinkMsg->rawBuff, reqBuff, 0, BB_Limit(reqBuff));
@@ -956,7 +956,7 @@ void DomainChannel_ctor(DomainChannel *me, Station *const station)
 }
 // DomainChannel END
 
-Channel *Channel_ipv4FromJson(cJSON *const channelInJson)
+Channel *Channel_Ipv4FromJson(cJSON *const channelInJson)
 {
     assert(channelInJson);
     uint8_t idU8 = 0;
@@ -1003,7 +1003,7 @@ Channel *Channel_ipv4FromJson(cJSON *const channelInJson)
     }
 }
 
-Channel *Channel_domainFromJson(cJSON *const channelInJson)
+Channel *Channel_DomainFromJson(cJSON *const channelInJson)
 {
     assert(channelInJson);
     uint8_t idU8 = 0;
@@ -1054,7 +1054,7 @@ Channel *Channel_domainFromJson(cJSON *const channelInJson)
     }
 }
 
-Channel *Channel_toiOTA()
+Channel *Channel_ToiOTA()
 {
 #ifdef _WIN32
     WSADATA wsaData;
@@ -1085,7 +1085,7 @@ Channel *Channel_toiOTA()
     return (Channel *)ch;
 }
 
-uint8_t Config_centerAddr(Config *const me, uint8_t id)
+uint8_t Config_CenterAddr(Config *const me, uint8_t id)
 {
     assert(me);
     if (me->centerAddrs == NULL || id < 1 || id > 4)
@@ -1096,12 +1096,12 @@ uint8_t Config_centerAddr(Config *const me, uint8_t id)
     return *(p + id - 1);
 }
 
-bool Config_isCenterAddrEnable(Config *const me, uint8_t id)
+bool Config_IsCenterAddrEnable(Config *const me, uint8_t id)
 {
-    return Config_centerAddr(me, id) != 0;
+    return Config_CenterAddr(me, id) != 0;
 }
 
-uint8_t Config_centerAddrOfChannel(Config *const me, Channel *const ch)
+uint8_t Config_CenterAddrOfChannel(Config *const me, Channel *const ch)
 {
     assert(me);
     if (ch == NULL)
@@ -1109,16 +1109,16 @@ uint8_t Config_centerAddrOfChannel(Config *const me, Channel *const ch)
         return 0;
     }
     uint8_t id = (ch->id / 2) - 1; //
-    return Config_centerAddr(me, id);
+    return Config_CenterAddr(me, id);
 }
 
-bool Config_isChannelEnable(Config *const me, Channel *const ch)
+bool Config_IsChannelEnable(Config *const me, Channel *const ch)
 {
     assert(me);
-    return ch->id == CHANNEL_ID_FIXED || Config_centerAddrOfChannel(me, ch) != CENTER_DISABLED;
+    return ch->id == CHANNEL_ID_FIXED || Config_CenterAddrOfChannel(me, ch) != CENTER_DISABLED;
 }
 
-Channel *Config_findChannel(Config *const me, uint8_t chId)
+Channel *Config_FindChannel(Config *const me, uint8_t chId)
 {
     size_t i = 0;
     Channel *ch;
@@ -1132,7 +1132,7 @@ Channel *Config_findChannel(Config *const me, uint8_t chId)
     return NULL;
 }
 
-int32_t Config_indexOfChannel(Config *const me, uint8_t chId)
+int32_t Config_IndexOfChannel(Config *const me, uint8_t chId)
 {
     size_t i = 0;
     Channel *ch;
@@ -1146,7 +1146,7 @@ int32_t Config_indexOfChannel(Config *const me, uint8_t chId)
     return -1;
 }
 
-bool Config_initFromJSON(Config *const me, cJSON *const json)
+bool Config_InitFromJSON(Config *const me, cJSON *const json)
 {
     assert(me);
     assert(json);
@@ -1216,10 +1216,10 @@ bool Config_initFromJSON(Config *const me, cJSON *const json)
         switch (cType)
         {
         case CHANNEL_IPV4: // 目前只处理IPV4, 其他认为无效
-            ch = Channel_ipv4FromJson(channel);
+            ch = Channel_Ipv4FromJson(channel);
             break;
         case CHANNEL_DOMAIN: // 自定义的域名方式
-            ch = Channel_domainFromJson(channel);
+            ch = Channel_DomainFromJson(channel);
             break;
         default:
             break;
@@ -1230,7 +1230,7 @@ bool Config_initFromJSON(Config *const me, cJSON *const json)
         }
     }
     // add a fixed channel to make it reachable
-    Channel *ch = Channel_toiOTA();
+    Channel *ch = Channel_ToiOTA();
     if (ch != NULL)
     {
         vec_push(&me->channels, ch);
@@ -1238,22 +1238,26 @@ bool Config_initFromJSON(Config *const me, cJSON *const json)
     return true;
 }
 
-bool Config_isValid(Config *const config)
+bool Config_IsValid(Config *const config)
 {
     return config != NULL && config->channels.length > 0;
 }
 
-bool Station_startBy(Station *const me, char const *file)
+void Config_dtor(Config *const me)
+{
+}
+
+bool Station_StartBy(Station *const me, char const *file)
 {
     assert(me);
     assert(file);
     int len = strlen(file) + 1;
     assert(len > 0);
     assert(me->config.centerAddrs == NULL); // assert all config is empty
-    cJSON *json = cJSON_fromFile(file);
+    cJSON *json = cJSON_FromFile(file);
     if (json != NULL &&
-        Config_initFromJSON(&me->config, json) &&
-        Config_isValid(&me->config))
+        Config_InitFromJSON(&me->config, json) &&
+        Config_IsValid(&me->config))
     {
         me->config.file = (char *)malloc(len);
         memset(me->config.file, '\0', len);
@@ -1266,11 +1270,11 @@ bool Station_startBy(Station *const me, char const *file)
             Channel *ch = NULL;
             vec_foreach(&me->config.channels, ch, i)
             {
-                if (Config_isChannelEnable(&me->config, ch) &&
+                if (Config_IsChannelEnable(&me->config, ch) &&
                     (ch->type == CHANNEL_IPV4 || ch->type == CHANNEL_DOMAIN))
                 {
                     ch->station = me;
-                    ch->centerAddr = Config_centerAddrOfChannel(&me->config, ch);
+                    ch->centerAddr = Config_CenterAddrOfChannel(&me->config, ch);
                     ch->vptr->start(ch);
                 }
             }
@@ -1292,10 +1296,10 @@ bool Station_startBy(Station *const me, char const *file)
     }
 }
 
-bool Station_start(Station *const me)
+bool Station_Start(Station *const me)
 {
     char const *defaultFile = SL651_DEFAULT_CONFIGFILE;
-    return Station_startBy(me, defaultFile);
+    return Station_StartBy(me, defaultFile);
 }
 
 void Station_dtor(Station *const me)
@@ -1309,6 +1313,8 @@ void Station_dtor(Station *const me)
             Channel_dtor(ch);
         }
     }
+
+    Config_dtor(&me->config);
 
     if (me->reactor)
     {
