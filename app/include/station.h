@@ -204,16 +204,16 @@ extern "C"
         cJSON *configInJSON;
         char *file;
     } Config;
-    Channel *Config_findChannel(Config *const me, uint8_t chId);
-    int32_t Config_indexOfChannel(Config *const me, uint8_t chid);
+    Channel *Config_FindChannel(Config *const me, uint8_t chId);
+    int32_t Config_IndexOfChannel(Config *const me, uint8_t chid);
 
     struct _station
     {
         Reactor *reactor;
         Config config;
     };
-    bool Station_start(Station *const me);
-    bool Station_startBy(Station *const me, char const *file);
+    bool Station_Start(Station *const me);
+    bool Station_StartBy(Station *const me, char const *file);
     void Station_dtor(Station *const me);
 #define SL651_DEFAULT_CONFIGFILE "/sl651/config.json"
 
