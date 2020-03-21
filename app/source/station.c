@@ -483,8 +483,8 @@ bool handleMODIFY_BASIC_CONFIG(Channel *const ch, Package *const request)
         DelInstance(jsonStr);
         cJSONUtils_ApplyPatchesCaseSensitive(config->configInJSON, patches);
         jsonStr = cJSON_Print(config->configInJSON);
-        DelInstance(jsonStr);
         printf("ch[%2d] config after patched:\r\n%s\r\n ============================================ \r\n", ch->id, jsonStr);
+        DelInstance(jsonStr);
         cJSON_Delete(patches);
         cJSON_WriteFile(config->configInJSON, config->file);
         // 应答
@@ -1265,6 +1265,62 @@ bool Config_IsValid(Config *const config)
 
 void Config_dtor(Config *const me)
 {
+    int i;
+    Channel *ch = NULL;
+    vec_foreach(&me->channels, ch, i)
+    {
+        if (ch != NULL)
+        {
+            if (ch->vptr->dtor != NULL)
+            {
+                ch->vptr->dtor(ch);
+            }
+            DelInstance(ch);
+        }
+    }
+    if (me->centerAddrs != NULL)
+    {
+        DelInstance(me->centerAddrs);
+    }
+    if (me->stationAddr != NULL)
+    {
+        DelInstance(me->stationAddr);
+    }
+    if (me->password != NULL)
+    {
+        DelInstance(me->password);
+    }
+    ChannelPtrVector channels;
+    if (me->workMode != NULL)
+    {
+        DelInstance(me->workMode);
+    }
+    if (me->configInJSON != NULL)
+    {
+        cJSON_Delete(me->configInJSON);
+    }
+    if (me->file != NULL)
+    {
+        DelInstance(me->file);
+    }
+}
+
+void Config_ctor(Config *const me)
+{
+    assert(me);
+    me->centerAddrs = NULL;
+    me->configInJSON = NULL;
+    me->file = NULL;
+    me->password = NULL;
+    me->stationAddr = NULL;
+    me->workMode = NULL;
+}
+
+void Station_ctor(Station *const me)
+{
+    assert(me);
+    me->reactor = NULL;
+    Config_ctor(&me->config);
 }
 
 bool Station_StartBy(Station *const me, char const *file)
@@ -1324,20 +1380,6 @@ bool Station_Start(Station *const me)
 
 void Station_dtor(Station *const me)
 {
-    int i;
-    Channel *ch = NULL;
-    vec_foreach(&me->config.channels, ch, i)
-    {
-        if (ch != NULL)
-        {
-            if (ch->vptr->dtor != NULL)
-            {
-                ch->vptr->dtor(ch);
-            }
-            DelInstance(ch);
-        }
-    }
-
     Config_dtor(&me->config);
 
     if (me->reactor)

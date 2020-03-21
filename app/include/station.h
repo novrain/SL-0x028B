@@ -115,7 +115,7 @@ extern "C"
     typedef struct
     {
         FunctionCode code;
-        bool (*cb)(Channel *const ch, Package *const request);
+        bool (*cb)(struct Channel *const ch, Package *const request);
     } ChannelHandler;
 
     typedef vec_t(ChannelHandler *) ChannelHandlerPtrVector;
@@ -214,6 +214,7 @@ extern "C"
         Reactor *reactor;
         Config config;
     };
+    void Station_ctor(Station *const me);
     bool Station_Start(Station *const me);
     bool Station_StartBy(Station *const me, char const *file);
     void Station_dtor(Station *const me);
