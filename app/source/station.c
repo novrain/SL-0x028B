@@ -751,14 +751,15 @@ bool SocketChannel_Connect(Channel *const me)
     {
         return false;
     }
-    if (connect(sock, (struct sockaddr *)ipv4, sizeof(struct sockaddr_in)) < 0)
-    {
-        close(sock);
-        return false;
-    }
     setSocketBlockingEnabled(sock, false);
+    // if (connect(sock, (struct sockaddr *)ipv4, sizeof(struct sockaddr_in)) < 0)
+    // {
+    //     close(sock);
+    //     return false;
+    // }
+    connect(sock, (struct sockaddr *)ipv4, sizeof(struct sockaddr_in));
     ioCh->fd = sock;
-    printf("ch[%2d] connected\r\n", ch->id);
+    // printf("ch[%2d] connected\r\n", ch->id);
     return true;
 }
 
@@ -783,10 +784,34 @@ ByteBuffer *SocketChannel_OnRead(Channel *const me)
     IOChannel *ioCh = (IOChannel *)me;
     Channel *ch = (Channel *)ioCh;
     int sock = ioCh->fd;
+#ifdef _WIN32
+#else
+    errno = 0;
+#endif
     int len = recv(sock, ch->readBuff, CHANNLE_RECIVE_BUFF_SIZE, 0);
     if (len <= 0)
     {
-        printf("ch[%d] sock error[%02d] %s\r\n", ch->id, errno, strerror(errno));
+        int err = 0;
+        char *errStr = NULL;
+#ifdef _WIN32
+        err = WSAGetLastError();
+        FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                       NULL, err,
+                       MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                       errStr, 0, NULL);
+#else
+        err = errno;
+        errStr = strerror(err);
+#endif
+        Ipv4 *ipv4 = ((SocketChannelVtbl *)ch->vptr)->ip((SocketChannel *)me);
+        printf("ch[%d] breaking with %15s:%5d, error [%02d] %s\r\n", ch->id,
+               inet_ntoa(ipv4->addr.sin_addr),
+               ntohs(ipv4->addr.sin_port),
+               err,
+               errStr);
+#ifdef _WIN32
+        LocalFree(errStr);
+#endif
         return NULL;
     }
     ByteBuffer *buff = NewInstance(ByteBuffer);
