@@ -556,11 +556,12 @@ void IOChannel_Start(Channel *const me)
     {
         ev_init(connectWatcher, ((IOChannelVtbl *)me->vptr)->onConnectTimerEvent);
         connectWatcher->repeat = 1; // start as fast as posible
-        ioCh->reactor = me->station->reactor;
+        // ioCh->reactor = me->station->reactor;
         connectWatcher->data = (void *)me;
         ioCh->connectWatcher = connectWatcher;
         ev_timer_again(ioCh->reactor, connectWatcher);
     }
+    ev_run(ioCh->reactor, 0);
 }
 
 bool IOChannel_Open(Channel *const me)
@@ -683,13 +684,19 @@ void IOChannel_dtor(Channel *const me)
 {
     assert(me);
     IOChannel *ioCh = (IOChannel *)me;
-    if (ioCh->dataWatcher != NULL)
+    if (ioCh->reactor)
     {
-        ev_io_stop(me->station->reactor, ioCh->dataWatcher);
-    }
-    if (ioCh->connectWatcher != NULL)
-    {
-        ev_timer_stop(me->station->reactor, ioCh->connectWatcher);
+        if (ioCh->dataWatcher != NULL)
+        {
+            // ev_io_stop(me->station->reactor, ioCh->dataWatcher);
+            ev_io_stop(ioCh->reactor, ioCh->dataWatcher);
+        }
+        if (ioCh->connectWatcher != NULL)
+        {
+            // ev_timer_stop(me->station->reactor, ioCh->connectWatcher);
+            ev_timer_stop(ioCh->reactor, ioCh->connectWatcher);
+        }
+        ev_loop_destroy(ioCh->reactor);
     }
     Channel_dtor(me);
 }
@@ -712,6 +719,7 @@ void IOChannel_ctor(IOChannel *me, Station *const station)
     Channel *super = (Channel *)me;
     Channel_ctor(super, station);
     super->vptr = (const ChannelVtbl *)(&vtbl);
+    me->reactor = ev_loop_new(0);
 }
 // Abstract IOChannel END
 
@@ -1358,7 +1366,7 @@ void Config_ctor(Config *const me)
 void Station_ctor(Station *const me)
 {
     assert(me);
-    me->reactor = NULL;
+    // me->reactor = NULL;
     Config_ctor(&me->config);
 }
 
@@ -1383,33 +1391,51 @@ bool Station_StartBy(Station *const me, char const *workDir)
         memcpy(me->config.workDir, workDir, len);
         me->config.configInJSON = json;
         me->config.configFile = file;
-        me->reactor = ev_loop_new(0);
-        if (me->reactor != NULL)
+        // me->reactor = ev_loop_new(0);
+        // if (me->reactor != NULL)
+        // {
+        int i;
+        Channel *ch = NULL;
+        vec_foreach(&me->config.channels, ch, i)
         {
-            int i;
-            Channel *ch = NULL;
-            vec_foreach(&me->config.channels, ch, i)
+            if (Config_IsChannelEnable(&me->config, ch) &&
+                (ch->type == CHANNEL_IPV4 || ch->type == CHANNEL_DOMAIN))
             {
-                if (Config_IsChannelEnable(&me->config, ch) &&
-                    (ch->type == CHANNEL_IPV4 || ch->type == CHANNEL_DOMAIN))
+                ch->station = me;
+                ch->centerAddr = Config_CenterAddrOfChannel(&me->config, ch);
+                // ch->vptr->start(ch);
+                pthread_t *thread = (pthread_t *)malloc(sizeof(pthread_t));
+                int res = pthread_create(thread, NULL, (void *(*)(void *))ch->vptr->start, ch);
+                if (res)
                 {
-                    ch->station = me;
-                    ch->centerAddr = Config_CenterAddrOfChannel(&me->config, ch);
-                    ch->vptr->start(ch);
+                    printf("ch[%2d] start failed.", ch->id);
+                    DelInstance(thread);
+                }
+                else
+                {
+                    ch->thread = thread;
                 }
             }
-            // dead loop until no event to be handle
-            if (ev_run(me->reactor, 0))
-            {
-                return true;
-            }
-            return false;
         }
-        else
+        vec_foreach(&me->config.channels, ch, i)
         {
-            return false;
+            if (ch != NULL && ch->thread != NULL)
+            {
+                pthread_join(*ch->thread, NULL);
+            }
         }
+        // // dead loop until no event to be handle
+        // if (ev_run(me->reactor, 0))
+        // {
+        //     return true;
+        // }
+        return true;
     }
+    //     else
+    //     {
+    //         return false;
+    //     }
+    // }
     else
     {
         return false;
@@ -1426,8 +1452,8 @@ void Station_dtor(Station *const me)
 {
     Config_dtor(&me->config);
 
-    if (me->reactor)
-    {
-        ev_loop_destroy(me->reactor);
-    }
+    // if (me->reactor)
+    // {
+    //     ev_loop_destroy(me->reactor);
+    // }
 }
