@@ -6,6 +6,8 @@
 extern "C"
 {
 #endif
+#include <pthread.h>
+
 #ifdef _WIN32
 #include <winsock2.h>
 #else
@@ -133,6 +135,7 @@ extern "C"
         uint8_t keepaliveTimer;
         uint8_t centerAddr;
         ChannelHandlerPtrVector handlers; // 静态引用，不需要释放
+        pthread_t *thread;
         // reference
         Station *station;
     } Channel;
@@ -154,7 +157,7 @@ extern "C"
         Channel supper;
         int fd;
         // libev
-        Reactor *reactor; // just a reference NO NEED TO FREE by channel
+        Reactor *reactor;
         // Watcher for IO
         ChannleConnectWatcher *connectWatcher;
         ChannleDataWatcher *dataWatcher;
@@ -213,7 +216,7 @@ extern "C"
 
     struct _station
     {
-        Reactor *reactor;
+        // Reactor *reactor;
         Config config;
     };
     void Station_ctor(Station *const me);
