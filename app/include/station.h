@@ -204,7 +204,9 @@ extern "C"
         ChannelPtrVector channels;
         uint8_t *workMode;
         cJSON *configInJSON;
-        char *file;
+        char *configFile;
+        char *workDir;
+        char *filesDir;
     } Config;
     Channel *Config_FindChannel(Config *const me, uint8_t chId);
     int32_t Config_IndexOfChannel(Config *const me, uint8_t chid);
@@ -216,9 +218,11 @@ extern "C"
     };
     void Station_ctor(Station *const me);
     bool Station_Start(Station *const me);
-    bool Station_StartBy(Station *const me, char const *file);
+    bool Station_StartBy(Station *const me, char const *dir);
     void Station_dtor(Station *const me);
-#define SL651_DEFAULT_CONFIGFILE "/sl651/config.json"
+#define SL651_DEFAULT_WORKDIR "/sl651"
+#define SL651_DEFAULT_CONFIG_FILE_NAME_LEN 11
+    // #define SL651_DEFAULT_CONFIGFILE "/sl651/config.json"
 
 #define Station_config(_ptr) &(_ptr->config)
 

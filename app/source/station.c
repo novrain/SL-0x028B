@@ -486,7 +486,7 @@ bool handleMODIFY_BASIC_CONFIG(Channel *const ch, Package *const request)
         printf("ch[%2d] config after patched:\r\n%s\r\n ============================================ \r\n", ch->id, jsonStr);
         DelInstance(jsonStr);
         cJSON_Delete(patches);
-        cJSON_WriteFile(config->configInJSON, config->file);
+        cJSON_WriteFile(config->configInJSON, config->configFile);
         // 应答
         UplinkMessage *upMsg = NewInstance(UplinkMessage);
         UplinkMessage_ctor(upMsg, 10);
@@ -745,7 +745,10 @@ bool SocketChannel_Connect(Channel *const me)
     IOChannel *ioCh = (IOChannel *)me;
     Channel *ch = (Channel *)ioCh;
     Ipv4 *ipv4 = ((SocketChannelVtbl *)ch->vptr)->ip((SocketChannel *)me);
-    printf("ch[%2d] connecting to %15s:%5d\r\n", ch->id, inet_ntoa(ipv4->addr.sin_addr), ntohs(ipv4->addr.sin_port));
+    if (me->id != CHANNEL_ID_FIXED)
+    {
+        printf("ch[%2d] connecting to %15s:%5d\r\n", ch->id, inet_ntoa(ipv4->addr.sin_addr), ntohs(ipv4->addr.sin_port));
+    }
     int sock;
     if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
     {
@@ -796,19 +799,22 @@ ByteBuffer *SocketChannel_OnRead(Channel *const me)
 #ifdef _WIN32
         err = WSAGetLastError();
         FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                       NULL, err,
-                       MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                       errStr, 0, NULL);
+                      NULL, err,
+                      MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                      errStr, 0, NULL);
 #else
         err = errno;
         errStr = strerror(err);
 #endif
         Ipv4 *ipv4 = ((SocketChannelVtbl *)ch->vptr)->ip((SocketChannel *)me);
-        printf("ch[%d] breaking with %15s:%5d, error [%02d] %s\r\n", ch->id,
-               inet_ntoa(ipv4->addr.sin_addr),
-               ntohs(ipv4->addr.sin_port),
-               err,
-               errStr);
+        if (me->id != CHANNEL_ID_FIXED)
+        {
+            printf("ch[%d] breaking with %15s:%5d, error [%02d] %s\r\n", ch->id,
+                   inet_ntoa(ipv4->addr.sin_addr),
+                   ntohs(ipv4->addr.sin_port),
+                   err,
+                   errStr);
+        }
 #ifdef _WIN32
         LocalFree(errStr);
 #endif
@@ -1275,11 +1281,14 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
         }
     }
     // add a fixed channel to make it reachable
-    // Channel *ch = Channel_ToiOTA();
-    // if (ch != NULL)
-    // {
-    //     vec_push(&me->channels, ch);
-    // }
+    Channel *ch = Channel_ToiOTA();
+    if (ch != NULL)
+    {
+        vec_push(&me->channels, ch);
+    }
+    // filesDir
+    cJSON *filesDir = NULL;
+    GET_VALUE(me->filesDir, json, filesDir, filesDir->valuestring);
     return true;
 }
 
@@ -1324,9 +1333,13 @@ void Config_dtor(Config *const me)
     {
         cJSON_Delete(me->configInJSON);
     }
-    if (me->file != NULL)
+    if (me->configFile != NULL)
     {
-        DelInstance(me->file);
+        DelInstance(me->configFile);
+    }
+    if (me->workDir != NULL)
+    {
+        DelInstance(me->workDir);
     }
 }
 
@@ -1335,7 +1348,8 @@ void Config_ctor(Config *const me)
     assert(me);
     me->centerAddrs = NULL;
     me->configInJSON = NULL;
-    me->file = NULL;
+    me->configFile = NULL;
+    me->workDir = NULL;
     me->password = NULL;
     me->stationAddr = NULL;
     me->workMode = NULL;
@@ -1348,22 +1362,27 @@ void Station_ctor(Station *const me)
     Config_ctor(&me->config);
 }
 
-bool Station_StartBy(Station *const me, char const *file)
+bool Station_StartBy(Station *const me, char const *workDir)
 {
     assert(me);
-    assert(file);
-    int len = strlen(file) + 1;
+    assert(workDir);
+    int len = strlen(workDir) + 1;
     assert(len > 0);
     assert(me->config.centerAddrs == NULL); // assert all config is empty
+    int fileLen = len + SL651_DEFAULT_CONFIG_FILE_NAME_LEN + 1;
+    char *file = (char *)malloc(fileLen); // config.json
+    memset(file, '\0', fileLen);
+    snprintf(file, fileLen, "%s/config.json", workDir);
     cJSON *json = cJSON_FromFile(file);
     if (json != NULL &&
         Config_InitFromJSON(&me->config, json) &&
         Config_IsValid(&me->config))
     {
-        me->config.file = (char *)malloc(len);
-        memset(me->config.file, '\0', len);
-        memcpy(me->config.file, file, len);
+        me->config.workDir = (char *)malloc(len);
+        memset(me->config.workDir, '\0', len);
+        memcpy(me->config.workDir, workDir, len);
         me->config.configInJSON = json;
+        me->config.configFile = file;
         me->reactor = ev_loop_new(0);
         if (me->reactor != NULL)
         {
@@ -1399,8 +1418,8 @@ bool Station_StartBy(Station *const me, char const *file)
 
 bool Station_Start(Station *const me)
 {
-    char const *defaultFile = SL651_DEFAULT_CONFIGFILE;
-    return Station_StartBy(me, defaultFile);
+    char const *defaultDir = SL651_DEFAULT_WORKDIR;
+    return Station_StartBy(me, defaultDir);
 }
 
 void Station_dtor(Station *const me)
