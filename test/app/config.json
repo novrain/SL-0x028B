@@ -1,38 +1,33 @@
 {
-	"centerAddrs":	{
-		"addr1":	0,
-		"addr2":	0,
-		"addr3":	0,
-		"addr4":	102
-	},
-	"remoteStationAddr":	{
-		"A5":	88,
-		"A4":	88,
-		"A3":	66,
-		"A2":	2,
-		"A1":	230,
-		"A0":	161
-	},
-	"enableDefaultChannel":	true,
-	"channels":	[{
-			"id":	10,
-			"type":	2,
-			"keepaliveTimer":	40,
-			"ipv4":	"127.0.0.1",
-			"port":	60338
-		}, {
-			"id":	4,
-			"type":	99,
-			"keepaliveTimer":	40,
-			"port":	60338,
-			"domain":	"www.theiota.cn"
-		}, {
-			"id":	10,
-			"type":	99,
-			"keepaliveTimer":	40,
-			"port":	6666,
-			"domain":	"www.theiota.cn"
-		}],
-	"password":	1234,
-	"workMode":	2
+    "centerAddrs": {
+        "addr1": 0,
+        "addr2": 0,
+        "addr3": 0,
+        "addr4": 102
+    },
+    "remoteStationAddr": {
+        "A5": 88,
+        "A4": 88,
+        "A3": 66,
+        "A2": 2,
+        "A1": 230,
+        "A0": 161
+    },
+    "enableDefaultChannel": true,
+    "channels": [{
+        "id": 10,
+        "type": 2,
+        "keepaliveTimer": 40,
+        "ipv4": "127.0.0.1",
+        "port": 60338
+    }, {
+        "id": 4,
+        "type": 99,
+        "keepaliveTimer": 40,
+        "port": 60338,
+        "domain": "www.theiota.cn"
+    }],
+    "password": 1234,
+    "workMode": 2,
+    "filesDir": "./pics"
 }
