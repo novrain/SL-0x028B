@@ -92,8 +92,8 @@ extern "C"
     } Domain;
 
     typedef struct ev_loop Reactor;
-    typedef ev_timer ChannleConnectWatcher;
-    typedef ev_io ChannleDataWatcher;
+    typedef ev_timer ChannelConnectWatcher;
+    typedef ev_io ChannelDataWatcher;
 
     typedef enum
     {
@@ -159,8 +159,8 @@ extern "C"
         // libev
         Reactor *reactor;
         // Watcher for IO
-        ChannleConnectWatcher *connectWatcher;
-        ChannleDataWatcher *dataWatcher;
+        ChannelConnectWatcher *connectWatcher;
+        ChannelDataWatcher *dataWatcher;
     } IOChannel;
 
     typedef struct IOChannelVtbl

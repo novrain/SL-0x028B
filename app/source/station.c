@@ -551,7 +551,7 @@ void IOChannel_Start(Channel *const me)
 {
     assert(me);
     IOChannel *ioCh = (IOChannel *)me;
-    ChannleConnectWatcher *connectWatcher = NewInstance(ChannleConnectWatcher); // 启动定时器，连接，如果出错，自动重连
+    ChannelConnectWatcher *connectWatcher = NewInstance(ChannelConnectWatcher); // 启动定时器，连接，如果出错，自动重连
     if (connectWatcher != NULL)
     {
         ev_init(connectWatcher, ((IOChannelVtbl *)me->vptr)->onConnectTimerEvent);
@@ -622,7 +622,7 @@ void IOChannel_OnConnectTimerEvent(Reactor *reactor, ev_timer *w, int revents)
     }
     else
     {
-        ChannleDataWatcher *dataWatcher = NewInstance(ev_io);
+        ChannelDataWatcher *dataWatcher = NewInstance(ev_io);
         if (dataWatcher != NULL)
         {
             ev_io_init(dataWatcher, ((IOChannelVtbl *)ch->vptr)->onIOReadEvent, fd, EV_READ);
