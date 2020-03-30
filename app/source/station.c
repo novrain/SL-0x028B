@@ -1331,7 +1331,7 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
         default:
             break;
         }
-        if (ch != NULL)
+        if (ch != NULL && Config_FindChannel(me, ch->id) == NULL)
         {
             vec_push(&me->channels, ch);
         }
