@@ -551,7 +551,8 @@ void IOChannel_Start(Channel *const me)
 {
     assert(me);
     IOChannel *ioCh = (IOChannel *)me;
-    ChannelConnectWatcher *connectWatcher = NewInstance(ChannelConnectWatcher); // 启动定时器，连接，如果出错，自动重连
+    // 启动定时器，连接，如果出错，自动重连
+    ChannelConnectWatcher *connectWatcher = NewInstance(ChannelConnectWatcher);
     if (connectWatcher != NULL)
     {
         ev_init(connectWatcher, ((IOChannelVtbl *)me->vptr)->onConnectTimerEvent);
@@ -560,6 +561,17 @@ void IOChannel_Start(Channel *const me)
         connectWatcher->data = (void *)me;
         ioCh->connectWatcher = connectWatcher;
         ev_timer_again(ioCh->reactor, connectWatcher);
+    }
+    // 创建文件夹扫描，不启动
+    ChannelFilesWatcher *filesWatcher = NewInstance(ChannelFilesWatcher);
+    if (filesWatcher != NULL)
+    {
+        ev_init(filesWatcher, ((IOChannelVtbl *)me->vptr)->onFilesScanTimerEvent);
+        filesWatcher->repeat = 1; // start as fast as posible
+        // ioCh->reactor = me->station->reactor;
+        filesWatcher->data = (void *)me;
+        ioCh->filesWatcher = filesWatcher;
+        // ev_timer_again(ioCh->reactor, filesWatcher);
     }
     ev_run(ioCh->reactor, 0);
 }
@@ -617,7 +629,7 @@ void IOChannel_OnConnectTimerEvent(Reactor *reactor, ev_timer *w, int revents)
     if (ioCh->dataWatcher != NULL)
     {
         ev_io_stop(reactor, ioCh->dataWatcher);
-        ev_io_set(ioCh->dataWatcher, fd, EV_READ);
+        ev_io_set(ioCh->dataWatcher, fd, EV_READ | EV_WRITE);
         ev_io_start(reactor, ioCh->dataWatcher);
     }
     else
@@ -625,21 +637,28 @@ void IOChannel_OnConnectTimerEvent(Reactor *reactor, ev_timer *w, int revents)
         ChannelDataWatcher *dataWatcher = NewInstance(ev_io);
         if (dataWatcher != NULL)
         {
-            ev_io_init(dataWatcher, ((IOChannelVtbl *)ch->vptr)->onIOReadEvent, fd, EV_READ);
+            ev_io_init(dataWatcher, ((IOChannelVtbl *)ch->vptr)->onIOReadEvent, fd, EV_READ | EV_WRITE);
             ioCh->dataWatcher = dataWatcher;
             dataWatcher->data = ioCh;
             ev_io_start(reactor, ioCh->dataWatcher);
         }
     }
     ioCh->connectWatcher->repeat = ch->keepaliveTimer;
-    ch->isConnnected = true;
 }
 
 void IOChannel_OnIOReadEvent(Reactor *reactor, ev_io *w, int revents)
 {
-    int len = 0;
     IOChannel *ioCh = (IOChannel *)w->data;
     Channel *ch = (Channel *)ioCh;
+    if (revents == EV_WRITE)
+    {
+        ch->isConnnected = true;
+        ev_io_set(ioCh->dataWatcher, ioCh->fd, EV_READ);
+        ioCh->filesWatcher->repeat = 1;
+        ev_timer_start(ioCh->reactor, ioCh->filesWatcher);
+        return;
+    }
+    int len = 0;
     ByteBuffer *buff = ch->vptr->onRead(ch);
     if (buff == NULL)
     {
@@ -648,6 +667,10 @@ void IOChannel_OnIOReadEvent(Reactor *reactor, ev_io *w, int revents)
         ch->vptr->close(ch);
         ioCh->connectWatcher->repeat = 10;
         ev_timer_again(ioCh->reactor, ioCh->connectWatcher);
+
+        // 停止 文件扫描
+        // printf("ch[%2d] stop file scan.\r\n", ch->id);
+        ev_timer_stop(ioCh->reactor, ioCh->filesWatcher);
         return;
     }
     Package *pkg = decodePackage(buff);
@@ -678,6 +701,22 @@ void IOChannel_OnIOReadEvent(Reactor *reactor, ev_io *w, int revents)
     }
     BB_dtor(buff);
     DelInstance(buff);
+}
+
+void IOChannel_OnFilesScanEvent(Reactor *reactor, ev_timer *w, int revents)
+{
+    IOChannel *ioCh = (IOChannel *)w->data;
+    Channel *ch = (Channel *)ioCh;
+    if (!ch->isConnnected) // protect
+    {
+        // 停止 文件扫描
+        ev_timer_stop(ioCh->reactor, ioCh->filesWatcher);
+        return;
+    }
+    // pick up one file from filesDir to send
+    printf("ch[%2d] pick up one file to send.\r\n", ch->id);
+    w->repeat = 10; // slow down
+    ev_timer_again(reactor, w);
 }
 
 void IOChannel_dtor(Channel *const me)
@@ -715,7 +754,8 @@ void IOChannel_ctor(IOChannel *me, Station *const station)
          &IOChannel_ExpandEncode,
          &IOChannel_dtor},
         &IOChannel_OnConnectTimerEvent,
-        &IOChannel_OnIOReadEvent};
+        &IOChannel_OnIOReadEvent,
+        &IOChannel_OnFilesScanEvent};
     Channel *super = (Channel *)me;
     Channel_ctor(super, station);
     super->vptr = (const ChannelVtbl *)(&vtbl);
@@ -868,6 +908,11 @@ void SocketChannel_OnIOReadEvent(Reactor *reactor, ev_io *w, int revents)
     IOChannel_OnIOReadEvent(reactor, w, revents);
 }
 
+void SocketChannel_OnFilesScanEvent(Reactor *reactor, ev_timer *w, int revents)
+{
+    IOChannel_OnFilesScanEvent(reactor, w, revents);
+}
+
 Ipv4 *SocketChannel_Ip(SocketChannel *me)
 {
     assert(0);
@@ -894,7 +939,8 @@ void SocketChannel_ctor(SocketChannel *me, Station *const station)
           &SocketChannel_ExpandEncode,
           &SocketChannel_dtor},
          &SocketChannel_OnConnectTimerEvent,
-         &SocketChannel_OnIOReadEvent},
+         &SocketChannel_OnIOReadEvent,
+         &SocketChannel_OnFilesScanEvent},
         &SocketChannel_Ip};
     IOChannel *super = (IOChannel *)me;
     IOChannel_ctor(super, station);
@@ -953,7 +999,8 @@ void Ipv4Channel_ctor(Ipv4Channel *me, Station *const station)
           &Ipv4Channel_ExpandEncode,
           &Ipv4Channel_dtor},
          &SocketChannel_OnConnectTimerEvent,
-         &SocketChannel_OnIOReadEvent},
+         &SocketChannel_OnIOReadEvent,
+         &SocketChannel_OnFilesScanEvent},
         &Ipv4Channel_Ip};
     SocketChannel *super = (SocketChannel *)me;
     SocketChannel_ctor(super, station);
@@ -1006,7 +1053,8 @@ void DomainChannel_ctor(DomainChannel *me, Station *const station)
           &DomainChannel_ExpandEncode,
           &DomainChannel_dtor},
          &SocketChannel_OnConnectTimerEvent,
-         &SocketChannel_OnIOReadEvent},
+         &SocketChannel_OnIOReadEvent,
+         &SocketChannel_OnFilesScanEvent},
         &DomainChannel_Ip};
     SocketChannel *super = (SocketChannel *)me;
     SocketChannel_ctor(super, station);
@@ -1404,7 +1452,7 @@ bool Station_StartBy(Station *const me, char const *workDir)
                 ch->station = me;
                 ch->centerAddr = Config_CenterAddrOfChannel(&me->config, ch);
                 // ch->vptr->start(ch);
-                pthread_t *thread = (pthread_t *)malloc(sizeof(pthread_t));
+                pthread_t *thread = NewInstance(pthread_t);
                 int res = pthread_create(thread, NULL, (void *(*)(void *))ch->vptr->start, ch);
                 if (res)
                 {

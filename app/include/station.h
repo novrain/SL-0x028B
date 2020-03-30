@@ -94,6 +94,7 @@ extern "C"
     typedef struct ev_loop Reactor;
     typedef ev_timer ChannelConnectWatcher;
     typedef ev_io ChannelDataWatcher;
+    typedef ev_timer ChannelFilesWatcher;
 
     typedef enum
     {
@@ -160,6 +161,7 @@ extern "C"
         Reactor *reactor;
         // Watcher for IO
         ChannelConnectWatcher *connectWatcher;
+        ChannelFilesWatcher *filesWatcher;
         ChannelDataWatcher *dataWatcher;
     } IOChannel;
 
@@ -168,6 +170,7 @@ extern "C"
         struct ChannelVtbl super;
         void (*onConnectTimerEvent)(Reactor *reactor, ev_timer *w, int revents);
         void (*onIOReadEvent)(Reactor *reactor, ev_io *w, int revents);
+        void (*onFilesScanTimerEvent)(Reactor *reactor, ev_timer *w, int revents);
     } IOChannelVtbl;
 
     typedef struct SocketChannel
