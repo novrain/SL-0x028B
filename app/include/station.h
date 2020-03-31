@@ -236,11 +236,11 @@ extern "C"
     Channel *Config_FindChannel(Config *const me, uint8_t chId);
     int32_t Config_IndexOfChannel(Config *const me, uint8_t chid);
 #define CHANNEL_MIN_BUFF_SIZE 200
-#define CHANNEL_MAX_BUFF_SIZE 1024
+#define CHANNEL_MAX_BUFF_SIZE 4096
 #define CHANNEL_DEFAULT_BUFF_SIZE 256
 
 #define CHANNEL_MIN_MSG_SEND_INTERVAL 1
-#define CHANNEL_MAX_MSG_SEND_INTERVAL 100
+#define CHANNEL_MAX_MSG_SEND_INTERVAL 5000
 #define CHANNEL_DEFAULT_MSG_SEND_INTERVAL 10
 
     struct _station
