@@ -783,7 +783,7 @@ void IOChannel_Start(Channel *const me)
     if (json == NULL)
     {
         snprintf(recordsFile, 256, "%s/channels/%2d", me->station->config.workDir, id);
-        mode_t mode = 0;
+        mode_t mode = S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH;
         mkpath(recordsFile, mode);
         json = cJSON_CreateObject();
         cJSON_AddItemToObject(json, "records", cJSON_CreateObject());
