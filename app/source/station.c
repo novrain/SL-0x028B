@@ -276,7 +276,7 @@ void Channel_SendFile(Channel *const me, tinydir_file *file)
             {
                 break;
             }
-            usleep(15000); // 待设置
+            usleep(me->msgSendInterval * 1000);
             pkgNo++;
         }
         if (pkgNo == pkgCount + 1)
@@ -710,7 +710,7 @@ bool handlePICTURE(Channel *const ch, Package *const request)
 }
 // HANDLERS END
 
-void Channel_ctor(Channel *me, Station *const station, size_t buffSize)
+void Channel_ctor(Channel *me, Station *const station, size_t buffSize, uint8_t msgSendInterval)
 {
     assert(me);
     assert(buffSize > 0);
@@ -733,6 +733,7 @@ void Channel_ctor(Channel *me, Station *const station, size_t buffSize)
     me->buff = (char *)malloc(buffSize);
     memset(me->buff, '\0', buffSize);
     me->buffSize = buffSize;
+    me->msgSendInterval = msgSendInterval;
     // register handler
     static ChannelHandler const h_TEST = {TEST, &handleTEST}; // TEST
     vec_push(&me->handlers, (ChannelHandler *)&h_TEST);
@@ -999,7 +1000,7 @@ void IOChannel_dtor(Channel *const me)
     Channel_dtor(me);
 }
 
-void IOChannel_ctor(IOChannel *me, Station *const station, size_t buffSize)
+void IOChannel_ctor(IOChannel *me, Station *const station, size_t buffSize, uint8_t msgSendInterval)
 {
     assert(me);
     // assert(station);
@@ -1017,7 +1018,7 @@ void IOChannel_ctor(IOChannel *me, Station *const station, size_t buffSize)
         &IOChannel_OnIOReadEvent,
         &IOChannel_OnFilesScanEvent};
     Channel *super = (Channel *)me;
-    Channel_ctor(super, station, buffSize);
+    Channel_ctor(super, station, buffSize, msgSendInterval);
     super->vptr = (const ChannelVtbl *)(&vtbl);
     me->reactor = ev_loop_new(0);
 }
@@ -1198,7 +1199,8 @@ void SocketChannel_dtor(Channel *const me)
     IOChannel_dtor(me);
 }
 
-#define SOCKET_CHANNEL_DEFAULT_BUFF_SIZE 1024
+#define SOCKET_CHANNEL_DEFAULT_BUFF_SIZE 512
+#define SOCKET_CHANNEL_DEFAULT_MSG_SEND_INTREVAL 10
 
 void SocketChannel_ctor(SocketChannel *me, Station *const station)
 {
@@ -1222,7 +1224,10 @@ void SocketChannel_ctor(SocketChannel *me, Station *const station)
     IOChannel_ctor(super, station,
                    station->config.buffSize == NULL
                        ? SOCKET_CHANNEL_DEFAULT_BUFF_SIZE
-                       : *(station->config.buffSize));
+                       : *(station->config.buffSize),
+                   station->config.msgSendInterval == NULL
+                       ? SOCKET_CHANNEL_DEFAULT_MSG_SEND_INTREVAL
+                       : *(station->config.msgSendInterval));
     Channel *ch = (Channel *)me;
     ch->vptr = (const ChannelVtbl *)(&vtbl);
 }
@@ -1635,6 +1640,17 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
         if (*me->buffSize <= CHANNEL_MIN_BUFF_SIZE || *me->buffSize >= CHANNEL_MAX_BUFF_SIZE)
         {
             *me->buffSize = CHANNEL_DEFAULT_BUFF_SIZE;
+        }
+    }
+    // msgSendInterval
+    if (cJSON_HasObjectItem(json, "msgSendInterval"))
+    {
+        cJSON *msgSendInterval = NULL;
+        me->msgSendInterval = NewInstance(uint8_t);
+        GET_VALUE(*me->msgSendInterval, json, msgSendInterval, (uint8_t)msgSendInterval->valuedouble);
+        if (*me->msgSendInterval <= CHANNEL_MIN_MSG_SEND_INTERVAL || *me->msgSendInterval >= CHANNEL_MAX_MSG_SEND_INTERVAL)
+        {
+            *me->msgSendInterval = CHANNEL_DEFAULT_MSG_SEND_INTERVAL;
         }
     }
     return true;

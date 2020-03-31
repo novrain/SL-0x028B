@@ -138,6 +138,7 @@ extern "C"
         ChannelType type;
         bool isConnnected;
         size_t buffSize;
+        uint8_t msgSendInterval;
         char *buff;
         uint16_t seq;
         uint8_t keepaliveTimer;
@@ -222,19 +223,25 @@ extern "C"
         uint16_t *password;
         ChannelPtrVector channels;
         uint8_t *workMode;
+        // extend config
         cJSON *configInJSON;
         char *configFile;
         char *workDir;
         char *filesDir;
         size_t *buffSize;
+        uint8_t *msgSendInterval;
         // reference
         Station *station;
     } Config;
     Channel *Config_FindChannel(Config *const me, uint8_t chId);
     int32_t Config_IndexOfChannel(Config *const me, uint8_t chid);
 #define CHANNEL_MIN_BUFF_SIZE 200
-#define CHANNEL_MAX_BUFF_SIZE 2048
+#define CHANNEL_MAX_BUFF_SIZE 1024
 #define CHANNEL_DEFAULT_BUFF_SIZE 256
+
+#define CHANNEL_MIN_MSG_SEND_INTERVAL 1
+#define CHANNEL_MAX_MSG_SEND_INTERVAL 100
+#define CHANNEL_DEFAULT_MSG_SEND_INTERVAL 10
 
     struct _station
     {
