@@ -198,6 +198,11 @@ bool Channel_ExpandEncode(Channel *const me, ByteBuffer *const buff)
     return false;
 }
 
+void Channel_OnFilesQuery(Channel *const me)
+{
+    assert(0);
+}
+
 bool Channel_isFileSent(Channel *const me, tinydir_file *file)
 {
     assert(me);
@@ -210,10 +215,10 @@ void Channel_SendFile(Channel *const me, tinydir_file *file)
 {
     assert(me);
     assert(file);
-    if (Channel_isFileSent(me, file))
-    {
-        return;
-    }
+    // if (Channel_isFileSent(me, file))
+    // {
+    //     return;
+    // }
     printf("ch[%2d] pick up file[%s] to send.\r\n", me->id, file->path);
     memset(me->buff, 0, me->buffSize);
     struct stat fStat = {0};
@@ -271,13 +276,14 @@ void Channel_SendFile(Channel *const me, tinydir_file *file)
             {
                 break;
             }
-            usleep(50000); // 待设置
+            usleep(15000); // 待设置
             pkgNo++;
         }
         if (pkgNo == pkgCount + 1)
         {
-            me->status = CHANNEL_STATUS_WAITTING_PICTRUE_ACK;
+            me->status = CHANNEL_STATUS_WAITTING_FILESEND_ACK;
         }
+        close(fd);
         // @Todo 隔段时间 做一次反向清理同步
     }
 }
@@ -665,25 +671,40 @@ bool handleMODIFY_BASIC_CONFIG(Channel *const ch, Package *const request)
     return true;
 }
 
-bool handlePICTUREACK(Channel *const ch, Package *const request)
+bool handlePICTURE(Channel *const ch, Package *const request)
 {
     assert(ch);
     assert(request);
     assert(request->head.funcCode == PICTURE);
-    if (ch->status == CHANNEL_STATUS_WAITTING_PICTRUE_ACK)
+    if (ch->status == CHANNEL_STATUS_WAITTING_FILESEND_ACK)
     {
-        if (ch->currentFile != NULL)
+        if (request->tail.etxFlag == ENQ)
         {
-            cJSON *records = cJSON_GetObjectItem(ch->recordsFileInJSON, "records");
-            cJSON_AddItemToObject(records, ch->currentFile->path, cJSON_CreateObject());
-            cJSON_WriteFile(ch->recordsFileInJSON, ch->recordsFile);
-            DelInstance(ch->currentFile);
+            return false; // 不能交叉
         }
-        ch->status == CHANNEL_STATUS_RUNNING;
+        if (request->tail.etxFlag == EOT) // 确认成功
+        {
+            if (ch->currentFile != NULL)
+            {
+                cJSON *records = cJSON_GetObjectItem(ch->recordsFileInJSON, "records");
+                cJSON_AddItemToObject(records, ch->currentFile->path, cJSON_CreateObject());
+                cJSON_WriteFile(ch->recordsFileInJSON, ch->recordsFile);
+                DelInstance(ch->currentFile);
+            }
+            ch->status = CHANNEL_STATUS_RUNNING;
+        }
         return true;
     }
     else
     {
+        if (request->tail.etxFlag == ENQ) // 查询
+        {
+            // 发起文件查询，由给自Channel实现
+            if (ch->vptr->onFilesQuery != NULL)
+            {
+                ch->vptr->onFilesQuery(ch);
+            }
+        }
         return true;
     }
 }
@@ -702,6 +723,7 @@ void Channel_ctor(Channel *me, Station *const station, size_t buffSize)
         &Channel_OnRead,
         &Channel_Send,
         &Channel_ExpandEncode,
+        &Channel_OnFilesQuery,
         &Channel_dtor};
     me->vptr = &vtbl;
     me->station = station;
@@ -718,8 +740,8 @@ void Channel_ctor(Channel *me, Station *const station, size_t buffSize)
     vec_push(&me->handlers, (ChannelHandler *)&h_BASIC_CONFIG);
     static ChannelHandler const h_MODIFY_BASIC_CONFIG = {MODIFY_BASIC_CONFIG, &handleMODIFY_BASIC_CONFIG}; // MODIFY_BASIC_CONFIG
     vec_push(&me->handlers, (ChannelHandler *)&h_MODIFY_BASIC_CONFIG);
-    static ChannelHandler const h_PICTRUE = {PICTURE, &handlePICTUREACK}; // PICTURE
-    vec_push(&me->handlers, (ChannelHandler *)&h_MODIFY_BASIC_CONFIG);
+    static ChannelHandler const h_PICTRUE = {PICTURE, &handlePICTURE}; // PICTURE
+    vec_push(&me->handlers, (ChannelHandler *)&h_PICTRUE);
     me->status = CHANNEL_STATUS_RUNNING;
 }
 // Virtual Channel END
@@ -881,7 +903,12 @@ void IOChannel_OnIOReadEvent(Reactor *reactor, ev_io *w, int revents)
                 break;
             }
         }
-        printf("ch[%2d] %7s request[%4X]\r\n", ch->id, handled == true ? "handled" : "droped", pkg->head.funcCode);
+        printf("ch[%2d] %7s request[%4X] stx[%4X] ext[%4X] crc[%4x]\r\n", ch->id,
+               handled == true ? "handled" : "droped",
+               pkg->head.funcCode,
+               pkg->head.stxFlag,
+               pkg->tail.etxFlag,
+               pkg->tail.crc);
         if (pkg->vptr->dtor != NULL) // 实现了析构函数
         {                            //
             pkg->vptr->dtor(pkg);    // 调用析构，规范步骤
@@ -896,11 +923,40 @@ void IOChannel_OnIOReadEvent(Reactor *reactor, ev_io *w, int revents)
     DelInstance(buff);
 }
 
+void IOChannel_OnFilesQuery(Channel *const me)
+{
+    assert(me);
+    IOChannel *ioCh = (IOChannel *)me;
+    // pick up one file from filesDir to send
+    tinydir_dir dir;
+    int i;
+    tinydir_open_sorted(&dir, me->station->config.filesDir);
+    for (i = 0; i < dir.n_files; i++)
+    {
+        tinydir_file file;
+        tinydir_readfile_n(&dir, &file, i);
+        if (!file.is_dir && !Channel_isFileSent(me, &file))
+        {
+            ev_suspend(ioCh->reactor);
+            Channel_SendFile(me, &file);
+            ev_resume(ioCh->reactor);
+            if (me->status == CHANNEL_STATUS_WAITTING_FILESEND_ACK)
+            {
+                me->currentFile = NewInstance(tinydir_file);
+                memcpy(me->currentFile, &file, sizeof(tinydir_file));
+                ioCh->filesWatcher->repeat = 2.; // 复用这个定时器2秒等应答
+                ev_timer_again(ioCh->reactor, ioCh->filesWatcher);
+            }
+            break;
+        }
+    }
+}
+
 void IOChannel_OnFilesScanEvent(Reactor *reactor, ev_timer *w, int revents)
 {
     IOChannel *ioCh = (IOChannel *)w->data;
     Channel *ch = (Channel *)ioCh;
-    if (ch->status == CHANNEL_STATUS_WAITTING_PICTRUE_ACK) // 没有等到应答
+    if (ch->status == CHANNEL_STATUS_WAITTING_FILESEND_ACK) // 没有等到应答
     {
         ch->status = CHANNEL_STATUS_RUNNING;
         if (ch->currentFile != NULL)
@@ -917,29 +973,7 @@ void IOChannel_OnFilesScanEvent(Reactor *reactor, ev_timer *w, int revents)
     {
         return;
     }
-    // pick up one file from filesDir to send
-    tinydir_dir dir;
-    int i;
-    tinydir_open_sorted(&dir, ch->station->config.filesDir);
-    for (i = 0; i < dir.n_files; i++)
-    {
-        tinydir_file file;
-        tinydir_readfile_n(&dir, &file, i);
-        if (!file.is_dir)
-        {
-            ev_suspend(ioCh->reactor);
-            Channel_SendFile(ch, &file);
-            ev_resume(ioCh->reactor);
-            if (ch->status == CHANNEL_STATUS_WAITTING_PICTRUE_ACK)
-            {
-                ch->currentFile = NewInstance(tinydir_file);
-                memcpy(ch->currentFile, &file, sizeof(tinydir_file));
-                ioCh->filesWatcher->repeat = 2.; // 复用这个定时器2秒等应答
-                ev_timer_again(ioCh->reactor, ioCh->filesWatcher);
-            }
-            break;
-        }
-    }
+    IOChannel_OnFilesQuery(ch);
     ioCh->filesWatcher->repeat = 10.; // slow down
     ev_timer_again(ioCh->reactor, ioCh->filesWatcher);
 }
@@ -977,6 +1011,7 @@ void IOChannel_ctor(IOChannel *me, Station *const station, size_t buffSize)
          &IOChannel_OnRead,
          &IOChannel_Send,
          &IOChannel_ExpandEncode,
+         &IOChannel_OnFilesQuery,
          &IOChannel_dtor},
         &IOChannel_OnConnectTimerEvent,
         &IOChannel_OnIOReadEvent,
@@ -1141,6 +1176,11 @@ void SocketChannel_OnIOReadEvent(Reactor *reactor, ev_io *w, int revents)
     IOChannel_OnIOReadEvent(reactor, w, revents);
 }
 
+void SocketChannel_OnFilesQuery(Channel *const me)
+{
+    IOChannel_OnFilesQuery(me);
+}
+
 void SocketChannel_OnFilesScanEvent(Reactor *reactor, ev_timer *w, int revents)
 {
     IOChannel_OnFilesScanEvent(reactor, w, revents);
@@ -1172,6 +1212,7 @@ void SocketChannel_ctor(SocketChannel *me, Station *const station)
           &SocketChannel_OnRead,
           &SocketChannel_Send,
           &SocketChannel_ExpandEncode,
+          &SocketChannel_OnFilesQuery,
           &SocketChannel_dtor},
          &SocketChannel_OnConnectTimerEvent,
          &SocketChannel_OnIOReadEvent,
@@ -1235,6 +1276,7 @@ void Ipv4Channel_ctor(Ipv4Channel *me, Station *const station)
           &SocketChannel_OnRead,
           &SocketChannel_Send,
           &Ipv4Channel_ExpandEncode,
+          &SocketChannel_OnFilesQuery,
           &Ipv4Channel_dtor},
          &SocketChannel_OnConnectTimerEvent,
          &SocketChannel_OnIOReadEvent,
@@ -1289,6 +1331,7 @@ void DomainChannel_ctor(DomainChannel *me, Station *const station)
           &SocketChannel_OnRead,
           &SocketChannel_Send,
           &DomainChannel_ExpandEncode,
+          &SocketChannel_OnFilesQuery,
           &DomainChannel_dtor},
          &SocketChannel_OnConnectTimerEvent,
          &SocketChannel_OnIOReadEvent,
