@@ -19,6 +19,59 @@
 
 #include "station.h"
 
+// file system util
+typedef struct stat Stat;
+#ifdef _WIN32
+#define mkdir(D, M) mkdir(D)
+#endif
+
+static int do_mkdir(const char *path, mode_t mode)
+{
+    Stat st;
+    int status = 0;
+
+    if (stat(path, &st) != 0)
+    {
+        /* Directory does not exist. EEXIST for race condition */
+        if (mkdir(path, mode) != 0 && errno != EEXIST)
+            status = -1;
+    }
+    else if (!S_ISDIR(st.st_mode))
+    {
+        errno = ENOTDIR;
+        status = -1;
+    }
+
+    return status;
+}
+
+int mkpath(const char *path, mode_t mode)
+{
+    char *pp;
+    char *sp;
+    int status;
+    char *copypath = strdup(path);
+
+    status = 0;
+    pp = copypath;
+    while (status == 0 && (sp = strchr(pp, '/')) != 0)
+    {
+        if (sp != pp)
+        {
+            /* Neither root nor double slash in path */
+            *sp = '\0';
+            status = do_mkdir(copypath, mode);
+            *sp = '/';
+        }
+        pp = sp + 1;
+    }
+    if (status == 0)
+        status = do_mkdir(path, mode);
+    DelInstance(copypath);
+    return status;
+}
+// file system util END
+
 // cJSON read write helper
 cJSON *cJSON_FromFile(char const *const file)
 {
@@ -28,7 +81,8 @@ cJSON *cJSON_FromFile(char const *const file)
     if (stat(file, &fStat) == SL651_APP_ERROR_SUCCESS &&
         (fd = open(file, O_RDONLY), fd))
     {
-        char *fContent = (char *)malloc(fStat.st_size);
+        char *fContent = (char *)malloc(fStat.st_size + 1);
+        memset(fContent, '\0', fStat.st_size + 1);
         if (read(fd, fContent, fStat.st_size) > 0)
         {
             json = cJSON_Parse(fContent);
@@ -44,7 +98,7 @@ cJSON *cJSON_FromFile(char const *const file)
 
 int cJSON_WriteFile(cJSON *const json, char const *const file)
 {
-    int fd = open(file, O_RDWR | O_CREAT | O_TRUNC);
+    int fd = open(file, O_RDWR | O_TRUNC);
     int lenWrite = 0;
     if (fd > 0)
     {
@@ -143,9 +197,98 @@ bool Channel_ExpandEncode(Channel *const me, ByteBuffer *const buff)
     return false;
 }
 
+bool Channel_isFileSent(Channel *const me, tinydir_file *file)
+{
+    assert(me);
+    assert(file);
+    cJSON *records = cJSON_GetObjectItem(me->recordsFileInJSON, "records");
+    return records != NULL && cJSON_HasObjectItem(records, file->path);
+}
+
+void Channel_SendFile(Channel *const me, tinydir_file *file)
+{
+    assert(me);
+    assert(file);
+    if (Channel_isFileSent(me, file))
+    {
+        return;
+    }
+    printf("ch[%2d] pick up file[%s] to send.\r\n", me->id, file->path);
+    memset(me->buff, 0, me->buffSize);
+    struct stat fStat = {0};
+    int fd = 0;
+    if (stat(file->path, &fStat) == SL651_APP_ERROR_SUCCESS &&
+        (fd = open(file->path, O_RDONLY | O_BINARY)))
+    {
+        uint16_t pkgCount = fStat.st_size / me->buffSize;
+        if (fStat.st_size % me->buffSize != 0)
+        {
+            pkgCount++;
+        }
+        uint16_t pkgNo = 1;
+        ssize_t readBytes = -1;
+        while ((readBytes = read(fd, me->buff, me->buffSize)) > 0)
+        {
+            // create package
+            UplinkMessage *upMsg = NewInstance(UplinkMessage); // 选择是上行还是下行
+            UplinkMessage_ctor(upMsg, 0);                      // 调用构造函数,如果有要素，需要指定要素数量
+            Package *pkg = (Package *)upMsg;                   // 获取父结构Package
+            Head *head = &pkg->head;                           // 获取Head结构
+            Channel_FillUplinkMessageHead(me, upMsg);          // Fill head by config
+            head->funcCode = PICTURE;                          // 心跳功能码功能码
+            head->stxFlag = SYN;
+            head->sequence.count = pkgCount;
+            head->sequence.seq = pkgNo;
+            upMsg->messageHead.seq = Channel_LastSeq(me); // 根据功能码填写报文头
+            if (pkgNo != pkgCount)
+            {
+                pkg->tail.etxFlag = ETB; // 截止符
+            }
+            else
+            {
+                pkg->tail.etxFlag = ETX; // 截止符
+            }
+            LinkMessage *uplinkMsg = (LinkMessage *)upMsg;
+            PictureElement *picEl = NewInstance(PictureElement);
+            picEl->pkgNo = pkgNo;
+            PictureElement_ctor(picEl);
+            ByteBuffer *rawBuff = picEl->buff = NewInstance(ByteBuffer);
+            BB_ctor_wrapped(rawBuff, (uint8_t *)me->buff, readBytes);
+            BB_Flip(rawBuff);
+            LinkMessage_PushElement(uplinkMsg, (Element *const)picEl);
+            ByteBuffer *byteOut = pkg->vptr->encode(pkg); // 编码
+            BB_Flip(byteOut);                             // 转为读模式
+            bool res = me->vptr->send(me, byteOut);       // 调用发送实现
+            UplinkMessage_dtor((Package *)upMsg);         // 析构
+            DelInstance(upMsg);                           // free
+            BB_dtor(byteOut);                             // 析构
+            DelInstance(byteOut);                         // free
+            if (!res)
+            {
+                break;
+            }
+            usleep(50000); // 待设置
+            pkgNo++;
+        }
+        if (pkgNo == pkgCount + 1)
+        {
+            me->status = CHANNEL_STATUS_WAITTING_PICTRUE_ACK;
+        }
+        // @Todo 隔段时间 做一次反向清理同步
+    }
+}
+
 void Channel_dtor(Channel *const me)
 {
     assert(me);
+    if (me->recordsFile != NULL)
+    {
+        DelInstance(me->recordsFile);
+    }
+    if (me->recordsFileInJSON != NULL)
+    {
+        cJSON_Delete(me->recordsFileInJSON);
+    }
 }
 
 // HANDELERS
@@ -517,11 +660,35 @@ bool handleMODIFY_BASIC_CONFIG(Channel *const ch, Package *const request)
     }
     return true;
 }
+
+bool handlePICTUREACK(Channel *const ch, Package *const request)
+{
+    assert(ch);
+    assert(request);
+    assert(request->head.funcCode == PICTURE);
+    if (ch->status == CHANNEL_STATUS_WAITTING_PICTRUE_ACK)
+    {
+        if (ch->currentFile != NULL)
+        {
+            cJSON *records = cJSON_GetObjectItem(ch->recordsFileInJSON, "records");
+            cJSON_AddItemToObject(records, ch->currentFile->path, cJSON_CreateObject());
+            cJSON_WriteFile(ch->recordsFileInJSON, ch->recordsFile);
+            DelInstance(ch->currentFile);
+        }
+        ch->status == CHANNEL_STATUS_RUNNING;
+        return true;
+    }
+    else
+    {
+        return true;
+    }
+}
 // HANDLERS END
 
-void Channel_ctor(Channel *me, Station *const station)
+void Channel_ctor(Channel *me, Station *const station, size_t buffSize)
 {
     assert(me);
+    assert(buffSize > 0);
     // assert(station);
     static ChannelVtbl const vtbl = {
         &Channel_Start,
@@ -536,6 +703,10 @@ void Channel_ctor(Channel *me, Station *const station)
     me->station = station;
     vec_init(&me->handlers);
     vec_reserve(&me->handlers, CHANNEL_RESERVED_HANDLER_SIZE);
+    // init buff
+    me->buff = (char *)malloc(buffSize);
+    memset(me->buff, '\0', buffSize);
+    me->buffSize = buffSize;
     // register handler
     static ChannelHandler const h_TEST = {TEST, &handleTEST}; // TEST
     vec_push(&me->handlers, (ChannelHandler *)&h_TEST);
@@ -543,6 +714,9 @@ void Channel_ctor(Channel *me, Station *const station)
     vec_push(&me->handlers, (ChannelHandler *)&h_BASIC_CONFIG);
     static ChannelHandler const h_MODIFY_BASIC_CONFIG = {MODIFY_BASIC_CONFIG, &handleMODIFY_BASIC_CONFIG}; // MODIFY_BASIC_CONFIG
     vec_push(&me->handlers, (ChannelHandler *)&h_MODIFY_BASIC_CONFIG);
+    static ChannelHandler const h_PICTRUE = {PICTURE, &handlePICTUREACK}; // PICTURE
+    vec_push(&me->handlers, (ChannelHandler *)&h_MODIFY_BASIC_CONFIG);
+    me->status = CHANNEL_STATUS_RUNNING;
 }
 // Virtual Channel END
 
@@ -556,7 +730,7 @@ void IOChannel_Start(Channel *const me)
     if (connectWatcher != NULL)
     {
         ev_init(connectWatcher, ((IOChannelVtbl *)me->vptr)->onConnectTimerEvent);
-        connectWatcher->repeat = 1; // start as fast as posible
+        connectWatcher->repeat = 1.; // start as fast as posible
         // ioCh->reactor = me->station->reactor;
         connectWatcher->data = (void *)me;
         ioCh->connectWatcher = connectWatcher;
@@ -567,12 +741,27 @@ void IOChannel_Start(Channel *const me)
     if (filesWatcher != NULL)
     {
         ev_init(filesWatcher, ((IOChannelVtbl *)me->vptr)->onFilesScanTimerEvent);
-        filesWatcher->repeat = 1; // start as fast as posible
+        filesWatcher->repeat = 1.; // start as fast as posible
         // ioCh->reactor = me->station->reactor;
         filesWatcher->data = (void *)me;
         ioCh->filesWatcher = filesWatcher;
         // ev_timer_again(ioCh->reactor, filesWatcher);
     }
+    // load files index
+    char recordsFile[256] = {0};
+    uint8_t id = me->id; // @Todo 改为中心站对应的编号，还需要合并主备Channel
+    snprintf(recordsFile, 256, "%s/channels/%2d/records.json", me->station->config.workDir, id);
+    me->recordsFile = strdup(recordsFile);
+    cJSON *json = cJSON_FromFile(recordsFile);
+    if (json == NULL)
+    {
+        snprintf(recordsFile, 256, "%s/channels/%2d", me->station->config.workDir, id);
+        mode_t mode = 0;
+        mkpath(recordsFile, mode);
+        json = cJSON_CreateObject();
+        cJSON_AddItemToObject(json, "records", cJSON_CreateObject());
+    }
+    me->recordsFileInJSON = json;
     ev_run(ioCh->reactor, 0);
 }
 
@@ -697,7 +886,7 @@ void IOChannel_OnIOReadEvent(Reactor *reactor, ev_io *w, int revents)
     }
     else
     {
-        printf("ch[%2d] invalid request, errno:[%3d], hex:[%s]\r\n", ch->id, last_error(), ch->readBuff);
+        printf("ch[%2d] invalid request, errno:[%3d], hex:[%s]\r\n", ch->id, last_error(), ch->buff);
     }
     BB_dtor(buff);
     DelInstance(buff);
@@ -707,16 +896,48 @@ void IOChannel_OnFilesScanEvent(Reactor *reactor, ev_timer *w, int revents)
 {
     IOChannel *ioCh = (IOChannel *)w->data;
     Channel *ch = (Channel *)ioCh;
+    if (ch->status == CHANNEL_STATUS_WAITTING_PICTRUE_ACK) // 没有等到应答
+    {
+        ch->status = CHANNEL_STATUS_RUNNING;
+        if (ch->currentFile != NULL)
+        {
+            DelInstance(ch->currentFile);
+        }
+        ioCh->filesWatcher->repeat = 10.; // slow down
+        ev_timer_again(ioCh->reactor, ioCh->filesWatcher);
+        return;
+    }
+    // 停止 文件扫描
+    ev_timer_stop(ioCh->reactor, ioCh->filesWatcher);
     if (!ch->isConnnected) // protect
     {
-        // 停止 文件扫描
-        ev_timer_stop(ioCh->reactor, ioCh->filesWatcher);
         return;
     }
     // pick up one file from filesDir to send
-    printf("ch[%2d] pick up one file to send.\r\n", ch->id);
-    w->repeat = 10; // slow down
-    ev_timer_again(reactor, w);
+    tinydir_dir dir;
+    int i;
+    tinydir_open_sorted(&dir, ch->station->config.filesDir);
+    for (i = 0; i < dir.n_files; i++)
+    {
+        tinydir_file file;
+        tinydir_readfile_n(&dir, &file, i);
+        if (!file.is_dir)
+        {
+            ev_suspend(ioCh->reactor);
+            Channel_SendFile(ch, &file);
+            ev_resume(ioCh->reactor);
+            if (ch->status == CHANNEL_STATUS_WAITTING_PICTRUE_ACK)
+            {
+                ch->currentFile = NewInstance(tinydir_file);
+                memcpy(ch->currentFile, &file, sizeof(tinydir_file));
+                ioCh->filesWatcher->repeat = 2.; // 复用这个定时器2秒等应答
+                ev_timer_again(ioCh->reactor, ioCh->filesWatcher);
+            }
+            break;
+        }
+    }
+    ioCh->filesWatcher->repeat = 10.; // slow down
+    ev_timer_again(ioCh->reactor, ioCh->filesWatcher);
 }
 
 void IOChannel_dtor(Channel *const me)
@@ -740,7 +961,7 @@ void IOChannel_dtor(Channel *const me)
     Channel_dtor(me);
 }
 
-void IOChannel_ctor(IOChannel *me, Station *const station)
+void IOChannel_ctor(IOChannel *me, Station *const station, size_t buffSize)
 {
     assert(me);
     // assert(station);
@@ -757,7 +978,7 @@ void IOChannel_ctor(IOChannel *me, Station *const station)
         &IOChannel_OnIOReadEvent,
         &IOChannel_OnFilesScanEvent};
     Channel *super = (Channel *)me;
-    Channel_ctor(super, station);
+    Channel_ctor(super, station, buffSize);
     super->vptr = (const ChannelVtbl *)(&vtbl);
     me->reactor = ev_loop_new(0);
 }
@@ -802,6 +1023,14 @@ bool SocketChannel_Connect(Channel *const me)
     {
         return false;
     }
+    int on = 1;
+#ifdef _WIN32
+    setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, (const char *)&on, sizeof(on));
+    setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char *)&on, sizeof(on));
+#else
+    setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, (void *)&on, sizeof(on));
+    setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (void *)&on, sizeof(on));
+#endif
     setSocketBlockingEnabled(sock, false);
     // if (connect(sock, (struct sockaddr *)ipv4, sizeof(struct sockaddr_in)) < 0)
     // {
@@ -839,7 +1068,7 @@ ByteBuffer *SocketChannel_OnRead(Channel *const me)
 #else
     errno = 0;
 #endif
-    int len = recv(sock, ch->readBuff, CHANNLE_RECIVE_BUFF_SIZE, 0);
+    int len = recv(sock, ch->buff, me->buffSize, 0);
     if (len <= 0)
     {
         int err = 0;
@@ -869,7 +1098,7 @@ ByteBuffer *SocketChannel_OnRead(Channel *const me)
         return NULL;
     }
     ByteBuffer *buff = NewInstance(ByteBuffer);
-    BB_ctor_wrapped(buff, (uint8_t *)ch->readBuff, len);
+    BB_ctor_wrapped(buff, (uint8_t *)ch->buff, len);
     BB_Flip(buff);
     return buff;
 }
@@ -925,6 +1154,8 @@ void SocketChannel_dtor(Channel *const me)
     IOChannel_dtor(me);
 }
 
+#define SOCKET_CHANNEL_DEFAULT_BUFF_SIZE 1024
+
 void SocketChannel_ctor(SocketChannel *me, Station *const station)
 {
     assert(me);
@@ -943,7 +1174,10 @@ void SocketChannel_ctor(SocketChannel *me, Station *const station)
          &SocketChannel_OnFilesScanEvent},
         &SocketChannel_Ip};
     IOChannel *super = (IOChannel *)me;
-    IOChannel_ctor(super, station);
+    IOChannel_ctor(super, station,
+                   station->config.buffSize == NULL
+                       ? SOCKET_CHANNEL_DEFAULT_BUFF_SIZE
+                       : *(station->config.buffSize));
     Channel *ch = (Channel *)me;
     ch->vptr = (const ChannelVtbl *)(&vtbl);
 }
@@ -1063,7 +1297,7 @@ void DomainChannel_ctor(DomainChannel *me, Station *const station)
 }
 // DomainChannel END
 
-Channel *Channel_Ipv4FromJson(cJSON *const channelInJson)
+Channel *Channel_Ipv4FromJson(cJSON *const channelInJson, Config *const config)
 {
     assert(channelInJson);
     uint8_t idU8 = 0;
@@ -1082,7 +1316,7 @@ Channel *Channel_Ipv4FromJson(cJSON *const channelInJson)
         idU8 >= CHANNEL_ID_MASTER_01 && idU8 <= CHANNEL_ID_SLAVE_04)
     {
         Ipv4Channel *ch = NewInstance(Ipv4Channel);
-        Ipv4Channel_ctor(ch, NULL); // 初始化 station 为 NULL
+        Ipv4Channel_ctor(ch, config->station); // 初始化 station 为 NULL
         Channel *super = (Channel *)ch;
         super->id = idU8;
         super->type = CHANNEL_IPV4;
@@ -1110,7 +1344,7 @@ Channel *Channel_Ipv4FromJson(cJSON *const channelInJson)
     }
 }
 
-Channel *Channel_DomainFromJson(cJSON *const channelInJson)
+Channel *Channel_DomainFromJson(cJSON *const channelInJson, Config *const config)
 {
     assert(channelInJson);
     uint8_t idU8 = 0;
@@ -1143,7 +1377,7 @@ Channel *Channel_DomainFromJson(cJSON *const channelInJson)
             return NULL;
         }
         DomainChannel *ch = NewInstance(DomainChannel);
-        DomainChannel_ctor(ch, NULL); // 初始化 station 为 NULL
+        DomainChannel_ctor(ch, config->station); // 初始化 station 为 NULL
         Channel *super = (Channel *)ch;
         super->id = idU8;
         super->type = CHANNEL_DOMAIN;
@@ -1161,7 +1395,7 @@ Channel *Channel_DomainFromJson(cJSON *const channelInJson)
     }
 }
 
-Channel *Channel_ToiOTA()
+Channel *Channel_ToiOTA(Config *const config)
 {
 #ifdef _WIN32
     WSADATA wsaData;
@@ -1179,7 +1413,7 @@ Channel *Channel_ToiOTA()
         return NULL;
     }
     DomainChannel *ch = NewInstance(DomainChannel);
-    DomainChannel_ctor(ch, NULL); // 初始化 station 为 NULL
+    DomainChannel_ctor(ch, config->station); // 初始化 station 为 NULL
     Channel *super = (Channel *)ch;
     super->id = CHANNEL_ID_FIXED;
     super->type = CHANNEL_DOMAIN;
@@ -1323,10 +1557,10 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
         switch (cType)
         {
         case CHANNEL_IPV4: // 目前只处理IPV4, 其他认为无效
-            ch = Channel_Ipv4FromJson(channel);
+            ch = Channel_Ipv4FromJson(channel, me);
             break;
         case CHANNEL_DOMAIN: // 自定义的域名方式
-            ch = Channel_DomainFromJson(channel);
+            ch = Channel_DomainFromJson(channel, me);
             break;
         default:
             break;
@@ -1337,7 +1571,7 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
         }
     }
     // add a fixed channel to make it reachable
-    Channel *ch = Channel_ToiOTA();
+    Channel *ch = Channel_ToiOTA(me);
     if (ch != NULL)
     {
         vec_push(&me->channels, ch);
@@ -1345,6 +1579,17 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
     // filesDir
     cJSON *filesDir = NULL;
     GET_VALUE(me->filesDir, json, filesDir, filesDir->valuestring);
+    // buffSize
+    if (cJSON_HasObjectItem(json, "buffSize"))
+    {
+        cJSON *buffSize = NULL;
+        me->buffSize = NewInstance(size_t);
+        GET_VALUE(*me->buffSize, json, buffSize, (size_t)buffSize->valuedouble);
+        if (*me->buffSize <= CHANNEL_MIN_BUFF_SIZE || *me->buffSize >= CHANNEL_MAX_BUFF_SIZE)
+        {
+            *me->buffSize = CHANNEL_DEFAULT_BUFF_SIZE;
+        }
+    }
     return true;
 }
 
@@ -1399,7 +1644,7 @@ void Config_dtor(Config *const me)
     }
 }
 
-void Config_ctor(Config *const me)
+void Config_ctor(Config *const me, Station *const station)
 {
     assert(me);
     me->centerAddrs = NULL;
@@ -1409,13 +1654,14 @@ void Config_ctor(Config *const me)
     me->password = NULL;
     me->stationAddr = NULL;
     me->workMode = NULL;
+    me->station = station;
 }
 
 void Station_ctor(Station *const me)
 {
     assert(me);
     // me->reactor = NULL;
-    Config_ctor(&me->config);
+    Config_ctor(&me->config, me);
 }
 
 bool Station_StartBy(Station *const me, char const *workDir)
@@ -1434,9 +1680,7 @@ bool Station_StartBy(Station *const me, char const *workDir)
         Config_InitFromJSON(&me->config, json) &&
         Config_IsValid(&me->config))
     {
-        me->config.workDir = (char *)malloc(len);
-        memset(me->config.workDir, '\0', len);
-        memcpy(me->config.workDir, workDir, len);
+        me->config.workDir = strdup(workDir);
         me->config.configInJSON = json;
         me->config.configFile = file;
         // me->reactor = ev_loop_new(0);

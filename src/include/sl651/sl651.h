@@ -676,6 +676,7 @@ extern "C"
     {
         Element super;
         ByteBuffer *buff;
+        uint16_t pkgNo;
     } PictureElement;
 
     void PictureElement_ctor(PictureElement *const me);

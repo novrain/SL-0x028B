@@ -21,6 +21,7 @@ extern "C"
 #include "vec/vec.h"
 #include "common/error.h"
 #include "sl651/sl651.h"
+#include "tinydir/tinydir.h"
 
 #define GET_VALUE(target, jParent, jChild, vField)                   \
     (jChild) = cJSON_GetObjectItemCaseSensitive((jParent), #jChild); \
@@ -123,20 +124,31 @@ extern "C"
 
     typedef vec_t(ChannelHandler *) ChannelHandlerPtrVector;
 #define CHANNEL_RESERVED_HANDLER_SIZE 10
-#define CHANNLE_RECIVE_BUFF_SIZE 2048
 #define CHANNLE_DEFAULT_KEEPALIVE_INTERVAL 40
+
+    typedef enum
+    {
+        CHANNEL_STATUS_RUNNING,
+        CHANNEL_STATUS_WAITTING_PICTRUE_ACK
+    } ChannelStatus;
     typedef struct Channel
     {
         struct ChannelVtbl const *vptr;
         uint8_t id; // 04~0B 对应规范里的 master / slave
         ChannelType type;
         bool isConnnected;
-        char readBuff[CHANNLE_RECIVE_BUFF_SIZE];
+        size_t buffSize;
+        char *buff;
         uint16_t seq;
         uint8_t keepaliveTimer;
         uint8_t centerAddr;
         ChannelHandlerPtrVector handlers; // 静态引用，不需要释放
         pthread_t *thread;
+        ChannelStatus status;
+        tinydir_file *currentFile;
+        // recordsFile
+        char *recordsFile;
+        cJSON *recordsFileInJSON;
         // reference
         Station *station;
     } Channel;
@@ -213,9 +225,15 @@ extern "C"
         char *configFile;
         char *workDir;
         char *filesDir;
+        size_t *buffSize;
+        // reference
+        Station *station;
     } Config;
     Channel *Config_FindChannel(Config *const me, uint8_t chId);
     int32_t Config_IndexOfChannel(Config *const me, uint8_t chid);
+#define CHANNEL_MIN_BUFF_SIZE 200
+#define CHANNEL_MAX_BUFF_SIZE 2048
+#define CHANNEL_DEFAULT_BUFF_SIZE 256
 
     struct _station
     {
