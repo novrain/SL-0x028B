@@ -1146,7 +1146,7 @@ static bool PictureElement_Encode(Element const *const me, ByteBuffer *const byt
     assert(me);
     assert(byteBuff);
     PictureElement *self = (PictureElement *)me;
-    return Element_EncodeIdentifier(me, byteBuff) &&
+    return (self->pkgNo == 1 ? Element_EncodeIdentifier(me, byteBuff) : true) &&
            (BB_PutByteBuffer(byteBuff, self->buff) ||
             set_error_indicate(SL651_ERROR_ENCODE_CANNOT_PROCESS_PICTURE_DATA));
 }
