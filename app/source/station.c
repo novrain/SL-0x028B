@@ -12,6 +12,7 @@
 #include <ws2tcpip.h>
 #else
 #include <netdb.h>
+#include <netinet/tcp.h>
 #endif
 
 #include "cJSON/cJSON_Utils.h"
@@ -217,6 +218,9 @@ void Channel_SendFile(Channel *const me, tinydir_file *file)
     memset(me->buff, 0, me->buffSize);
     struct stat fStat = {0};
     int fd = 0;
+#ifndef WIN32
+#define O_BINARY 0
+#endif
     if (stat(file->path, &fStat) == SL651_APP_ERROR_SUCCESS &&
         (fd = open(file->path, O_RDONLY | O_BINARY)))
     {
