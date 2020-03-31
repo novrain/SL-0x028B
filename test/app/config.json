@@ -29,5 +29,7 @@
     }],
     "password": 1234,
     "workMode": 2,
-    "filesDir": "./pics"
+    "filesDir": "./pics",
+    "buffSize": 512,
+    "msgSendInterval": 10
 }
