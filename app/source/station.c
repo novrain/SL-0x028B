@@ -99,7 +99,11 @@ cJSON *cJSON_FromFile(char const *const file)
 
 int cJSON_WriteFile(cJSON *const json, char const *const file)
 {
+#ifdef WIN32
     int fd = open(file, O_RDWR | O_TRUNC);
+#else
+    int fd = open(file, O_RDWR | O_CREAT | O_TRUNC);
+#endif
     int lenWrite = 0;
     if (fd > 0)
     {
