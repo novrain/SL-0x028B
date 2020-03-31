@@ -1199,8 +1199,8 @@ void SocketChannel_dtor(Channel *const me)
     IOChannel_dtor(me);
 }
 
-#define SOCKET_CHANNEL_DEFAULT_BUFF_SIZE 512
-#define SOCKET_CHANNEL_DEFAULT_MSG_SEND_INTREVAL 10
+#define SOCKET_CHANNEL_DEFAULT_BUFF_SIZE 3072
+#define SOCKET_CHANNEL_DEFAULT_MSG_SEND_INTREVAL 100
 
 void SocketChannel_ctor(SocketChannel *me, Station *const station)
 {
@@ -1597,6 +1597,31 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
     *me->workMode = QUERY_ACK; //
     cJSON *workMode = NULL;
     GET_VALUE(*me->workMode, json, workMode, workMode->valuedouble);
+    // filesDir
+    cJSON *filesDir = NULL;
+    GET_VALUE(me->filesDir, json, filesDir, filesDir->valuestring);
+    // buffSize
+    if (cJSON_HasObjectItem(json, "buffSize"))
+    {
+        cJSON *buffSize = NULL;
+        me->buffSize = NewInstance(size_t);
+        GET_VALUE(*me->buffSize, json, buffSize, (size_t)buffSize->valuedouble);
+        if (*me->buffSize < CHANNEL_MIN_BUFF_SIZE || *me->buffSize > CHANNEL_MAX_BUFF_SIZE)
+        {
+            *me->buffSize = CHANNEL_DEFAULT_BUFF_SIZE;
+        }
+    }
+    // msgSendInterval
+    if (cJSON_HasObjectItem(json, "msgSendInterval"))
+    {
+        cJSON *msgSendInterval = NULL;
+        me->msgSendInterval = NewInstance(uint8_t);
+        GET_VALUE(*me->msgSendInterval, json, msgSendInterval, (uint8_t)msgSendInterval->valuedouble);
+        if (*me->msgSendInterval < CHANNEL_MIN_MSG_SEND_INTERVAL || *me->msgSendInterval > CHANNEL_MAX_MSG_SEND_INTERVAL)
+        {
+            *me->msgSendInterval = CHANNEL_DEFAULT_MSG_SEND_INTERVAL;
+        }
+    }
     // channels
     cJSON *channels = cJSON_GetObjectItemCaseSensitive(json, "channels");
     cJSON *channel;
@@ -1627,31 +1652,6 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
     if (ch != NULL)
     {
         vec_push(&me->channels, ch);
-    }
-    // filesDir
-    cJSON *filesDir = NULL;
-    GET_VALUE(me->filesDir, json, filesDir, filesDir->valuestring);
-    // buffSize
-    if (cJSON_HasObjectItem(json, "buffSize"))
-    {
-        cJSON *buffSize = NULL;
-        me->buffSize = NewInstance(size_t);
-        GET_VALUE(*me->buffSize, json, buffSize, (size_t)buffSize->valuedouble);
-        if (*me->buffSize <= CHANNEL_MIN_BUFF_SIZE || *me->buffSize >= CHANNEL_MAX_BUFF_SIZE)
-        {
-            *me->buffSize = CHANNEL_DEFAULT_BUFF_SIZE;
-        }
-    }
-    // msgSendInterval
-    if (cJSON_HasObjectItem(json, "msgSendInterval"))
-    {
-        cJSON *msgSendInterval = NULL;
-        me->msgSendInterval = NewInstance(uint8_t);
-        GET_VALUE(*me->msgSendInterval, json, msgSendInterval, (uint8_t)msgSendInterval->valuedouble);
-        if (*me->msgSendInterval <= CHANNEL_MIN_MSG_SEND_INTERVAL || *me->msgSendInterval >= CHANNEL_MAX_MSG_SEND_INTERVAL)
-        {
-            *me->msgSendInterval = CHANNEL_DEFAULT_MSG_SEND_INTERVAL;
-        }
     }
     return true;
 }
