@@ -129,7 +129,7 @@ extern "C"
     typedef enum
     {
         CHANNEL_STATUS_RUNNING,
-        CHANNEL_STATUS_WAITTING_PICTRUE_ACK
+        CHANNEL_STATUS_WAITTING_FILESEND_ACK
     } ChannelStatus;
     typedef struct Channel
     {
@@ -162,6 +162,7 @@ extern "C"
         ByteBuffer *(*onRead)(Channel *const me);
         bool (*send)(Channel *const me, ByteBuffer *const buff);
         bool (*expandEncode)(Channel *const me, ByteBuffer *const buff);
+        void (*onFilesQuery)(Channel *const me);
         void (*dtor)(Channel *const me);
     } ChannelVtbl;
 
