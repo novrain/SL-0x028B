@@ -65,7 +65,7 @@ extern "C"
 
     typedef enum
     {
-        REPORT,
+        REPORT = 1,
         REPORT_CONFIRM,
         QUERY_ACK,
         MAINTAIN,
@@ -229,14 +229,14 @@ extern "C"
         char *workDir;
         char *filesDir;
         size_t *buffSize;
-        uint8_t *msgSendInterval;
+        uint16_t *msgSendInterval;
         // reference
         Station *station;
     } Config;
     Channel *Config_FindChannel(Config *const me, uint8_t chId);
     int32_t Config_IndexOfChannel(Config *const me, uint8_t chid);
 #define CHANNEL_MIN_BUFF_SIZE 200
-#define CHANNEL_MAX_BUFF_SIZE 4096
+#define CHANNEL_MAX_BUFF_SIZE 10240
 #define CHANNEL_DEFAULT_BUFF_SIZE 256
 
 #define CHANNEL_MIN_MSG_SEND_INTERVAL 1

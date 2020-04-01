@@ -19,6 +19,25 @@
 #include "common/class.h"
 
 #include "station.h"
+// string util
+void string2hexString(char *input, char *output, size_t size)
+{
+    int loop;
+    int i;
+
+    i = 0;
+    loop = 0;
+
+    while (loop < size)
+    {
+        sprintf((char *)(output + i), "%02X", input[loop]);
+        loop += 1;
+        i += 2;
+    }
+    //insert NULL at the end of the output string
+    output[i++] = '\0';
+}
+//
 
 // file system util
 typedef struct stat Stat;
@@ -99,11 +118,7 @@ cJSON *cJSON_FromFile(char const *const file)
 
 int cJSON_WriteFile(cJSON *const json, char const *const file)
 {
-#ifdef WIN32
-    int fd = open(file, O_RDWR | O_TRUNC);
-#else
-    int fd = open(file, O_RDWR | O_CREAT | O_TRUNC);
-#endif
+    int fd = open(file, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
     int lenWrite = 0;
     if (fd > 0)
     {
@@ -305,13 +320,10 @@ void Channel_dtor(Channel *const me)
     }
 }
 
-// HANDELERS
-bool handleTEST(Channel *const ch, Package *const request)
+// 工作方式 1/2 主动上报
+bool Channel_TEST(Channel *const me, uint16_t seq)
 {
-    assert(ch);
-    assert(request);
-    assert(request->head.funcCode == TEST);
-    DownlinkMessage *downMsg = (DownlinkMessage *)request;
+    assert(me);
     Package *pkg = NULL;
     LinkMessage *linkMsg = NULL;
     UplinkMessage *upMsg = NULL;
@@ -347,8 +359,85 @@ bool handleTEST(Channel *const ch, Package *const request)
     linkMsg = (LinkMessage *)pkg;
     upMsg = (UplinkMessage *)pkg;
     // CHANGE VALUE BY CONFIG
-    Channel_FillUplinkMessageHead(ch, upMsg);
-    upMsg->messageHead.seq = downMsg->messageHead.seq; // @Todo 这里是否要填写请求端对应的流水号 upMsg->messageHead.seq = Channel_NextSeq(ch)
+    Channel_FillUplinkMessageHead(me, upMsg);
+    upMsg->messageHead.seq = seq;
+    // encode
+    ByteBuffer *sendBuff = pkg->vptr->encode(pkg);
+    bool res = false;
+    if (sendBuff != NULL)
+    {
+        BB_Flip(sendBuff);
+        res = me->vptr->send(me, sendBuff);
+        BB_dtor(sendBuff);
+        DelInstance(sendBuff);
+    }
+    //release
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+    pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
+    return res;
+}
+
+bool Channel_BASIC_CONFIG(Channel *const me)
+{
+    UplinkMessage *upMsg = NewInstance(UplinkMessage);
+    UplinkMessage_ctor(upMsg, 10);
+    Package *pkg = (Package *)upMsg;              // 获取父结构Package
+    Head *head = &pkg->head;                      // 获取Head结构
+    Channel_FillUplinkMessageHead(me, upMsg);     // Fill head by config
+    head->funcCode = BASIC_CONFIG;                // 心跳功能码功能码
+    upMsg->messageHead.seq = Channel_NextSeq(me); // 根据功能码填写报文头 @Todo 这里是否要填写请求端对应的流水号
+    LinkMessage *uplinkMsg = (LinkMessage *)upMsg;
+    ByteBuffer *rawBuff = uplinkMsg->rawBuff = NewInstance(ByteBuffer);
+    BB_ctor(rawBuff, 0);
+    Config *config = &me->station->config;
+    if (config->centerAddrs != NULL)
+    {
+        BB_Expand(rawBuff, ELEMENT_IDENTIFER_LEN + 4); // 2+4
+        BB_PutUInt8(rawBuff, CONFIG_CENTER_ADDRS);
+        BB_PutUInt8(rawBuff, 4 << NUMBER_ELEMENT_LEN_OFFSET); // 0x20
+        BB_PutUInt8(rawBuff, config->centerAddrs->addr1);
+        BB_PutUInt8(rawBuff, config->centerAddrs->addr2);
+        BB_PutUInt8(rawBuff, config->centerAddrs->addr3);
+        BB_PutUInt8(rawBuff, config->centerAddrs->addr4);
+    }
+    if (config->stationAddr != NULL)
+    {
+        BB_Expand(rawBuff, ELEMENT_IDENTIFER_LEN + REMOTE_STATION_ADDR_LEN); // 2+5
+        BB_PutUInt8(rawBuff, CONFIG_REMOTESTATION_ADDR);
+        BB_PutUInt8(rawBuff, 5 << NUMBER_ELEMENT_LEN_OFFSET); // 0x28
+        RemoteStationAddr_Encode(config->stationAddr, rawBuff);
+    }
+    if (config->password != NULL)
+    {
+        BB_Expand(rawBuff, ELEMENT_IDENTIFER_LEN + 2); // 2+2
+        BB_PutUInt8(rawBuff, CONFIG_PASSWORD);
+        BB_PutUInt8(rawBuff, 2 << 3); // 0x10
+        BB_BE_PutUInt16(rawBuff, *config->password);
+    }
+    if (config->workMode != NULL)
+    {
+        BB_Expand(rawBuff, ELEMENT_IDENTIFER_LEN + 1); // 2+1
+        BB_PutUInt8(rawBuff, CONFIG_WORK_MODE);
+        BB_PutUInt8(rawBuff, 1 << 3); // 0x08
+        BB_BCDPutUInt8(rawBuff, *config->workMode);
+    }
+    size_t i;
+    Channel *ch = NULL;
+    vec_foreach(&config->channels, ch, i)
+    {
+        if (ch != NULL &&
+            ch->id != CHANNEL_ID_FIXED &&
+            ch->type != CHANNEL_DISABLED)
+        {
+            if (ch->vptr->expandEncode != NULL)
+            {
+                ch->vptr->expandEncode(ch, rawBuff);
+            }
+        }
+    }
+    pkg->tail.etxFlag = ETX; // 截止符
     // encode
     ByteBuffer *sendBuff = pkg->vptr->encode(pkg);
     bool res = false;
@@ -360,11 +449,23 @@ bool handleTEST(Channel *const ch, Package *const request)
         DelInstance(sendBuff);
     }
     //release
-    BB_dtor(byteBuff);
-    DelInstance(byteBuff);
     pkg->vptr->dtor(pkg);
     DelInstance(pkg);
     return res;
+}
+//
+
+// HANDELERS
+bool handleTEST(Channel *const ch, Package *const request)
+{
+    assert(ch);
+    assert(request);
+    assert(request->head.funcCode == TEST);
+    if (*ch->station->config.workMode == REPORT || *ch->station->config.workMode == REPORT_CONFIRM)
+    {
+        return true;
+    }
+    return Channel_TEST(ch, request->head.sequence.seq);
 }
 
 bool handleBASIC_CONFIG(Channel *const ch, Package *const request)
@@ -686,7 +787,7 @@ bool handlePICTURE(Channel *const ch, Package *const request)
         {
             return false; // 不能交叉
         }
-        if (request->tail.etxFlag == EOT) // 确认成功
+        if (request->tail.etxFlag == EOT || request->tail.etxFlag == ACK) // 确认成功
         {
             if (ch->currentFile != NULL)
             {
@@ -781,12 +882,12 @@ void IOChannel_Start(Channel *const me)
     // load files index
     char recordsFile[256] = {0};
     uint8_t id = me->id; // @Todo 改为中心站对应的编号，还需要合并主备Channel
-    snprintf(recordsFile, 256, "%s/channels/%2d/records.json", me->station->config.workDir, id);
+    snprintf(recordsFile, 256, "%s/channels/%d/records.json", me->station->config.workDir, id);
     me->recordsFile = strdup(recordsFile);
     cJSON *json = cJSON_FromFile(recordsFile);
     if (json == NULL)
     {
-        snprintf(recordsFile, 256, "%s/channels/%2d", me->station->config.workDir, id);
+        snprintf(recordsFile, 256, "%s/channels/%d", me->station->config.workDir, id);
         mode_t mode = S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH;
         mkpath(recordsFile, mode);
         json = cJSON_CreateObject();
@@ -876,6 +977,13 @@ void IOChannel_OnIOReadEvent(Reactor *reactor, ev_io *w, int revents)
         ev_io_set(ioCh->dataWatcher, ioCh->fd, EV_READ);
         ioCh->filesWatcher->repeat = 1;
         ev_timer_start(ioCh->reactor, ioCh->filesWatcher);
+        if (ch->station->config.workMode != NULL &&
+            (*ch->station->config.workMode == REPORT || *ch->station->config.workMode == REPORT_CONFIRM))
+        {
+            Channel_TEST(ch, Channel_LastSeq(ch));
+            usleep(*ch->station->config.msgSendInterval * 1000);
+            // Channel_BASIC_CONFIG(ch);
+        }
         return;
     }
     int len = 0;
@@ -922,7 +1030,10 @@ void IOChannel_OnIOReadEvent(Reactor *reactor, ev_io *w, int revents)
     }
     else
     {
-        printf("ch[%2d] invalid request, errno:[%3d], hex:[%s]\r\n", ch->id, last_error(), ch->buff);
+        int len = BB_Available(buff);
+        char hexStr[(len * 2) + 1];
+        string2hexString(ch->buff, hexStr, len);
+        printf("ch[%2d] invalid request, errno:[%3d], hex:[%s]\r\n", ch->id, last_error(), hexStr);
     }
     BB_dtor(buff);
     DelInstance(buff);
@@ -1130,7 +1241,7 @@ ByteBuffer *SocketChannel_OnRead(Channel *const me)
         Ipv4 *ipv4 = ((SocketChannelVtbl *)ch->vptr)->ip((SocketChannel *)me);
         if (me->id != CHANNEL_ID_FIXED)
         {
-            printf("ch[%d] breaking with %15s:%5d, error [%02d] %s\r\n", ch->id,
+            printf("ch[%2d] breaking with %15s:%5d, error [%02d] %s\r\n", ch->id,
                    inet_ntoa(ipv4->addr.sin_addr),
                    ntohs(ipv4->addr.sin_port),
                    err,
@@ -1619,8 +1730,8 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
     if (cJSON_HasObjectItem(json, "msgSendInterval"))
     {
         cJSON *msgSendInterval = NULL;
-        me->msgSendInterval = NewInstance(uint8_t);
-        GET_VALUE(*me->msgSendInterval, json, msgSendInterval, (uint8_t)msgSendInterval->valuedouble);
+        me->msgSendInterval = NewInstance(uint16_t);
+        GET_VALUE(*me->msgSendInterval, json, msgSendInterval, (uint16_t)msgSendInterval->valuedouble);
         if (*me->msgSendInterval < CHANNEL_MIN_MSG_SEND_INTERVAL || *me->msgSendInterval > CHANNEL_MAX_MSG_SEND_INTERVAL)
         {
             *me->msgSendInterval = CHANNEL_DEFAULT_MSG_SEND_INTERVAL;
