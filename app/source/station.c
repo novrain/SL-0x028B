@@ -1561,7 +1561,6 @@ Channel *Channel_DomainFromJson(cJSON *const channelInJson, Config *const config
         ch->domain.ipv4.addr.sin_port = htons(ipv4Port);
         // GET THE FIRST IP
         ch->domain.ipv4.addr.sin_addr = *(struct in_addr *)hosts->h_addr_list[0];
-        DelInstance(hosts);
         return (Channel *)ch;
     }
     else
