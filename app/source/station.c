@@ -243,7 +243,9 @@ void Channel_SendFile(Channel *const me, tinydir_file *file)
     struct stat fStat = {0};
     int fd = 0;
 #ifndef WIN32
+#ifndef O_BINARY
 #define O_BINARY 0
+#endif
 #endif
     if (stat(file->path, &fStat) == SL651_APP_ERROR_SUCCESS &&
         (fd = open(file->path, O_RDONLY | O_BINARY)))
@@ -380,6 +382,7 @@ bool Channel_TEST(Channel *const me, uint16_t seq)
 
 bool Channel_BASIC_CONFIG(Channel *const me)
 {
+    assert(me);
     UplinkMessage *upMsg = NewInstance(UplinkMessage);
     UplinkMessage_ctor(upMsg, 10);
     Package *pkg = (Package *)upMsg;              // 获取父结构Package
@@ -1069,6 +1072,7 @@ void IOChannel_OnFilesQuery(Channel *const me)
             break;
         }
     }
+    tinydir_close(&dir);
 }
 
 void IOChannel_OnFilesScanEvent(Reactor *reactor, ev_timer *w, int revents)
@@ -1557,6 +1561,7 @@ Channel *Channel_DomainFromJson(cJSON *const channelInJson, Config *const config
         ch->domain.ipv4.addr.sin_port = htons(ipv4Port);
         // GET THE FIRST IP
         ch->domain.ipv4.addr.sin_addr = *(struct in_addr *)hosts->h_addr_list[0];
+        DelInstance(hosts);
         return (Channel *)ch;
     }
     else
@@ -1593,6 +1598,7 @@ Channel *Channel_ToiOTA(Config *const config)
     ch->domain.ipv4.addr.sin_port = htons(60338);
     // GET THE FIRST IP
     ch->domain.ipv4.addr.sin_addr = *(struct in_addr *)hosts->h_addr_list[0];
+    DelInstance(hosts);
     return (Channel *)ch;
 }
 
@@ -1895,6 +1901,7 @@ bool Station_StartBy(Station *const me, char const *workDir)
             if (ch != NULL && ch->thread != NULL)
             {
                 pthread_join(*ch->thread, NULL);
+                DelInstance(ch->thread);
             }
         }
         // // dead loop until no event to be handle
