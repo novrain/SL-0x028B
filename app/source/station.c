@@ -1598,7 +1598,6 @@ Channel *Channel_ToiOTA(Config *const config)
     ch->domain.ipv4.addr.sin_port = htons(60338);
     // GET THE FIRST IP
     ch->domain.ipv4.addr.sin_addr = *(struct in_addr *)hosts->h_addr_list[0];
-    DelInstance(hosts);
     return (Channel *)ch;
 }
 
