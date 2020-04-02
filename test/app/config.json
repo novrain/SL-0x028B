@@ -30,6 +30,6 @@
     "password": 1234,
     "workMode": 2,
     "filesDir": "./pics",
-    "buffSize": 200,
+    "buffSize": 4096,
     "msgSendInterval": 100
 }

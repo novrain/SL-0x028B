@@ -278,8 +278,7 @@ void Channel_SendFile(Channel *const me, tinydir_file *file)
             }
             LinkMessage *uplinkMsg = (LinkMessage *)upMsg;
             PictureElement *picEl = NewInstance(PictureElement);
-            picEl->pkgNo = pkgNo;
-            PictureElement_ctor(picEl);
+            PictureElement_ctor(picEl, pkgNo);
             ByteBuffer *rawBuff = picEl->buff = NewInstance(ByteBuffer);
             BB_ctor_wrapped(rawBuff, (uint8_t *)me->buff, readBytes);
             BB_Flip(rawBuff);
@@ -1001,39 +1000,43 @@ void IOChannel_OnIOReadEvent(Reactor *reactor, ev_io *w, int revents)
         ev_timer_stop(ioCh->reactor, ioCh->filesWatcher);
         return;
     }
-    Package *pkg = decodePackage(buff);
-    if (pkg != NULL)
+    while (BB_Available(buff) > 0)
     {
-        int i = 0;
-        ChannelHandler *h = NULL;
-        bool handled = false;
-        vec_foreach(&ch->handlers, h, i)
+        Package *pkg = decodePackage(buff);
+        if (pkg != NULL)
         {
-            if (h != NULL && h->cb != NULL && h->code == pkg->head.funcCode)
+            int i = 0;
+            ChannelHandler *h = NULL;
+            bool handled = false;
+            vec_foreach(&ch->handlers, h, i)
             {
-                handled = true;
-                h->cb(ch, pkg);
-                break;
+                if (h != NULL && h->cb != NULL && h->code == pkg->head.funcCode)
+                {
+                    handled = true;
+                    h->cb(ch, pkg);
+                    break;
+                }
             }
+            printf("ch[%2d] %7s request[%4X] stx[%4X] ext[%4X] crc[%4x]\r\n", ch->id,
+                   handled == true ? "handled" : "droped",
+                   pkg->head.funcCode,
+                   pkg->head.stxFlag,
+                   pkg->tail.etxFlag,
+                   pkg->tail.crc);
+            if (pkg->vptr->dtor != NULL) // 实现了析构函数
+            {                            //
+                pkg->vptr->dtor(pkg);    // 调用析构，规范步骤
+            }                            //
+            DelInstance(pkg);
         }
-        printf("ch[%2d] %7s request[%4X] stx[%4X] ext[%4X] crc[%4x]\r\n", ch->id,
-               handled == true ? "handled" : "droped",
-               pkg->head.funcCode,
-               pkg->head.stxFlag,
-               pkg->tail.etxFlag,
-               pkg->tail.crc);
-        if (pkg->vptr->dtor != NULL) // 实现了析构函数
-        {                            //
-            pkg->vptr->dtor(pkg);    // 调用析构，规范步骤
-        }                            //
-        DelInstance(pkg);
-    }
-    else
-    {
-        int len = BB_Available(buff);
-        char hexStr[(len * 2) + 1];
-        string2hexString(ch->buff, hexStr, len);
-        printf("ch[%2d] invalid request, errno:[%3d], hex:[%s]\r\n", ch->id, last_error(), hexStr);
+        else
+        {
+            int len = BB_Limit(buff);
+            char hexStr[(len * 2) + 1];
+            string2hexString(ch->buff, hexStr, len);
+            printf("ch[%2d] invalid request, errno:[%3d], hex:[%s]\r\n", ch->id, last_error(), hexStr);
+            break;
+        }
     }
     BB_dtor(buff);
     DelInstance(buff);

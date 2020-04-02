@@ -27,7 +27,9 @@ GTEST_TEST(DecodeElement, decodeCustomeElement)
     Element *el = NULL;
     ByteBuffer *byteBuff = NewInstance(ByteBuffer);
     BB_ctor_fromHexStr(byteBuff, "FFFFFFFFFF", 10);
-    el = decodeElement(byteBuff, Up);
+    Head head = {0};
+    head.direction = Up;
+    el = decodeElement(byteBuff, &head);
     ASSERT_TRUE(el == NULL);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -39,7 +41,9 @@ GTEST_TEST(DecodeElement, decodeObserveTimeElement)
 
     ByteBuffer *byteBuff = NewInstance(ByteBuffer);
     BB_ctor_copy(byteBuff, (uint8_t *)"a", 2);
-    el = decodeElement(byteBuff, Up);
+    Head head = {0};
+    head.direction = Up;
+    el = decodeElement(byteBuff, &head);
     ASSERT_TRUE(el == NULL);
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
@@ -47,7 +51,7 @@ GTEST_TEST(DecodeElement, decodeObserveTimeElement)
     byteBuff = NewInstance(ByteBuffer);
     BB_ctor_fromHexStr(byteBuff, "F0F02002222222", 14);
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff, Up);
+    el = decodeElement(byteBuff, &head);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, OBSERVETIME);
     ASSERT_EQ(el->dataDef, OBSERVETIME);
@@ -85,7 +89,9 @@ GTEST_TEST(DecodeElement, decodeRemoteStationAddrElement)
     ByteBuffer *byteBuff = NewInstance(ByteBuffer);
     BB_ctor_fromHexStr(byteBuff, "F1F12002222222", 14); // 其他遥测站  != A5_HYDROLOGICAL_TELEMETRY_STATION
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff, Up);
+    Head head = {0};
+    head.direction = Up;
+    el = decodeElement(byteBuff, &head);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, ADDRESS);
     ASSERT_EQ(el->dataDef, ADDRESS);
@@ -116,7 +122,7 @@ GTEST_TEST(DecodeElement, decodeRemoteStationAddrElement)
     byteBuff = NewInstance(ByteBuffer);
     BB_ctor_fromHexStr(byteBuff, "F1F10002222222", 14); // 水文遥测站 A5_HYDROLOGICAL_TELEMETRY_STATION
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff, Up);
+    el = decodeElement(byteBuff, &head);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, ADDRESS);
     ASSERT_EQ(el->dataDef, ADDRESS);
@@ -153,7 +159,11 @@ GTEST_TEST(DecodeElement, decodePictureElement)
     ByteBuffer *byteBuff = NewInstance(ByteBuffer);
     BB_ctor_fromHexStr(byteBuff, "F3F3200222222211", 16);
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff, Up);
+    Head head = {0};
+    head.direction = Up;
+    head.stxFlag = SYN;
+    head.sequence.seq = 1;
+    el = decodeElement(byteBuff, &head);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, PICTURE_IL);
     ASSERT_EQ(el->dataDef, PICTURE_IL);
@@ -187,7 +197,9 @@ GTEST_TEST(DecodeElement, decodeArtificialElement)
     ByteBuffer *byteBuff = NewInstance(ByteBuffer);
     BB_ctor_fromHexStr(byteBuff, "F2F279616E7975313938383A59435A2D32412D313031212121", 50);
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff, Up);
+    Head head = {0};
+    head.direction = Up;
+    el = decodeElement(byteBuff, &head);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, ARTIFICIAL_IL);
     ASSERT_EQ(el->dataDef, ARTIFICIAL_IL);
@@ -239,7 +251,9 @@ GTEST_TEST(DecodeElement, decodeDRP5MINElement)
                        "000100000000000000000000",
                        28);
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff, Up);
+    Head head = {0};
+    head.direction = Up;
+    el = decodeElement(byteBuff, &head);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, DRP5MIN);
     ASSERT_EQ(el->dataDef, DRP5MIN_DATADEF);
@@ -291,7 +305,9 @@ GTEST_TEST(DecodeElement, decodeFlowRateDataElement)
     ByteBuffer *byteBuff = NewInstance(ByteBuffer);
     BB_ctor_fromHexStr(byteBuff, "FDF6200222222211", 16);
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff, Up);
+    Head head = {0};
+    head.direction = Up;
+    el = decodeElement(byteBuff, &head);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, FLOW_RATE_DATA);
     ASSERT_EQ(el->dataDef, FLOW_RATE_DATA_DATADEF);
@@ -341,7 +357,9 @@ GTEST_TEST(DecodeElement, decodeRelativeWaterLevelElement)
                        "0AAA0AAAFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
                        52);
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff, Up);
+    Head head = {0};
+    head.direction = Up;
+    el = decodeElement(byteBuff, &head);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, RELATIVE_WATER_LEVEL_5MIN1);
     ASSERT_EQ(el->dataDef, RELATIVE_WATER_LEVEL_5MIN1_DATADEF);
@@ -401,7 +419,9 @@ GTEST_TEST(DecodeElement, decodeNumberElement)
     // N(7,3) ，数据单位：米
     BB_ctor_fromHexStr(byteBuff, "282300011110", 12);
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff, Up);
+    Head head = {0};
+    head.direction = Up;
+    el = decodeElement(byteBuff, &head);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->vptr->size(el), 6);
     NumberElement *nel = (NumberElement *)el;
@@ -467,7 +487,9 @@ GTEST_TEST(DecodeElement, decodeTimeStepCodeElement)
                                  "FFFFFFFF",
                        70);
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff, Up);
+    Head head = {0};
+    head.direction = Up;
+    el = decodeElement(byteBuff, &head);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, TIME_STEP_CODE);
     ASSERT_EQ(el->dataDef, TIME_STEP_CODE_DATADEF);
@@ -531,7 +553,9 @@ GTEST_TEST(DecodeElement, decodeStationStatusElement)
     ByteBuffer *byteBuff = NewInstance(ByteBuffer);
     BB_ctor_fromHexStr(byteBuff, "452020022211", 12);
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff, Up);
+    Head head = {0};
+    head.direction = Up;
+    el = decodeElement(byteBuff, &head);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, STATION_STATUS);
     ASSERT_EQ(el->dataDef, STATION_STATUS_DATADEF);
@@ -564,7 +588,9 @@ GTEST_TEST(DecodeElement, decodeDurationElement)
     ByteBuffer *byteBuff = NewInstance(ByteBuffer);
     BB_ctor_fromHexStr(byteBuff, "052831312e3031", 14);
     BB_Flip(byteBuff);
-    el = decodeElement(byteBuff, Up);
+    Head head = {0};
+    head.direction = Up;
+    el = decodeElement(byteBuff, &head);
     ASSERT_TRUE(el != NULL);
     ASSERT_EQ(el->identifierLeader, DURATION_OF_XX);
     ASSERT_EQ(el->dataDef, DURATION_OF_XX_DATADEF);
@@ -2448,11 +2474,11 @@ GTEST_TEST(Package, decodeModifyBasicDownlinkMessage)
                                  "0012345678"
                                  "01"
                                  "1234"
-                                 "4080"
-                                 "46"
+                                 "40"
+                                 "8046"
                                  "020000"
-                                 "170718101"
-                                 "557012005000000022800112233440450022180941531720097080538010130123456780C08020D4080010000000000000F6831303133313132333435363738"
+                                 "1707181015"
+                                 "57012005000000022800112233440450022180941531720097080538010130123456780C08020D4080010000000000000F6831303133313132333435363738"
                                  "05"
                                  "E4B9",
                        174);

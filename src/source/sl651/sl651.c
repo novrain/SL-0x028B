@@ -21,6 +21,9 @@ static struct error_info errors[] = {
         SL651_ERROR_INVALID_DIRECTION,
         "Invalid direction."),
     SL651_DEFINE_ERROR_INFO_COMMON(
+        SL651_ERROR_INSUFFICIENT_PACKAGE_LEN,
+        "Insufficient package length."),
+    SL651_DEFINE_ERROR_INFO_COMMON(
         SL651_ERROR_INVALID_STATION_ADDR,
         "Invalid station address(eg: invalid BCD)."),
     SL651_DEFINE_ERROR_INFO_COMMON(
@@ -380,7 +383,7 @@ bool Package_EncodeHead(Package const *const me, ByteBuffer *const byteBuff)
         writeLen += BB_BE_PutUInt16(byteBuff, u32 & 0xFFFF);
     }
     return (me->head.stxFlag == SYN
-                ? writeLen == PACKAGE_HEAD_SNY_LEN
+                ? writeLen == PACKAGE_HEAD_SYN_LEN
                 : writeLen == PACKAGE_HEAD_STX_LEN) ||
            set_error_indicate(SL651_ERROR_ENCODE_INVALID_HEAD);
 }
@@ -446,6 +449,21 @@ bool Package_DecodeHead(Package *const me, ByteBuffer *const byteBuff)
     usedLen += BB_BE_GetUInt16(byteBuff, &me->head.len);
     me->head.len &= PACKAGE_HEAD_STX_BODY_LEN_MASK;
     usedLen += BB_GetUInt8(byteBuff, &me->head.stxFlag);
+    if (me->head.len > (BB_Available(byteBuff) - PACKAGE_TAIL_LEN))
+    {
+        return set_error_indicate(SL651_ERROR_INSUFFICIENT_PACKAGE_LEN);
+    }
+    uint16_t crcCalc = 0;
+    uint16_t crcInBuf = 0;
+    uint32_t dataStart = BB_Position(byteBuff) - usedLen;
+    uint32_t dataEnd = BB_Position(byteBuff) + me->head.len + 1;
+    BB_BE_PeekUInt16At(byteBuff, dataEnd, &crcInBuf);
+    BB_CRC16(byteBuff, &crcCalc, dataStart, dataEnd - dataStart);
+    if (crcCalc != crcInBuf)
+    {
+        printf("sl651 invalid CRC, E[%4x] A[%4X]\r\n", crcCalc, crcInBuf);
+        return set_error_indicate(SL651_ERROR_DECODE_INVALID_CRC);
+    }
     if (me->head.stxFlag == SYN)
     {
         uint32_t u32 = 0;
@@ -454,7 +472,7 @@ bool Package_DecodeHead(Package *const me, ByteBuffer *const byteBuff)
         me->head.sequence.count = u32 >> PACKAGE_HEAD_SEQUENCE_COUNT_BIT_MASK_LEN &
                                   PACKAGE_HEAD_SEQUENCE_COUNT_MASK;
     }
-    return (me->head.stxFlag == SYN ? usedLen == PACKAGE_HEAD_SNY_LEN : usedLen == PACKAGE_HEAD_STX_LEN) ||
+    return (me->head.stxFlag == SYN ? usedLen == PACKAGE_HEAD_SYN_LEN : usedLen == PACKAGE_HEAD_STX_LEN) ||
            set_error_indicate(SL651_ERROR_DECODE_INVALID_HEAD);
 }
 
@@ -471,7 +489,7 @@ bool Package_DecodeTail(Package *const me, ByteBuffer *const byteBuff)
 size_t Package_HeadSize(Package const *const me)
 {
     assert(me);
-    return me->head.stxFlag == SYN ? PACKAGE_HEAD_SNY_LEN : PACKAGE_HEAD_STX_LEN;
+    return me->head.stxFlag == SYN ? PACKAGE_HEAD_SYN_LEN : PACKAGE_HEAD_STX_LEN;
 }
 
 size_t Package_TailSize(Package const *const me)
@@ -594,12 +612,11 @@ size_t LinkMessage_RawByteBuffSize(LinkMessage const *const me)
 
 // "AbstractUpClass" UplinkMessage
 /* UplinkMessage Construtor & Destrucor */
-static size_t UplinkMessage_HeadSize(DownlinkMessage const *const me)
+static size_t UplinkMessage_SelfHeadSize(UplinkMessage const *const me)
 {
     assert(me);
     Package const *const pkg = &me->super.super;
-    return Package_HeadSize(pkg) +
-           ((pkg->head.stxFlag == SYN && pkg->head.sequence.seq > 1)
+    return ((pkg->head.stxFlag == SYN && pkg->head.sequence.seq > 1)
                 ? 0
                 : (2 + DATETIME_LEN +
                    (isContainObserveTimeElement(pkg->head.funcCode) ? OBSERVETIME_LEN + ELEMENT_IDENTIFER_LEN : 0) +
@@ -607,10 +624,17 @@ static size_t UplinkMessage_HeadSize(DownlinkMessage const *const me)
                    (isContainRemoteStationAddrElement(Up, pkg->head.funcCode) ? REMOTE_STATION_ADDR_LEN + ELEMENT_IDENTIFER_LEN : 0)));
 }
 
+static size_t UplinkMessage_HeadSize(UplinkMessage const *const me)
+{
+    assert(me);
+    Package const *const pkg = &me->super.super;
+    return Package_HeadSize(pkg) + UplinkMessage_SelfHeadSize(me);
+}
+
 static size_t UplinkMessage_Size(Package const *const me)
 {
     assert(me);
-    return UplinkMessage_HeadSize((DownlinkMessage *)me) +
+    return UplinkMessage_HeadSize((UplinkMessage *)me) +
            LinkMessage_RawByteBuffSize((LinkMessage *)me) +
            LinkMessage_ElementsSize((LinkMessage *)me) +
            Package_TailSize(me);
@@ -654,19 +678,16 @@ static bool UplinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff)
         return false;
     }
     // @Todo 分包情况下，后续包是否还需要去解析？
-    if (me->head.stxFlag == SYN && me->head.sequence.seq > 1)
-    {
-        ((LinkMessage *)me)->rawBuff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff) - PACKAGE_TAIL_LEN);
-    }
-    else if (isMessageCombinedByElements(Up, me->head.funcCode) &&
-             BB_Available(byteBuff) > ELEMENT_IDENTIFER_LEN + PACKAGE_TAIL_LEN) // 按照要素解码
+    if (isMessageCombinedByElements(Up, me->head.funcCode) &&
+        (me->head.stxFlag == STX || (me->head.stxFlag == SYN && me->head.sequence.seq == 1)) &&
+        BB_Available(byteBuff) > ELEMENT_IDENTIFER_LEN + PACKAGE_TAIL_LEN) // 按照要素解码
     {
         ByteBuffer elBuff;
         BB_ctor_wrappedAnother(&elBuff, byteBuff, BB_Position(byteBuff), BB_Limit(byteBuff) - PACKAGE_TAIL_LEN);
         BB_Flip(&elBuff);
         while (BB_Available(&elBuff) > 0)
         {
-            Element *el = decodeElement(&elBuff, Up);
+            Element *el = decodeElement(&elBuff, &(((Package *)me)->head));
             if (el != NULL)
             {
                 LinkMessage_PushElement((LinkMessage *const)me, el);
@@ -680,17 +701,19 @@ static bool UplinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff)
         BB_Skip(byteBuff, BB_Position(&elBuff));
         BB_dtor(&elBuff);
     }
-    else if (BB_Available(byteBuff) > PACKAGE_TAIL_LEN) // 否则交给具体功能码去处理，包括多包的后续包
+    else
     {
-        ((LinkMessage *)me)->rawBuff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff) - PACKAGE_TAIL_LEN);
-    }
-    // UplinkMessage *self = ((UplinkMessage *)me);
-    if (((LinkMessage *)me)->rawBuff != NULL)
-    {
-        BB_Flip(((LinkMessage *)me)->rawBuff);
+        uint16_t bodyLen = me->head.len -
+                           UplinkMessage_SelfHeadSize((UplinkMessage *)me) -
+                           (me->head.stxFlag == SYN ? PACKAGE_HEAD_SEQUENCE_LEN : 0);
+        if (bodyLen > 0 && BB_Available(byteBuff) >= bodyLen + PACKAGE_TAIL_LEN) // 否则交给具体功能码去处理，包括多包的后续包
+        {
+            ((LinkMessage *)me)->rawBuff = BB_GetByteBuffer(byteBuff, bodyLen);
+            BB_Flip(((LinkMessage *)me)->rawBuff);
+        }
     }
     // decode tail
-    res = BB_Available(byteBuff) == PACKAGE_TAIL_LEN && Package_DecodeTail(me, byteBuff);
+    res = BB_Available(byteBuff) >= PACKAGE_TAIL_LEN && Package_DecodeTail(me, byteBuff);
     return res;
 }
 
@@ -739,6 +762,7 @@ bool UplinkMessage_EncodeHead(UplinkMessage const *const me, ByteBuffer *const b
                          : true)))) ||
            set_error_indicate(SL651_ERROR_ENCODE_INVALID_UPLINKMESSAGE_HEAD);
 }
+
 bool UplinkMessage_DecodeHead(UplinkMessage *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
@@ -788,18 +812,24 @@ bool UplinkMessage_DecodeHead(UplinkMessage *const me, ByteBuffer *const byteBuf
 // "AbstractUpClass" DownlinkMessage
 
 /* DownlinkMessage Construtor  & Destrucor */
-static size_t DownlinkMessage_HeadSize(DownlinkMessage *const me)
+static size_t DownlinkMessage_SelfHeadSize(DownlinkMessage *const me)
 {
     assert(me);
     Package *pkg = &me->super.super;
-    return Package_HeadSize(pkg) +
-           2 + // sequence
+    return 2 + // sequence
            DATETIME_LEN +
            (pkg->head.direction == Down &&
                     pkg->head.funcCode == QUERY_TIMERANGE
                 ? TIME_STEP_RANGE_LEN
                 : 0) +
            (isContainRemoteStationAddrElement(Down, pkg->head.funcCode) ? REMOTE_STATION_ADDR_LEN + ELEMENT_IDENTIFER_LEN : 0);
+}
+
+static size_t DownlinkMessage_HeadSize(DownlinkMessage *const me)
+{
+    assert(me);
+    Package *pkg = &me->super.super;
+    return Package_HeadSize(pkg) + DownlinkMessage_SelfHeadSize(me);
 }
 
 static size_t DownlinkMessage_Size(Package const *const me)
@@ -849,19 +879,16 @@ static bool DownlinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff
         return false;
     }
     // @Todo 分包情况下，后续包是否还需要去解析？
-    if (me->head.stxFlag == SYN && me->head.sequence.seq > 1)
-    {
-        ((LinkMessage *)me)->rawBuff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff) - PACKAGE_TAIL_LEN);
-    }
-    else if (isMessageCombinedByElements(Down, me->head.funcCode) &&
-             BB_Available(byteBuff) >= ELEMENT_IDENTIFER_LEN + PACKAGE_TAIL_LEN) // 按照要素解码
+    if (isMessageCombinedByElements(Down, me->head.funcCode) &&
+        (me->head.stxFlag == STX || (me->head.stxFlag == SYN && me->head.sequence.seq == 1)) &&
+        BB_Available(byteBuff) >= ELEMENT_IDENTIFER_LEN + PACKAGE_TAIL_LEN) // 按照要素解码
     {
         ByteBuffer elBuff;
         BB_ctor_wrappedAnother(&elBuff, byteBuff, BB_Position(byteBuff), BB_Limit(byteBuff) - PACKAGE_TAIL_LEN);
         BB_Flip(&elBuff);
         while (BB_Available(&elBuff) > 0)
         {
-            Element *el = decodeElement(&elBuff, Down);
+            Element *el = decodeElement(&elBuff, &(((Package *)me)->head));
             if (el != NULL)
             {
                 LinkMessage_PushElement((LinkMessage *const)me, el);
@@ -875,17 +902,19 @@ static bool DownlinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff
         BB_Skip(byteBuff, BB_Position(&elBuff));
         BB_dtor(&elBuff);
     }
-    else if (BB_Available(byteBuff) > PACKAGE_TAIL_LEN) // 否则交给具体功能码去处理
+    else
     {
-        ((LinkMessage *)me)->rawBuff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff) - PACKAGE_TAIL_LEN);
-    }
-    // DownlinkMessage *self = ((DownlinkMessage *)me);
-    if (((LinkMessage *)me)->rawBuff != NULL)
-    {
-        BB_Flip(((LinkMessage *)me)->rawBuff);
+        uint16_t bodyLen = me->head.len -
+                           DownlinkMessage_SelfHeadSize((DownlinkMessage *)me) -
+                           (me->head.stxFlag == SYN ? PACKAGE_HEAD_SEQUENCE_LEN : 0);
+        if (bodyLen > 0 && BB_Available(byteBuff) >= bodyLen + PACKAGE_TAIL_LEN) // 否则交给具体功能码去处理
+        {
+            ((LinkMessage *)me)->rawBuff = BB_GetByteBuffer(byteBuff, bodyLen);
+            BB_Flip(((LinkMessage *)me)->rawBuff);
+        }
     }
     // decode tail
-    res = BB_Available(byteBuff) == 3 && Package_DecodeTail(me, byteBuff);
+    res = BB_Available(byteBuff) >= 3 && Package_DecodeTail(me, byteBuff);
     return res;
 }
 
@@ -1170,7 +1199,7 @@ static size_t PictureElement_Size(Element const *const me)
     assert(me);
     PictureElement *self = (PictureElement *)me;
     assert(self->buff);
-    return ELEMENT_IDENTIFER_LEN + BB_Size(self->buff);
+    return (self->pkgNo == 1 ? ELEMENT_IDENTIFER_LEN : 0) + BB_Size(self->buff);
 }
 
 void PictureElement_dtor(Element *const me)
@@ -1185,7 +1214,7 @@ void PictureElement_dtor(Element *const me)
     }
 }
 
-void PictureElement_ctor(PictureElement *const me)
+void PictureElement_ctor(PictureElement *const me, uint16_t pkgNo)
 {
     // override
     static ElementVtbl const vtbl = {
@@ -1195,6 +1224,7 @@ void PictureElement_ctor(PictureElement *const me)
         &PictureElement_dtor};
     Element_ctor(&me->super, PICTURE_IL, PICTURE_IL);
     me->super.vptr = &vtbl;
+    me->pkgNo = pkgNo;
 }
 // PictureElement END
 
@@ -1975,7 +2005,7 @@ void TimeStepCodeElement_ctor(TimeStepCodeElement *const me)
 // Decode & Encode
 // Util Functions
 // ByteBuffer should be in read mode
-Element *decodeElement(ByteBuffer *const byteBuff, Direction direction)
+Element *decodeElement(ByteBuffer *const byteBuff, Head *const head)
 {
     assert(byteBuff);
     if (BB_Available(byteBuff) < ELEMENT_IDENTIFER_LEN)
@@ -2007,8 +2037,8 @@ Element *decodeElement(ByteBuffer *const byteBuff, Direction direction)
         ArtificialElement_ctor((ArtificialElement *)el);  // 构造函数
         break;
     case PICTURE_IL:
-        el = (Element *)(NewInstance(PictureElement)); // 创建指针，需要转为Element*
-        PictureElement_ctor((PictureElement *)el);     // 构造函数
+        el = (Element *)(NewInstance(PictureElement));                 // 创建指针，需要转为Element*
+        PictureElement_ctor((PictureElement *)el, head->sequence.seq); // 构造函数
         break;
     case DRP5MIN:
         if (dataDef != DRP5MIN_DATADEF) //固定为 0x60
@@ -2086,7 +2116,7 @@ Element *decodeElement(ByteBuffer *const byteBuff, Direction direction)
     }
     if (el != NULL)
     {
-        Element_SetDirection(el, direction);
+        Element_SetDirection(el, head->direction);
         decoded = el->vptr->decode(el, byteBuff); // 解析
         if (!decoded)                             // 解析失败，需要手动删除指针
         {                                         //
@@ -2112,17 +2142,17 @@ Package *decodePackage(ByteBuffer *const byteBuff)
         return NULL;
     }
     // crc
-    uint16_t crcCalc = 0;
-    uint16_t crcInBuf = 0;
-    uint32_t dataEnd = buffSize - (PACKAGE_TAIL_LEN - 1);
-    BB_BE_PeekUInt16At(byteBuff, dataEnd, &crcInBuf);
-    BB_CRC16(byteBuff, &crcCalc, 0, dataEnd);
-    if (crcCalc != crcInBuf)
-    {
-        set_error(SL651_ERROR_DECODE_INVALID_CRC);
-        printf("sl651 invalid CRC, E[%4x] A[%4X]\r\n", crcCalc, crcInBuf);
-        return NULL;
-    }
+    // uint16_t crcCalc = 0;
+    // uint16_t crcInBuf = 0;
+    // uint32_t dataEnd = buffSize - (PACKAGE_TAIL_LEN - 1);
+    // BB_BE_PeekUInt16At(byteBuff, dataEnd, &crcInBuf);
+    // BB_CRC16(byteBuff, &crcCalc, 0, dataEnd);
+    // if (crcCalc != crcInBuf)
+    // {
+    //     set_error(SL651_ERROR_DECODE_INVALID_CRC);
+    //     printf("sl651 invalid CRC, E[%4x] A[%4X]\r\n", crcCalc, crcInBuf);
+    //     return NULL;
+    // }
     // Direction
     uint8_t direction = Down;
     BB_PeekUInt8At(byteBuff, PACKAGE_HEAD_STX_DIRECTION_INDEX, &direction);
