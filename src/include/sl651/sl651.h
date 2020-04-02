@@ -20,6 +20,7 @@ extern "C"
         // COMMON
         SL651_ERROR_INVALID_SOH,                 // SOH无效
         SL651_ERROR_INVALID_DIRECTION,           // 头部中的上下行标识错误
+        SL651_ERROR_INSUFFICIENT_PACKAGE_LEN,    // 无足够的数据长度
         SL651_ERROR_INVALID_STATION_ADDR,        // 遥测站地址错误（可能存在无效的BCD码）
         SL651_ERROR_INVALID_STATION_ELEMENT,     // 遥测站地址错误（标识符或地址错误）
         SL651_ERROR_INVALID_DATATIME,            // 发报时间错误（可能存在无效的BCD码）
@@ -469,7 +470,7 @@ extern "C"
 
 #define PACKAGE_HEAD_STX_LEN 14
 #define PACKAGE_HEAD_SEQUENCE_LEN 3
-#define PACKAGE_HEAD_SNY_LEN (PACKAGE_HEAD_STX_LEN + PACKAGE_HEAD_SEQUENCE_LEN)
+#define PACKAGE_HEAD_SYN_LEN (PACKAGE_HEAD_STX_LEN + PACKAGE_HEAD_SEQUENCE_LEN)
 #define PACKAGE_HEAD_STX_DIRECTION_INDEX 11
 #define PACKAGE_HEAD_STX_DIRECTION_INDEX_MASK_BIT 4 // u16: 12 u8: 4
 #define PACKAGE_HEAD_STX_BODY_LEN_MASK 0xFFF
@@ -679,7 +680,7 @@ extern "C"
         uint16_t pkgNo;
     } PictureElement;
 
-    void PictureElement_ctor(PictureElement *const me);
+    void PictureElement_ctor(PictureElement *const me, uint16_t pkgNo);
     void PictureElement_dtor(Element *const me);
     // PictureElement END
 
@@ -846,7 +847,7 @@ extern "C"
      *        ByteBuffer should flip to read mode.
      * @return: An Instance of Element.
      */
-    Element *decodeElement(ByteBuffer *const byteBuff, Direction direction);
+    Element *decodeElement(ByteBuffer *const byteBuff, Head *const head);
 
     /**
      * @description: Decode a Package from ByteBuffer

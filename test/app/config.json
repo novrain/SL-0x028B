@@ -1,31 +1,31 @@
 {
     "centerAddrs": {
-        "addr1": 0,
+        "addr1": 1,
         "addr2": 0,
         "addr3": 0,
-        "addr4": 102
+        "addr4": 0
     },
     "remoteStationAddr": {
-        "A5": 88,
-        "A4": 88,
-        "A3": 66,
-        "A2": 2,
-        "A1": 230,
-        "A0": 161
+        "A5": 0,
+        "A4": 12,
+        "A3": 34,
+        "A2": 56,
+        "A1": 78,
+        "A0": 0
     },
     "enableDefaultChannel": true,
     "channels": [{
-        "id": 10,
+        "id": 4,
         "type": 2,
         "keepaliveTimer": 40,
         "ipv4": "127.0.0.1",
         "port": 60338
     }, {
-        "id": 4,
-        "type": 99,
+        "id": 7,
+        "type": 2,
         "keepaliveTimer": 40,
-        "port": 60338,
-        "domain": "www.theiota.cn"
+        "ipv4": "218.94.97.35",
+        "port": 5002
     }],
     "password": 1234,
     "workMode": 2,
