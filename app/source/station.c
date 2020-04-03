@@ -1722,6 +1722,15 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
     // filesDir
     cJSON *filesDir = NULL;
     GET_VALUE(me->filesDir, json, filesDir, filesDir->valuestring);
+    if (me->filesDir == NULL)
+    {
+        size_t len = sizeof(me->workDir) + 6;
+        me->filesDir = (char *)malloc(len); // /pics\0
+        memset(me->filesDir, '\0', len);
+        snprintf(me->filesDir, len, "%s/pics", me->workDir);
+    }
+    mode_t mode = S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH;
+    mkpath(me->filesDir, mode);
     // buffSize
     if (cJSON_HasObjectItem(json, "buffSize"))
     {
