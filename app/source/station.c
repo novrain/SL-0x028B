@@ -222,12 +222,37 @@ void Channel_OnFilesQuery(Channel *const me)
     assert(0);
 }
 
-bool Channel_isFileSent(Channel *const me, tinydir_file *file)
+bool Channel_IsFileSent(Channel *const me, tinydir_file *file)
 {
     assert(me);
     assert(file);
+    pthread_mutex_lock(&me->cleanUpMutex);
     cJSON *records = cJSON_GetObjectItem(me->recordsFileInJSON, "records");
-    return records != NULL && cJSON_HasObjectItem(records, file->path);
+    bool res = records != NULL && cJSON_HasObjectItem(records, file->path);
+    pthread_mutex_unlock(&me->cleanUpMutex);
+    return res;
+}
+
+void Channel_RecordCurrentSentFile(Channel *const me)
+{
+    assert(me);
+    pthread_mutex_lock(&me->cleanUpMutex);
+    cJSON *records = cJSON_GetObjectItem(me->recordsFileInJSON, "records");
+    cJSON_AddItemToObject(records, me->currentFile->path, cJSON_CreateObject());
+    cJSON_WriteFile(me->recordsFileInJSON, me->recordsFile);
+    DelInstance(me->currentFile);
+    pthread_mutex_unlock(&me->cleanUpMutex);
+}
+
+void Channel_ClearSentFileRecord(Channel *const me, tinydir_file const *file)
+{
+    assert(me);
+    assert(file);
+    pthread_mutex_lock(&me->cleanUpMutex);
+    cJSON *records = cJSON_GetObjectItem(me->recordsFileInJSON, "records");
+    cJSON_DeleteItemFromObject(records, file->path);
+    cJSON_WriteFile(me->recordsFileInJSON, me->recordsFile);
+    pthread_mutex_unlock(&me->cleanUpMutex);
 }
 
 void Channel_SendFile(Channel *const me, tinydir_file *file)
@@ -319,6 +344,7 @@ void Channel_dtor(Channel *const me)
     {
         cJSON_Delete(me->recordsFileInJSON);
     }
+    pthread_mutex_destroy(&me->cleanUpMutex);
 }
 
 // 工作方式 1/2 主动上报
@@ -791,12 +817,9 @@ bool handlePICTURE(Channel *const ch, Package *const request)
         }
         if (request->tail.etxFlag == EOT || request->tail.etxFlag == ACK) // 确认成功
         {
-            if (ch->currentFile != NULL)
+            if (ch->currentFile != NULL && !Station_IsFileSentByAllChannel((Station *const)ch->station, (tinydir_file *const)ch->currentFile, ch))
             {
-                cJSON *records = cJSON_GetObjectItem(ch->recordsFileInJSON, "records");
-                cJSON_AddItemToObject(records, ch->currentFile->path, cJSON_CreateObject());
-                cJSON_WriteFile(ch->recordsFileInJSON, ch->recordsFile);
-                DelInstance(ch->currentFile);
+                Channel_RecordCurrentSentFile(ch);
             }
             ch->status = CHANNEL_STATUS_RUNNING;
         }
@@ -851,6 +874,7 @@ void Channel_ctor(Channel *me, Station *const station, size_t buffSize, uint8_t 
     static ChannelHandler const h_PICTRUE = {PICTURE, &handlePICTURE}; // PICTURE
     vec_push(&me->handlers, (ChannelHandler *)&h_PICTRUE);
     me->status = CHANNEL_STATUS_RUNNING;
+    pthread_mutex_init(&me->cleanUpMutex, NULL);
 }
 // Virtual Channel END
 
@@ -1057,7 +1081,7 @@ void IOChannel_OnFilesQuery(Channel *const me)
     {
         tinydir_file file;
         tinydir_readfile_n(&dir, &file, i);
-        if (!file.is_dir && !Channel_isFileSent(me, &file))
+        if (!file.is_dir && !Channel_IsFileSent(me, &file))
         {
             ev_suspend(ioCh->reactor);
             Channel_SendFile(me, &file);
@@ -1476,7 +1500,7 @@ Channel *Channel_Ipv4FromJson(cJSON *const channelInJson, Config *const config)
     assert(channelInJson);
     uint8_t idU8 = 0;
     char *ipv4Str = NULL;
-    uint16_t ipv4Port = 0;
+    uint16_t ipv4Port = 60338;
     uint8_t keepaliveU8 = CHANNLE_DEFAULT_KEEPALIVE_INTERVAL; // default value
     cJSON *id = NULL;
     cJSON *ipv4 = NULL;
@@ -1523,7 +1547,7 @@ Channel *Channel_DomainFromJson(cJSON *const channelInJson, Config *const config
     assert(channelInJson);
     uint8_t idU8 = 0;
     char *domainStr = NULL;
-    uint16_t ipv4Port = 0;
+    uint16_t ipv4Port = 60338;
     uint8_t keepaliveU8 = CHANNLE_DEFAULT_KEEPALIVE_INTERVAL; // default value
     cJSON *id = NULL;
     cJSON *domain = NULL;
@@ -1731,6 +1755,24 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
     }
     mode_t mode = S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH;
     mkpath(me->filesDir, mode);
+    // sentFilesDir
+    cJSON *sentFilesDir = NULL;
+    GET_VALUE(me->sentFilesDir, json, sentFilesDir, sentFilesDir->valuestring);
+    if (me->sentFilesDir == NULL)
+    {
+        size_t len = sizeof(me->workDir) + 11;
+        me->sentFilesDir = (char *)malloc(len); // /pics\0
+        memset(me->sentFilesDir, '\0', len);
+        snprintf(me->sentFilesDir, len, "%s/pics_sent", me->workDir);
+    }
+    mkpath(me->sentFilesDir, mode);
+    // socketDevice
+    cJSON *socketDevice = NULL;
+    GET_VALUE(me->socketDevice, json, socketDevice, socketDevice->valuestring);
+    if (me->socketDevice == NULL)
+    {
+        me->socketDevice = strdup("pp");
+    }
     // buffSize
     if (cJSON_HasObjectItem(json, "buffSize"))
     {
@@ -1836,6 +1878,18 @@ void Config_dtor(Config *const me)
     {
         DelInstance(me->workDir);
     }
+    if (me->filesDir != NULL)
+    {
+        DelInstance(me->filesDir);
+    }
+    if (me->sentFilesDir != NULL)
+    {
+        DelInstance(me->sentFilesDir);
+    }
+    if (me->socketDevice != NULL)
+    {
+        DelInstance(me->socketDevice);
+    }
 }
 
 void Config_ctor(Config *const me, Station *const station)
@@ -1856,6 +1910,7 @@ void Station_ctor(Station *const me)
     assert(me);
     // me->reactor = NULL;
     Config_ctor(&me->config, me);
+    pthread_mutex_init(&me->cleanUpMutex, NULL);
 }
 
 bool Station_StartBy(Station *const me, char const *workDir)
@@ -1869,12 +1924,12 @@ bool Station_StartBy(Station *const me, char const *workDir)
     char *file = (char *)malloc(fileLen); // config.json
     memset(file, '\0', fileLen);
     snprintf(file, fileLen, "%s/config.json", workDir);
+    me->config.workDir = strdup(workDir);
     cJSON *json = cJSON_FromFile(file);
     if (json != NULL &&
         Config_InitFromJSON(&me->config, json) &&
         Config_IsValid(&me->config))
     {
-        me->config.workDir = strdup(workDir);
         me->config.configInJSON = json;
         me->config.configFile = file;
         // me->reactor = ev_loop_new(0);
@@ -1891,7 +1946,10 @@ bool Station_StartBy(Station *const me, char const *workDir)
                 ch->centerAddr = Config_CenterAddrOfChannel(&me->config, ch);
                 // ch->vptr->start(ch);
                 pthread_t *thread = NewInstance(pthread_t);
-                int res = pthread_create(thread, NULL, (void *(*)(void *))ch->vptr->start, ch);
+                pthread_attr_t attr;
+                pthread_attr_init(&attr);
+                pthread_attr_setstacksize(&attr, 1024 * 10);
+                int res = pthread_create(thread, &attr, (void *(*)(void *))ch->vptr->start, ch);
                 if (res)
                 {
                     printf("ch[%2d] start failed.", ch->id);
@@ -1901,6 +1959,7 @@ bool Station_StartBy(Station *const me, char const *workDir)
                 {
                     ch->thread = thread;
                 }
+                pthread_attr_destroy(&attr);
             }
         }
         vec_foreach(&me->config.channels, ch, i)
@@ -1931,14 +1990,51 @@ bool Station_StartBy(Station *const me, char const *workDir)
 
 bool Station_Start(Station *const me)
 {
+    assert(me);
     char const *defaultDir = SL651_DEFAULT_WORKDIR;
     return Station_StartBy(me, defaultDir);
 }
 
+bool Station_IsFileSentByAllChannel(Station *const me, tinydir_file *const file, Channel *const currentCh)
+{
+    assert(me);
+    assert(file);
+    pthread_mutex_lock(&me->cleanUpMutex);
+    // 找文件记录，比较计数，是否移动文件
+    size_t i = 0;
+    Channel *ch;
+    vec_foreach(&me->config.channels, ch, i)
+    {
+        if (ch != NULL &&
+            ch->id != CHANNEL_ID_FIXED &&
+            (currentCh != NULL ? ch->id != currentCh->id : true) &&
+            Config_IsChannelEnable(&me->config, ch) &&
+            !Channel_IsFileSent(ch, file))
+        {
+            return false;
+        }
+    }
+    // clear
+    // move file
+    char newFile[30] = {0};
+    snprintf(newFile, 30, "%s/%s", me->config.sentFilesDir, file->name);
+    rename(file->path, newFile);
+    vec_foreach(&me->config.channels, ch, i)
+    {
+        if (ch != NULL && (currentCh != NULL ? ch->id != currentCh->id : true))
+        {
+            Channel_ClearSentFileRecord(ch, file);
+        }
+    }
+    pthread_mutex_unlock(&me->cleanUpMutex);
+    return true;
+}
+
 void Station_dtor(Station *const me)
 {
+    assert(me);
     Config_dtor(&me->config);
-
+    pthread_mutex_destroy(&me->cleanUpMutex);
     // if (me->reactor)
     // {
     //     ev_loop_destroy(me->reactor);
