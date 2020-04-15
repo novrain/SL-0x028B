@@ -150,6 +150,7 @@ extern "C"
         // recordsFile
         char *recordsFile;
         cJSON *recordsFileInJSON;
+        pthread_mutex_t cleanUpMutex;
         // reference
         Station *station;
     } Channel;
@@ -190,6 +191,7 @@ extern "C"
     typedef struct SocketChannel
     {
         IOChannel supper;
+        char *deviceStr;
     } SocketChannel;
 
     typedef struct SocketChannelVtbl
@@ -228,6 +230,8 @@ extern "C"
         char *configFile;
         char *workDir;
         char *filesDir;
+        char *sentFilesDir;
+        char *socketDevice;
         size_t *buffSize;
         uint16_t *msgSendInterval;
         // reference
@@ -247,11 +251,13 @@ extern "C"
     {
         // Reactor *reactor;
         Config config;
+        pthread_mutex_t cleanUpMutex;
     };
     void Station_ctor(Station *const me);
     bool Station_Start(Station *const me);
     bool Station_StartBy(Station *const me, char const *dir);
     void Station_dtor(Station *const me);
+    bool Station_IsFileSentByAllChannel(Station *const me, tinydir_file *const file, Channel *const currentCh);
 #define SL651_DEFAULT_WORKDIR "/sl651"
 #define SL651_DEFAULT_CONFIG_FILE_NAME_LEN 11
     // #define SL651_DEFAULT_CONFIGFILE "/sl651/config.json"
