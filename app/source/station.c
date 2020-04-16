@@ -2011,14 +2011,24 @@ bool Station_IsFileSentByAllChannel(Station *const me, tinydir_file *const file,
             Config_IsChannelEnable(&me->config, ch) &&
             !Channel_IsFileSent(ch, file))
         {
+            pthread_mutex_unlock(&me->cleanUpMutex);
             return false;
         }
     }
     // clear
     // move file
-    char newFile[30] = {0};
-    snprintf(newFile, 30, "%s/%s", me->config.sentFilesDir, file->name);
-    rename(file->path, newFile);
+    char newFile[256] = {0};
+    snprintf(newFile, 256, "%s/%s", me->config.sentFilesDir, file->name);
+    i = 1;
+    while (access(newFile, 0) == SL651_APP_ERROR_SUCCESS)
+    {
+        snprintf(newFile, 256, "%s/%s.(%d)", me->config.sentFilesDir, file->name, i);
+        i++;
+    }
+    if (rename(file->path, newFile) != SL651_APP_ERROR_SUCCESS)
+    {
+        remove(file->path);
+    }
     vec_foreach(&me->config.channels, ch, i)
     {
         if (ch != NULL && (currentCh != NULL ? ch->id != currentCh->id : true))
