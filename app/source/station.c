@@ -906,14 +906,14 @@ void IOChannel_Start(Channel *const me)
         // ev_timer_again(ioCh->reactor, filesWatcher);
     }
     // load files index
-    char recordsFile[256] = {0};
+    char recordsFile[300] = {0};
     uint8_t id = me->id; // @Todo 改为中心站对应的编号，还需要合并主备Channel
-    snprintf(recordsFile, 256, "%s/channels/%d/records.json", me->station->config.workDir, id);
+    snprintf(recordsFile, 300, "%s/channels/%d/records.json", me->station->config.workDir, id);
     me->recordsFile = strdup(recordsFile);
     cJSON *json = cJSON_FromFile(recordsFile);
     if (json == NULL)
     {
-        snprintf(recordsFile, 256, "%s/channels/%d", me->station->config.workDir, id);
+        snprintf(recordsFile, 300, "%s/channels/%d", me->station->config.workDir, id);
         mode_t mode = S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH;
         mkpath(recordsFile, mode);
         json = cJSON_CreateObject();
@@ -2017,12 +2017,12 @@ bool Station_IsFileSentByAllChannel(Station *const me, tinydir_file *const file,
     }
     // clear
     // move file
-    char newFile[256] = {0};
-    snprintf(newFile, 256, "%s/%s", me->config.sentFilesDir, file->name);
+    char newFile[300] = {0};
+    snprintf(newFile, 300, "%s/%s", me->config.sentFilesDir, file->name);
     i = 1;
     while (access(newFile, 0) == SL651_APP_ERROR_SUCCESS)
     {
-        snprintf(newFile, 256, "%s/%s.(%d)", me->config.sentFilesDir, file->name, i);
+        snprintf(newFile, 300, "%s/%s.(%d)", me->config.sentFilesDir, file->name, (int)i);
         i++;
     }
     if (rename(file->path, newFile) != SL651_APP_ERROR_SUCCESS)
