@@ -240,7 +240,6 @@ void Channel_RecordCurrentSentFile(Channel *const me)
     cJSON *records = cJSON_GetObjectItem(me->recordsFileInJSON, "records");
     cJSON_AddItemToObject(records, me->currentFile->path, cJSON_CreateObject());
     cJSON_WriteFile(me->recordsFileInJSON, me->recordsFile);
-    DelInstance(me->currentFile);
     pthread_mutex_unlock(&me->cleanUpMutex);
 }
 
@@ -821,6 +820,7 @@ bool handlePICTURE(Channel *const ch, Package *const request)
             {
                 Channel_RecordCurrentSentFile(ch);
             }
+            DelInstance(ch->currentFile);
             ch->status = CHANNEL_STATUS_RUNNING;
         }
         return true;
