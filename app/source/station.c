@@ -243,6 +243,17 @@ void Channel_RecordCurrentSentFile(Channel *const me)
     pthread_mutex_unlock(&me->cleanUpMutex);
 }
 
+void Channel_RecordSentFile(Channel *const me, tinydir_file *const file)
+{
+    assert(me);
+    assert(file);
+    pthread_mutex_lock(&me->cleanUpMutex);
+    cJSON *records = cJSON_GetObjectItem(me->recordsFileInJSON, "records");
+    cJSON_AddItemToObject(records, file->path, cJSON_CreateObject());
+    cJSON_WriteFile(me->recordsFileInJSON, me->recordsFile);
+    pthread_mutex_unlock(&me->cleanUpMutex);
+}
+
 void Channel_ClearSentFileRecord(Channel *const me, tinydir_file const *file)
 {
     assert(me);
@@ -274,6 +285,15 @@ void Channel_SendFile(Channel *const me, tinydir_file *file)
     if (stat(file->path, &fStat) == SL651_APP_ERROR_SUCCESS &&
         (fd = open(file->path, O_RDONLY | O_BINARY)))
     {
+        if (fStat.st_size <= 0) // 0 字节文件
+        {
+            if (!Station_IsFileSentByAllChannel((Station *const)me->station, (tinydir_file *const)file, me))
+            {
+                Channel_RecordSentFile(me, (tinydir_file *const)file);
+            }
+            me->status = CHANNEL_STATUS_RUNNING;
+            return;
+        }
         uint16_t pkgCount = fStat.st_size / me->buffSize;
         if (fStat.st_size % me->buffSize != 0)
         {
