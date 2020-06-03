@@ -683,7 +683,12 @@ static bool UplinkMessage_Decode(Package *const me, ByteBuffer *const byteBuff)
         BB_Available(byteBuff) > ELEMENT_IDENTIFER_LEN + PACKAGE_TAIL_LEN) // 按照要素解码
     {
         ByteBuffer elBuff;
-        BB_ctor_wrappedAnother(&elBuff, byteBuff, BB_Position(byteBuff), BB_Limit(byteBuff) - PACKAGE_TAIL_LEN);
+        uint32_t len = me->head.len - UplinkMessage_SelfHeadSize((UplinkMessage *)me);
+        if (me->head.stxFlag == SYN)
+        {
+            len -= 3; // 包总数及序列号
+        }
+        BB_ctor_wrappedAnother(&elBuff, byteBuff, BB_Position(byteBuff), BB_Position(byteBuff) + len);
         BB_Flip(&elBuff);
         while (BB_Available(&elBuff) > 0)
         {
@@ -783,7 +788,7 @@ bool UplinkMessage_DecodeHead(UplinkMessage *const me, ByteBuffer *const byteBuf
         BB_GetUInt8(byteBuff, &me->messageHead.stationAddrElement.super.identifierLeader);
         BB_GetUInt8(byteBuff, &me->messageHead.stationAddrElement.super.dataDef);
         if (me->messageHead.stationAddrElement.super.identifierLeader != ADDRESS ||
-            me->messageHead.stationAddrElement.super.dataDef != ADDRESS ||
+            (me->messageHead.stationAddrElement.super.dataDef != ADDRESS && me->messageHead.stationAddrElement.super.dataDef != 0x28) || // 支持非标
             !RemoteStationAddr_Decode(&me->messageHead.stationAddrElement.stationAddr, byteBuff))
         {
             return set_error_indicate(SL651_ERROR_INVALID_STATION_ELEMENT);
@@ -799,7 +804,7 @@ bool UplinkMessage_DecodeHead(UplinkMessage *const me, ByteBuffer *const byteBuf
         BB_GetUInt8(byteBuff, &me->messageHead.observeTimeElement.super.identifierLeader);
         BB_GetUInt8(byteBuff, &me->messageHead.observeTimeElement.super.dataDef);
         if (me->messageHead.observeTimeElement.super.identifierLeader != OBSERVETIME ||
-            me->messageHead.observeTimeElement.super.dataDef != OBSERVETIME ||
+            (me->messageHead.observeTimeElement.super.dataDef != OBSERVETIME && me->messageHead.observeTimeElement.super.dataDef != 0x28) || // 支持非标
             !ObserveTime_Decode(&me->messageHead.observeTimeElement.observeTime, byteBuff))
         {
             return set_error_indicate(SL651_ERROR_INVALID_OBSERVETIME_ELEMENT);
@@ -2155,7 +2160,7 @@ Package *decodePackage(ByteBuffer *const byteBuff)
     // }
     // Direction
     uint8_t direction = Down;
-    BB_PeekUInt8At(byteBuff, PACKAGE_HEAD_STX_DIRECTION_INDEX, &direction);
+    BB_PeekUInt8At(byteBuff, BB_Position(byteBuff) + PACKAGE_HEAD_STX_DIRECTION_INDEX, &direction);
     direction >>= PACKAGE_HEAD_STX_DIRECTION_INDEX_MASK_BIT;
     // @Todo ASCII 模式
     // DataTransMode transMode = TRANS_IN_BINARY;

@@ -2897,7 +2897,341 @@ GTEST_TEST(Package, decodeMultiPackage)
             DelInstance(pkg);
         }
     }
-    ASSERT_EQ(count, 8);
+    ASSERT_EQ(count, 10);
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, nanshuiTimePackage)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7EFF00000004441234320023020055200602130034F128000000044448F028200602130026110040391200063812132003B02B",
+                       104);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0xB0);
+    ASSERT_EQ(crc & 0xFF, 0x2B);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, INTERVAL);
+    ASSERT_EQ(pkg->head.direction, Up);
+    ElementPtrVector *elements = &((UplinkMessage *)pkg)->super.elements;
+    ASSERT_EQ(elements->length, 3);
+    Element *el = elements->data[0];
+    NumberElement *nel = NULL;
+    float fv = 1;
+
+    // it is a NumberElement
+    nel = (NumberElement *)el;
+    ASSERT_EQ(nel->super.identifierLeader, 0x26);
+    ASSERT_EQ(nel->super.dataDef, 0x11);
+    ASSERT_EQ(2, NumberElement_GetFloat(nel, &fv));
+    ASSERT_EQ(4, fv);
+
+    el = elements->data[1];
+    // it is a NumberElement
+    nel = (NumberElement *)el;
+    ASSERT_EQ(nel->super.identifierLeader, 0x39);
+    ASSERT_EQ(nel->super.dataDef, 0x12);
+    ASSERT_EQ(2, NumberElement_GetFloat(nel, &fv));
+    ASSERT_EQ(0.06f, fv);
+
+    el = elements->data[2];
+    // it is a NumberElement
+    nel = (NumberElement *)el;
+    ASSERT_EQ(nel->super.identifierLeader, 0x38);
+    ASSERT_EQ(nel->super.dataDef, 0x12);
+    ASSERT_EQ(2, NumberElement_GetFloat(nel, &fv));
+    ASSERT_EQ(13.2f, fv);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    // ASSERT_TRUE(BB_Equal(encoded, byteBuff)); // 差别F1F1<->F128 F0F0<->F028
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
+    ASSERT_EQ(pkg->tail.etxFlag, ETX);
+    // ASSERT_EQ(pkg->tail.crc, 0xB0B2); // 差别F1F1<->F128 F0F0<->F028
+
+    pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
+
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, nanshuiTimePackage1)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E0000000004441234320023020003200525180023F128000000044448F0282005251800261169553912000038121320037DA0",
+                       104);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0x7D);
+    ASSERT_EQ(crc & 0xFF, 0xA0);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, INTERVAL);
+    ASSERT_EQ(pkg->head.direction, Up);
+    ElementPtrVector *elements = &((UplinkMessage *)pkg)->super.elements;
+    ASSERT_EQ(elements->length, 3);
+    Element *el = elements->data[0];
+    NumberElement *nel = NULL;
+    float fv = 1;
+
+    // it is a NumberElement
+    nel = (NumberElement *)el;
+    ASSERT_EQ(nel->super.identifierLeader, 0x26);
+    ASSERT_EQ(nel->super.dataDef, 0x11);
+    ASSERT_EQ(2, NumberElement_GetFloat(nel, &fv));
+    ASSERT_EQ(695.5f, fv);
+
+    el = elements->data[1];
+    // it is a NumberElement
+    nel = (NumberElement *)el;
+    ASSERT_EQ(nel->super.identifierLeader, 0x39);
+    ASSERT_EQ(nel->super.dataDef, 0x12);
+    ASSERT_EQ(2, NumberElement_GetFloat(nel, &fv));
+    ASSERT_EQ(0, fv);
+
+    el = elements->data[2];
+    // it is a NumberElement
+    nel = (NumberElement *)el;
+    ASSERT_EQ(nel->super.identifierLeader, 0x38);
+    ASSERT_EQ(nel->super.dataDef, 0x12);
+    ASSERT_EQ(2, NumberElement_GetFloat(nel, &fv));
+    ASSERT_EQ(13.2f, fv);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    // ASSERT_TRUE(BB_Equal(encoded, byteBuff)); // 差别F1F1<->F128 F0F0<->F028
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
+    ASSERT_EQ(pkg->tail.etxFlag, ETX);
+    // ASSERT_EQ(pkg->tail.crc, 0xB0B2); // 差别F1F1<->F128 F0F0<->F028
+
+    pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
+
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, nanshuiAddPackage)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E2E0000000444000033002B020001200101011556F1F1000000044448F0F020010101152219000020392300000000261900002538121310036C9D",
+                       120);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0x6C);
+    ASSERT_EQ(crc & 0xFF, 0x9D);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, ADDED);
+    ASSERT_EQ(pkg->head.direction, Up);
+    ElementPtrVector *elements = &((UplinkMessage *)pkg)->super.elements;
+    ASSERT_EQ(elements->length, 4);
+    Element *el = elements->data[0];
+    NumberElement *nel = NULL;
+    float fv = 1;
+
+    // it is a NumberElement
+    nel = (NumberElement *)el;
+    ASSERT_EQ(nel->super.identifierLeader, 0x22);
+    ASSERT_EQ(nel->super.dataDef, 0x19);
+    ASSERT_EQ(3, NumberElement_GetFloat(nel, &fv));
+    ASSERT_EQ(2, fv);
+
+    el = elements->data[1];
+    // it is a NumberElement
+    nel = (NumberElement *)el;
+    ASSERT_EQ(nel->super.identifierLeader, 0x39);
+    ASSERT_EQ(nel->super.dataDef, 0x23);
+    ASSERT_EQ(4, NumberElement_GetFloat(nel, &fv));
+    ASSERT_EQ(0, fv);
+
+    el = elements->data[2];
+    // it is a NumberElement
+    nel = (NumberElement *)el;
+    ASSERT_EQ(nel->super.identifierLeader, 0x26);
+    ASSERT_EQ(nel->super.dataDef, 0x19);
+    ASSERT_EQ(3, NumberElement_GetFloat(nel, &fv));
+    ASSERT_EQ(2.5f, fv);
+
+    el = elements->data[3];
+    // it is a NumberElement
+    nel = (NumberElement *)el;
+    ASSERT_EQ(nel->super.identifierLeader, 0x38);
+    ASSERT_EQ(nel->super.dataDef, 0x12);
+    ASSERT_EQ(2, NumberElement_GetFloat(nel, &fv));
+    ASSERT_EQ(13.1f, fv);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    // ASSERT_TRUE(BB_Equal(encoded, byteBuff)); // 差别F1F1<->F128 F0F0<->F028
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
+    ASSERT_EQ(pkg->tail.etxFlag, ETX);
+    // ASSERT_EQ(pkg->tail.crc, 0xB0B2); // 差别F1F1<->F128 F0F0<->F028
+
+    pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
+
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, nanshuiEvenPackage)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E0000000004441234310038020002200525170023F128000000044448F028191230160004180000053912011501150115011501150115011501150115011501150115000017CDD0",
+                       146);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0xCD);
+    ASSERT_EQ(crc & 0xFF, 0xD0);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, EVEN_TIME);
+    ASSERT_EQ(pkg->head.direction, Up);
+    ElementPtrVector *elements = &((UplinkMessage *)pkg)->super.elements;
+    ASSERT_EQ(elements->length, 1);
+    Element *el = elements->data[0];
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    // ASSERT_TRUE(BB_Equal(encoded, byteBuff)); // 差别F1F1<->F128 F0F0<->F028
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
+    ASSERT_EQ(pkg->tail.etxFlag, ETB);
+    // ASSERT_EQ(pkg->tail.crc, 0xB0B2); // 差别F1F1<->F128 F0F0<->F028
+
+    pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
+
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, nanshuiEvenPackage1)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E0000000004441234310038020001200525170022F128000000044448F0281912301600041800000526112130213021302130213021302130213021302130213021302135179F4D",
+                       146);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0x9F);
+    ASSERT_EQ(crc & 0xFF, 0x4D);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, EVEN_TIME);
+    ASSERT_EQ(pkg->head.direction, Up);
+    ElementPtrVector *elements = &((UplinkMessage *)pkg)->super.elements;
+    ASSERT_EQ(elements->length, 1);
+    Element *el = elements->data[0];
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    // ASSERT_TRUE(BB_Equal(encoded, byteBuff)); // 差别F1F1<->F128 F0F0<->F028
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
+    ASSERT_EQ(pkg->tail.etxFlag, ETB);
+    // ASSERT_EQ(pkg->tail.crc, 0xB0B2); // 差别F1F1<->F128 F0F0<->F028
+
+    pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
+
+    BB_dtor(byteBuff);
+    DelInstance(byteBuff);
+}
+
+GTEST_TEST(Package, nanshuiHourPackage)
+{
+    Package *pkg = NULL;
+
+    ByteBuffer *byteBuff = NewInstance(ByteBuffer);
+    BB_ctor_fromHexStr(byteBuff, "7E7E010000000444000034005502002B200513080045F1F1000000044448F0F02005130705F460000000000000000000000000F5C000C100C100C100C100C100C100C100C100C100C100C100C1F0F02005130800261900008039230000193038121206038F86",
+                       204);
+    BB_Flip(byteBuff);
+
+    uint16_t crc = 0;
+    BB_CRC16(byteBuff, &crc, 0, BB_Available(byteBuff) - 2);
+    ASSERT_EQ(crc >> 8, 0x8F);
+    ASSERT_EQ(crc & 0xFF, 0x86);
+
+    pkg = decodePackage(byteBuff);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.funcCode, HOUR);
+    ASSERT_EQ(pkg->head.direction, Up);
+    ElementPtrVector *elements = &((UplinkMessage *)pkg)->super.elements;
+    ASSERT_EQ(elements->length, 6);
+    Element *el = elements->data[0];
+    DRP5MINElement *nlel = NULL;
+    nlel = (DRP5MINElement *)el;
+    ASSERT_EQ(nlel->super.identifierLeader, 0xF4);
+    ASSERT_EQ(nlel->super.dataDef, 0x60);
+    float fv = 1;
+    ASSERT_EQ(1, DRP5MINElement_ValueAt(nlel, 0, &fv));
+    ASSERT_EQ(0, fv);
+    ASSERT_EQ(1, DRP5MINElement_ValueAt(nlel, 5, &fv));
+    ASSERT_EQ(0, fv);
+    ASSERT_EQ(1, DRP5MINElement_ValueAt(nlel, 6, &fv));
+    ASSERT_EQ(0, fv);
+
+    ByteBuffer *encoded = pkg->vptr->encode(pkg);
+    BB_Flip(encoded);
+    ASSERT_EQ(BB_Available(encoded), pkg->vptr->size(pkg));
+
+    ASSERT_TRUE(BB_Equal(encoded, byteBuff));
+    BB_dtor(encoded);
+    DelInstance(encoded);
+
+    ASSERT_EQ(pkg->tail.etxFlag, ETX);
+    ASSERT_EQ(pkg->tail.crc, 0x8F86);
+
+    pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
+
     BB_dtor(byteBuff);
     DelInstance(byteBuff);
 }
