@@ -57,3 +57,5 @@ Mkfile.old
 dkms.conf
 
 tmp
+/test/app/channels
+/test/app/pics*
