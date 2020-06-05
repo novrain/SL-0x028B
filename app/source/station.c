@@ -823,6 +823,179 @@ bool handleMODIFY_BASIC_CONFIG(Channel *const ch, Package *const request)
     return true;
 }
 
+bool handleRUNTIME_CONFIG(Channel *const ch, Package *const request)
+{
+    assert(ch);
+    assert(request);
+    assert(request->head.funcCode == RUNTIME_CONFIG);
+    if (request->tail.etxFlag == ESC)
+    {
+        return true;
+    }
+    LinkMessage *reqLinkMsg = (LinkMessage *)request;
+    DownlinkMessage *reqDownlinkMsg = (DownlinkMessage *)request;
+    UplinkMessage *upMsg = NewInstance(UplinkMessage);
+    //解析获取对应要查询的配置型标识符
+    ByteBuffer *reqBuff = reqLinkMsg->rawBuff;
+    UplinkMessage_ctor(upMsg, 10);
+    Package *pkg = (Package *)upMsg;              // 获取父结构Package
+    Head *head = &pkg->head;                      // 获取Head结构
+    Channel_FillUplinkMessageHead(ch, upMsg);     // Fill head by config
+    head->funcCode = RUNTIME_CONFIG;              // 心跳功能码功能码
+    upMsg->messageHead.seq = Channel_NextSeq(ch); // 根据功能码填写报文头 @Todo 这里是否要填写请求端对应的流水号
+    Config *config = &ch->station->config;
+    cJSON *params = cJSON_GetObjectItemCaseSensitive(config->configInJSON, "runtimeParameters");
+    if (reqBuff != NULL && params != NULL)
+    {
+        LinkMessage *uplinkMsg = (LinkMessage *)upMsg;
+        while (BB_Available(reqBuff) >= 2) // 标识符两个字节，前一个是标识符，后一个固定为 0；成对，如果多余，就丢弃
+        {
+            uint8_t identifierLeader = 0;
+            BB_GetUInt8(reqBuff, &identifierLeader);
+            char path[30] = {0}; // enough
+            snprintf(path, 30, "%04X", identifierLeader);
+            cJSON *param = cJSON_GetObjectItemCaseSensitive(params, path);
+            if (param != NULL)
+            {
+                cJSON *t = cJSON_GetObjectItemCaseSensitive(param, "t");
+                cJSON *v = cJSON_GetObjectItemCaseSensitive(param, "v");
+                if (t != NULL && v != NULL)
+                {
+                    NumberElement *el = NewInstance(NumberElement);
+                    NumberElement_ctor(el, identifierLeader, t->valueint);
+                    if (t && NUMBER_ELEMENT_LEN_OFFSET == 0)
+                    {
+                        NumberElement_SetInteger(el, v->valueint);
+                    }
+                    else
+                    {
+                        NumberElement_SetDouble(el, v->valuedouble);
+                    }
+                    LinkMessage_PushElement(uplinkMsg, (Element *)el);
+                }
+            }
+            BB_Skip(reqBuff, 1);
+        }
+    }
+    pkg->tail.etxFlag = ETX; // 截止符
+    // encode
+    ByteBuffer *sendBuff = pkg->vptr->encode(pkg);
+    bool res = false;
+    if (sendBuff != NULL)
+    {
+        BB_Flip(sendBuff);
+        res = ch->vptr->send(ch, sendBuff);
+        BB_dtor(sendBuff);
+        DelInstance(sendBuff);
+    }
+    //release
+    pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
+    return res;
+}
+
+bool handleMODIFY_RUNTIME_CONFIG(Channel *const ch, Package *const request)
+{
+    assert(ch);
+    assert(request);
+    assert(request->head.funcCode == MODIFY_RUNTIME_CONFIG);
+    if (request->tail.etxFlag == ESC)
+    {
+        return true;
+    }
+    LinkMessage *reqLinkMsg = (LinkMessage *)request;
+    DownlinkMessage *reqDownlinkMsg = (DownlinkMessage *)request;
+    ByteBuffer *reqBuff = reqLinkMsg->rawBuff;
+    //解析获取对应要查询的配置型标识符
+    if (reqBuff != NULL && BB_Available(reqBuff) > 0) // 空包不处理
+    {
+        Config *config = &ch->station->config; //
+        cJSON *patches = cJSON_CreateArray();  //
+        while (BB_Available(reqBuff) >= 2)     // 标识符两个字节，前一个是标识符
+        {
+            uint8_t identifierLeader = 0;
+            uint8_t dataDef = 0;
+            BB_GetUInt8(reqBuff, &identifierLeader);
+            BB_GetUInt8(reqBuff, &dataDef);
+            uint8_t dataLen = dataDef >> NUMBER_ELEMENT_LEN_OFFSET;
+            uint8_t dataPrecision = dataDef && NUMBER_ELEMENT_LEN_OFFSET;
+            // 同时 计算实际内容部分的长度，开ByteBuffer
+            if (BB_Available(reqBuff) >= dataLen)
+            {
+                Element *el = (Element *)NewInstance(NumberElement);
+                NumberElement_ctor_noBuff((NumberElement *)el, identifierLeader, dataDef);
+                Element_SetDirection(el, Up);
+                bool decoded = el->vptr->decode(el, reqBuff); // 解析
+                if (!decoded)                                 // 解析失败，需要手动删除指针
+                {                                             //
+                    if (el->vptr->dtor != NULL)               // 实现了析构函数
+                    {                                         //
+                        el->vptr->dtor(el);                   // 调用析构，规范步骤
+                    }                                         //
+                    DelInstance(el);                          // 删除指针
+                }
+                else
+                {
+                    cJSON *param = cJSON_CreateObject();
+                    double fv = 0;
+                    uint64_t iv = 0;
+                    cJSON_AddItemToObject(param, "t", cJSON_CreateNumber(dataDef));
+                    if (dataPrecision == 0)
+                    {
+                        NumberElement_GetInteger((NumberElement *)el, &iv);
+                        fv = iv;
+                    }
+                    else
+                    {
+                        NumberElement_GetDouble((NumberElement *)el, &fv);
+                    }
+                    cJSON_AddItemToObject(param, "v", cJSON_CreateNumber(fv));
+                    char path[30] = {0}; // enough
+                    snprintf(path, 30, "/runtimeParameters/%04X", identifierLeader);
+                    cJSONUtils_AddPatchToArray(patches, "add", path, param);
+                }
+            }
+        }
+        char *jsonStr = cJSON_Print(patches);
+        printf("ch[%2d] config patches:      \r\n%s\r\n ============================================ \r\n", ch->id, jsonStr);
+        DelInstance(jsonStr);
+        cJSONUtils_ApplyPatchesCaseSensitive(config->configInJSON, patches);
+        jsonStr = cJSON_Print(config->configInJSON);
+        printf("ch[%2d] config after patched:\r\n%s\r\n ============================================ \r\n", ch->id, jsonStr);
+        DelInstance(jsonStr);
+        cJSON_Delete(patches);
+        cJSON_WriteFile(config->configInJSON, config->configFile);
+        // 应答
+        UplinkMessage *upMsg = NewInstance(UplinkMessage);
+        UplinkMessage_ctor(upMsg, 10);
+        Package *pkg = (Package *)upMsg;              // 获取父结构Package
+        Head *head = &pkg->head;                      // 获取Head结构
+        Channel_FillUplinkMessageHead(ch, upMsg);     // Fill head by config
+        head->funcCode = RUNTIME_CONFIG;              // 心跳功能码功能码
+        upMsg->messageHead.seq = Channel_NextSeq(ch); // 根据功能码填写报文头 @Todo 这里是否要填写请求端对应的流水号
+        LinkMessage *uplinkMsg = (LinkMessage *)upMsg;
+        uplinkMsg->rawBuff = NewInstance(ByteBuffer);
+        BB_ctor_wrappedAnother(uplinkMsg->rawBuff, reqBuff, 0, BB_Limit(reqBuff));
+        BB_Flip(uplinkMsg->rawBuff);
+        pkg->tail.etxFlag = ETX; // 截止符
+        // encode
+        ByteBuffer *sendBuff = pkg->vptr->encode(pkg);
+        bool res = false;
+        if (sendBuff != NULL)
+        {
+            BB_Flip(sendBuff);
+            res = ch->vptr->send(ch, sendBuff);
+            BB_dtor(sendBuff);
+            DelInstance(sendBuff);
+        }
+        //release
+        pkg->vptr->dtor(pkg);
+        DelInstance(pkg);
+        return res;
+    }
+    return true;
+}
+
 bool handlePICTURE(Channel *const ch, Package *const request)
 {
     assert(ch);
@@ -887,11 +1060,18 @@ void Channel_ctor(Channel *me, Station *const station, size_t buffSize, uint8_t 
     // register handler
     static ChannelHandler const h_TEST = {TEST, &handleTEST}; // TEST
     vec_push(&me->handlers, (ChannelHandler *)&h_TEST);
+    // BASIC_CONFIG
     static ChannelHandler const h_BASIC_CONFIG = {BASIC_CONFIG, &handleBASIC_CONFIG}; // BASIC_CONFIG
     vec_push(&me->handlers, (ChannelHandler *)&h_BASIC_CONFIG);
     static ChannelHandler const h_MODIFY_BASIC_CONFIG = {MODIFY_BASIC_CONFIG, &handleMODIFY_BASIC_CONFIG}; // MODIFY_BASIC_CONFIG
     vec_push(&me->handlers, (ChannelHandler *)&h_MODIFY_BASIC_CONFIG);
-    static ChannelHandler const h_PICTRUE = {PICTURE, &handlePICTURE}; // PICTURE
+    // RUNTIME_CONFIG
+    static ChannelHandler const h_RUNTIME_CONFIG = {RUNTIME_CONFIG, &handleRUNTIME_CONFIG}; // RUNTIME_CONFIG
+    vec_push(&me->handlers, (ChannelHandler *)&h_RUNTIME_CONFIG);
+    static ChannelHandler const h_MODIFY_RUNTIME_CONFIG = {MODIFY_RUNTIME_CONFIG, &handleMODIFY_RUNTIME_CONFIG}; // MODIFY_RUNTIME_CONFIG
+    vec_push(&me->handlers, (ChannelHandler *)&h_MODIFY_RUNTIME_CONFIG);
+    // PICTURE
+    static ChannelHandler const h_PICTRUE = {PICTURE, &handlePICTURE};
     vec_push(&me->handlers, (ChannelHandler *)&h_PICTRUE);
     me->status = CHANNEL_STATUS_RUNNING;
     pthread_mutex_init(&me->cleanUpMutex, NULL);

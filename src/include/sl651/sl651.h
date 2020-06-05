@@ -775,10 +775,13 @@ extern "C"
     } NumberElement;
 
     void NumberElement_ctor(NumberElement *const me, uint8_t identifierLeader, uint8_t dataDef);
+    void NumberElement_ctor_noBuff(NumberElement *const me, uint8_t identifierLeader, uint8_t dataDef);
     void NumberElement_dtor(Element *const me);
     uint8_t NumberElement_SetFloat(NumberElement *const me, float val);
+    uint8_t NumberElement_SetDouble(NumberElement *const me, double val);
     uint8_t NumberElement_SetInteger(NumberElement *const me, uint64_t val);
     uint8_t NumberElement_GetFloat(NumberElement *const me, float *val);
+    uint8_t NumberElement_GetDouble(NumberElement *const me, double *val);
     uint8_t NumberElement_GetInteger(NumberElement *const me, uint64_t *val);
     // All NumberElement END
 
