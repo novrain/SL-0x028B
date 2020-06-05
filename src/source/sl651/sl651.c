@@ -1673,6 +1673,10 @@ static bool NumberElement_Encode(Element const *const me, ByteBuffer *const byte
     {
         return false;
     }
+    if (self->buff != NULL)
+    {
+        BB_Flip(self->buff);
+    }
     return me->direction == Up
                ? Element_EncodeIdentifier(me, byteBuff) &&
                      (BB_PutByteBuffer(byteBuff, self->buff) ||
@@ -1770,6 +1774,12 @@ uint8_t NumberElement_SetFloat(NumberElement *const me, float val)
     return NumberElement_SetInteger(me, val * pow(10, precision));
 }
 
+uint8_t NumberElement_SetDouble(NumberElement *const me, double val)
+{
+    uint8_t precision = me->super.dataDef & NUMBER_ELEMENT_PRECISION_MASK;
+    return NumberElement_SetInteger(me, val * pow(10, precision));
+}
+
 uint8_t NumberElement_GetInteger(NumberElement *const me, uint64_t *val)
 {
     assert(me);
@@ -1811,6 +1821,19 @@ uint8_t NumberElement_GetFloat(NumberElement *const me, float *val)
     }
     return res;
 }
+
+uint8_t NumberElement_GetDouble(NumberElement *const me, double *val)
+{
+    uint64_t u64 = 0;
+    uint8_t res = NumberElement_GetInteger(me, &u64);
+    uint8_t precision = me->super.dataDef & NUMBER_ELEMENT_PRECISION_MASK;
+    *val = u64;
+    if (precision > 0)
+    {
+        *val = u64 / pow(10, precision);
+    }
+    return res;
+}
 // NumberElement END
 
 // TimeStepCodeElement
@@ -1823,6 +1846,10 @@ static bool NumberListElement_Encode(Element const *const me, ByteBuffer *const 
     if (me->direction == Up && self->buff == NULL)
     {
         return false;
+    }
+    if (self->buff != NULL)
+    {
+        BB_Rewind(self->buff);
     }
     return me->direction == Up
                ? Element_EncodeIdentifier(me, byteBuff) &&
