@@ -863,7 +863,7 @@ bool handleRUNTIME_CONFIG(Channel *const ch, Package *const request)
                 {
                     NumberElement *el = NewInstance(NumberElement);
                     NumberElement_ctor(el, identifierLeader, t->valueint);
-                    if (t && NUMBER_ELEMENT_LEN_OFFSET == 0)
+                    if ((t->valueint & NUMBER_ELEMENT_PRECISION_MASK) == 0)
                     {
                         NumberElement_SetInteger(el, v->valueint);
                     }
@@ -918,7 +918,7 @@ bool handleMODIFY_RUNTIME_CONFIG(Channel *const ch, Package *const request)
             BB_GetUInt8(reqBuff, &identifierLeader);
             BB_GetUInt8(reqBuff, &dataDef);
             uint8_t dataLen = dataDef >> NUMBER_ELEMENT_LEN_OFFSET;
-            uint8_t dataPrecision = dataDef && NUMBER_ELEMENT_LEN_OFFSET;
+            uint8_t dataPrecision = dataDef & NUMBER_ELEMENT_PRECISION_MASK;
             // 同时 计算实际内容部分的长度，开ByteBuffer
             if (BB_Available(reqBuff) >= dataLen)
             {
