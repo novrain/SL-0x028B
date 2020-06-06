@@ -22,13 +22,6 @@ extern "C"
 #include "sl651/sl651.h"
 #include "tinydir/tinydir.h"
 
-#define GET_VALUE(target, jParent, jChild, vField)                   \
-    (jChild) = cJSON_GetObjectItemCaseSensitive((jParent), #jChild); \
-    if ((jChild) != NULL)                                            \
-    {                                                                \
-        (target) = (vField);                                         \
-    }
-
     typedef enum
     {
         SL651_APP_ERROR_SUCCESS = ERROR_ENUM_BEGIN_RANGE(0),

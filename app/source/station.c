@@ -1659,31 +1659,23 @@ void DomainChannel_ctor(DomainChannel *me, Station *const station)
 Channel *Channel_Ipv4FromJson(cJSON *const channelInJson, Config *const config)
 {
     assert(channelInJson);
-    uint8_t idU8 = 0;
-    char *ipv4Str = NULL;
-    uint16_t ipv4Port = 60338;
-    uint8_t keepaliveU8 = CHANNLE_DEFAULT_KEEPALIVE_INTERVAL; // default value
-    cJSON *id = NULL;
-    cJSON *ipv4 = NULL;
-    cJSON *port = NULL;
-    cJSON *keepalive = NULL;
-    GET_VALUE(idU8, channelInJson, id, id->valuedouble);
-    GET_VALUE(ipv4Str, channelInJson, ipv4, ipv4->valuestring);
-    GET_VALUE(ipv4Port, channelInJson, port, port->valuedouble);
-    GET_VALUE(keepaliveU8, channelInJson, keepalive, keepalive->valuedouble);
-    if (ipv4Str != NULL && port > 0 &&
-        idU8 >= CHANNEL_ID_MASTER_01 && idU8 <= CHANNEL_ID_SLAVE_04)
+    cJSON_GET_VALUE(id, uint8_t, channelInJson, valuedouble, 0);
+    cJSON_GET_VALUE(ipv4, char *, channelInJson, valuestring, NULL);
+    cJSON_GET_VALUE(port, uint16_t, channelInJson, valuedouble, 60338);
+    cJSON_GET_VALUE(keepalive, uint8_t, channelInJson, valuedouble, CHANNLE_DEFAULT_KEEPALIVE_INTERVAL);
+    if (ipv4 != NULL && port > 0 &&
+        id >= CHANNEL_ID_MASTER_01 && id <= CHANNEL_ID_SLAVE_04)
     {
         Ipv4Channel *ch = NewInstance(Ipv4Channel);
         Ipv4Channel_ctor(ch, config->station); // 初始化 station 为 NULL
         Channel *super = (Channel *)ch;
-        super->id = idU8;
+        super->id = id;
         super->type = CHANNEL_IPV4;
-        super->keepaliveTimer = keepaliveU8;
+        super->keepaliveTimer = keepalive;
         ch->ipv4.addr.sin_family = AF_INET;
-        ch->ipv4.addr.sin_port = htons(ipv4Port);
+        ch->ipv4.addr.sin_port = htons(port);
 #ifdef _WIN32
-        if (inet_pton(AF_INET, ipv4Str, &ch->ipv4.addr.sin_addr) == 1)
+        if (inet_pton(AF_INET, ipv4, &ch->ipv4.addr.sin_addr) == 1)
 #else
         if (inet_aton(ipv4Str, &ch->ipv4.addr.sin_addr) == 1)
 #endif
@@ -1706,20 +1698,12 @@ Channel *Channel_Ipv4FromJson(cJSON *const channelInJson, Config *const config)
 Channel *Channel_DomainFromJson(cJSON *const channelInJson, Config *const config)
 {
     assert(channelInJson);
-    uint8_t idU8 = 0;
-    char *domainStr = NULL;
-    uint16_t ipv4Port = 60338;
-    uint8_t keepaliveU8 = CHANNLE_DEFAULT_KEEPALIVE_INTERVAL; // default value
-    cJSON *id = NULL;
-    cJSON *domain = NULL;
-    cJSON *port = NULL;
-    cJSON *keepalive = NULL;
-    GET_VALUE(idU8, channelInJson, id, id->valuedouble);
-    GET_VALUE(domainStr, channelInJson, domain, domain->valuestring);
-    GET_VALUE(ipv4Port, channelInJson, port, port->valuedouble);
-    GET_VALUE(keepaliveU8, channelInJson, keepalive, keepalive->valuedouble);
-    if (domainStr != NULL && strlen(domainStr) > 0 && port > 0 &&
-        idU8 >= CHANNEL_ID_MASTER_01 && idU8 <= CHANNEL_ID_SLAVE_04)
+    cJSON_GET_VALUE(id, uint8_t, channelInJson, valuedouble, 0);
+    cJSON_GET_VALUE(domain, char *, channelInJson, valuestring, NULL);
+    cJSON_GET_VALUE(port, uint16_t, channelInJson, valuedouble, 60338);
+    cJSON_GET_VALUE(keepalive, uint8_t, channelInJson, valuedouble, CHANNLE_DEFAULT_KEEPALIVE_INTERVAL);
+    if (domain != NULL && strlen(domain) > 0 && port > 0 &&
+        id >= CHANNEL_ID_MASTER_01 && id <= CHANNEL_ID_SLAVE_04)
     {
 #ifdef _WIN32
         WSADATA wsaData;
@@ -1730,7 +1714,7 @@ Channel *Channel_DomainFromJson(cJSON *const channelInJson, Config *const config
 #else
 
 #endif
-        struct hostent *hosts = gethostbyname(domainStr);
+        struct hostent *hosts = gethostbyname(domain);
         if (hosts == NULL || hosts->h_addrtype != AF_INET)
         {
             return NULL;
@@ -1738,12 +1722,12 @@ Channel *Channel_DomainFromJson(cJSON *const channelInJson, Config *const config
         DomainChannel *ch = NewInstance(DomainChannel);
         DomainChannel_ctor(ch, config->station); // 初始化 station 为 NULL
         Channel *super = (Channel *)ch;
-        super->id = idU8;
+        super->id = id;
         super->type = CHANNEL_DOMAIN;
-        super->keepaliveTimer = keepaliveU8;
-        ch->domain.domainStr = domainStr;
+        super->keepaliveTimer = keepalive;
+        ch->domain.domainStr = domain;
         ch->domain.ipv4.addr.sin_family = AF_INET;
-        ch->domain.ipv4.addr.sin_port = htons(ipv4Port);
+        ch->domain.ipv4.addr.sin_port = htons(port);
         // GET THE FIRST IP
         ch->domain.ipv4.addr.sin_addr = *(struct in_addr *)hosts->h_addr_list[0];
         return (Channel *)ch;
@@ -1863,33 +1847,22 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
     vec_reserve(&me->channels, 4); // channel 04~07
     // 中心地址
     me->centerAddrs = NewInstance(CenterAddrs); // we DO NOT care whether it is NULL
-    cJSON *addr1 = NULL;
-    GET_VALUE(me->centerAddrs->addr1, centerAddrs, addr1, addr1->valuedouble);
-    cJSON *addr2 = NULL;
-    GET_VALUE(me->centerAddrs->addr2, centerAddrs, addr2, addr2->valuedouble);
-    cJSON *addr3 = NULL;
-    GET_VALUE(me->centerAddrs->addr3, centerAddrs, addr3, addr3->valuedouble);
-    cJSON *addr4 = NULL;
-    GET_VALUE(me->centerAddrs->addr4, centerAddrs, addr4, addr4->valuedouble);
+    cJSON_COPY_VALUE(me->centerAddrs->addr1, addr1, centerAddrs, valuedouble);
+    cJSON_COPY_VALUE(me->centerAddrs->addr2, addr2, centerAddrs, valuedouble);
+    cJSON_COPY_VALUE(me->centerAddrs->addr3, addr3, centerAddrs, valuedouble);
+    cJSON_COPY_VALUE(me->centerAddrs->addr4, addr4, centerAddrs, valuedouble);
     // 站地址
     me->stationAddr = NewInstance(RemoteStationAddr);
-    cJSON *A5 = NULL;
-    GET_VALUE(me->stationAddr->A5, remoteStationAddr, A5, A5->valuedouble);
-    cJSON *A4 = NULL;
-    GET_VALUE(me->stationAddr->A4, remoteStationAddr, A4, A4->valuedouble);
-    cJSON *A3 = NULL;
-    GET_VALUE(me->stationAddr->A3, remoteStationAddr, A3, A3->valuedouble);
-    cJSON *A2 = NULL;
-    GET_VALUE(me->stationAddr->A2, remoteStationAddr, A2, A2->valuedouble);
-    cJSON *A1 = NULL;
-    GET_VALUE(me->stationAddr->A1, remoteStationAddr, A1, A1->valuedouble);
-    cJSON *A0 = NULL;
-    GET_VALUE(me->stationAddr->A0, remoteStationAddr, A0, A0->valuedouble);
+    cJSON_COPY_VALUE(me->stationAddr->A5, A5, remoteStationAddr, valuedouble);
+    cJSON_COPY_VALUE(me->stationAddr->A4, A4, remoteStationAddr, valuedouble);
+    cJSON_COPY_VALUE(me->stationAddr->A3, A3, remoteStationAddr, valuedouble);
+    cJSON_COPY_VALUE(me->stationAddr->A2, A2, remoteStationAddr, valuedouble);
+    cJSON_COPY_VALUE(me->stationAddr->A1, A1, remoteStationAddr, valuedouble);
+    cJSON_COPY_VALUE(me->stationAddr->A0, A0, remoteStationAddr, valuedouble);
     // 密码
     me->password = NewInstance(uint16_t);
     *me->password = 0; // default but maybe not valid
-    cJSON *password = NULL;
-    GET_VALUE(*me->password, json, password, (uint16_t)password->valuedouble);
+    cJSON_COPY_VALUE(*me->password, password, json, valuedouble);
     // 处理为 BCD 方式，便于用户配置在配置文件里
     int pwdInBcd = 0;
     int shift = 0;
@@ -1902,11 +1875,9 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
     // 工作模式
     me->workMode = NewInstance(uint8_t);
     *me->workMode = QUERY_ACK; //
-    cJSON *workMode = NULL;
-    GET_VALUE(*me->workMode, json, workMode, workMode->valuedouble);
+    cJSON_COPY_VALUE(*me->workMode, workMode, json, valuedouble);
     // filesDir
-    cJSON *filesDir = NULL;
-    GET_VALUE(me->filesDir, json, filesDir, filesDir->valuestring);
+    cJSON_COPY_VALUE(me->filesDir, filesDir, json, valuestring);
     if (me->filesDir == NULL)
     {
         size_t len = strlen(me->workDir) + 6;
@@ -1917,8 +1888,7 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
     mode_t mode = S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH;
     mkpath(me->filesDir, mode);
     // sentFilesDir
-    cJSON *sentFilesDir = NULL;
-    GET_VALUE(me->sentFilesDir, json, sentFilesDir, sentFilesDir->valuestring);
+    cJSON_COPY_VALUE(me->sentFilesDir, sentFilesDir, json, valuestring);
     if (me->sentFilesDir == NULL)
     {
         size_t len = strlen(me->workDir) + 11;
@@ -1928,8 +1898,7 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
     }
     mkpath(me->sentFilesDir, mode);
     // socketDevice
-    cJSON *socketDevice = NULL;
-    GET_VALUE(me->socketDevice, json, socketDevice, socketDevice->valuestring);
+    cJSON_COPY_VALUE(me->socketDevice, socketDevice, json, valuestring);
     if (me->socketDevice == NULL)
     {
         me->socketDevice = strdup("pp");
@@ -1937,9 +1906,8 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
     // buffSize
     if (cJSON_HasObjectItem(json, "buffSize"))
     {
-        cJSON *buffSize = NULL;
         me->buffSize = NewInstance(size_t);
-        GET_VALUE(*me->buffSize, json, buffSize, (size_t)buffSize->valuedouble);
+        cJSON_COPY_VALUE(*me->buffSize, buffSize, json, valuedouble);
         if (*me->buffSize < CHANNEL_MIN_BUFF_SIZE || *me->buffSize > CHANNEL_MAX_BUFF_SIZE)
         {
             *me->buffSize = CHANNEL_DEFAULT_BUFF_SIZE;
@@ -1948,9 +1916,8 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
     // msgSendInterval
     if (cJSON_HasObjectItem(json, "msgSendInterval"))
     {
-        cJSON *msgSendInterval = NULL;
         me->msgSendInterval = NewInstance(uint16_t);
-        GET_VALUE(*me->msgSendInterval, json, msgSendInterval, (uint16_t)msgSendInterval->valuedouble);
+        cJSON_COPY_VALUE(*me->msgSendInterval, msgSendInterval, json, valuedouble);
         if (*me->msgSendInterval < CHANNEL_MIN_MSG_SEND_INTERVAL || *me->msgSendInterval > CHANNEL_MAX_MSG_SEND_INTERVAL)
         {
             *me->msgSendInterval = CHANNEL_DEFAULT_MSG_SEND_INTERVAL;
@@ -1961,11 +1928,9 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
     cJSON *channel;
     cJSON_ArrayForEach(channel, channels)
     {
-        ChannelType cType = CHANNEL_DISABLED;
-        cJSON *type = NULL;
-        GET_VALUE(cType, channel, type, (ChannelType)type->valuedouble);
+        cJSON_GET_VALUE(type, ChannelType, channel, valuedouble, CHANNEL_DISABLED);
         Channel *ch = NULL;
-        switch (cType)
+        switch (type)
         {
         case CHANNEL_IPV4: // 目前只处理IPV4, 其他认为无效
             ch = Channel_Ipv4FromJson(channel, me);
