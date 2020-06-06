@@ -1770,12 +1770,14 @@ uint8_t NumberElement_SetInteger(NumberElement *const me, uint64_t val)
 
 uint8_t NumberElement_SetFloat(NumberElement *const me, float val)
 {
+    assert(me);
     uint8_t precision = me->super.dataDef & NUMBER_ELEMENT_PRECISION_MASK;
     return NumberElement_SetInteger(me, val * pow(10, precision));
 }
 
 uint8_t NumberElement_SetDouble(NumberElement *const me, double val)
 {
+    assert(me);
     uint8_t precision = me->super.dataDef & NUMBER_ELEMENT_PRECISION_MASK;
     return NumberElement_SetInteger(me, val * pow(10, precision));
 }
@@ -1783,6 +1785,7 @@ uint8_t NumberElement_SetDouble(NumberElement *const me, double val)
 uint8_t NumberElement_GetInteger(NumberElement *const me, uint64_t *val)
 {
     assert(me);
+    assert(val);
     if (me->buff == NULL)
     {
         return 0;
@@ -1811,6 +1814,8 @@ uint8_t NumberElement_GetInteger(NumberElement *const me, uint64_t *val)
 
 uint8_t NumberElement_GetFloat(NumberElement *const me, float *val)
 {
+    assert(me);
+    assert(val);
     uint64_t u64 = 0;
     uint8_t res = NumberElement_GetInteger(me, &u64);
     uint8_t precision = me->super.dataDef & NUMBER_ELEMENT_PRECISION_MASK;
@@ -1824,6 +1829,8 @@ uint8_t NumberElement_GetFloat(NumberElement *const me, float *val)
 
 uint8_t NumberElement_GetDouble(NumberElement *const me, double *val)
 {
+    assert(me);
+    assert(val);
     uint64_t u64 = 0;
     uint8_t res = NumberElement_GetInteger(me, &u64);
     uint8_t precision = me->super.dataDef & NUMBER_ELEMENT_PRECISION_MASK;
@@ -1849,7 +1856,7 @@ static bool NumberListElement_Encode(Element const *const me, ByteBuffer *const 
     }
     if (self->buff != NULL)
     {
-        BB_Rewind(self->buff);
+        BB_Flip(self->buff);
     }
     return me->direction == Up
                ? Element_EncodeIdentifier(me, byteBuff) &&
@@ -2022,6 +2029,7 @@ void TimeStepCodeElement_dtor(Element *me)
 
 void TimeStepCodeElement_ctor(TimeStepCodeElement *const me)
 {
+    assert(me);
     // override
     static ElementVtbl const vtbl = {
         &TimeStepCodeElement_Encode,
@@ -2040,6 +2048,7 @@ void TimeStepCodeElement_ctor(TimeStepCodeElement *const me)
 Element *decodeElement(ByteBuffer *const byteBuff, Head *const head)
 {
     assert(byteBuff);
+    assert(head);
     if (BB_Available(byteBuff) < ELEMENT_IDENTIFER_LEN)
     {
         set_error(SL651_ERROR_DECODE_ELEMENT_INSUFFICIENT_LEN);
