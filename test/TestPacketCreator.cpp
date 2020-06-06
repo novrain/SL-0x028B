@@ -16,6 +16,8 @@ GTEST_TEST(Packet_creator, factoryLoad)
     ASSERT_TRUE(strcmp(PacketCreator_schemaName(c), "test_schema") == 0);
     ASSERT_TRUE(c != NULL);
     ASSERT_TRUE(PacketCreatorFactory_count(factory) == 1);
+    PacketCreatorFactory_dtor(factory);
+    DelInstance(factory);
 }
 
 int main(int argc, char *argv[])
