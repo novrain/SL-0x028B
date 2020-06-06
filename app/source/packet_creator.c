@@ -53,8 +53,10 @@ void PacketCreatorFactory_dtor(PacketCreatorFactory *const me)
         if (c != NULL)
         {
             PacketCreator_dtor(c);
+            DelInstance(c);
         }
     }
+    vec_clear(&me->packetCreators);
 }
 
 PacketCreator *PacketCreatorFactory_getPacketCreator(PacketCreatorFactory *const me, const char *schemaName)
@@ -87,7 +89,9 @@ void PacketCreatorFactory_pushPacketCreator(PacketCreatorFactory *const me, Pack
         if (c != NULL && PacketCreator_isSameSchemaName(c, packetCreator)) // 相同的更新
         {
             PacketCreator_dtor(c);
-            c = packetCreator;
+            DelInstance(c);
+            // 修改数据，直接访问方式
+            me->packetCreators.data[i] = packetCreator;
             isExist = true;
             break;
         }
