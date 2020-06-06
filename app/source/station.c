@@ -1677,7 +1677,7 @@ Channel *Channel_Ipv4FromJson(cJSON *const channelInJson, Config *const config)
 #ifdef _WIN32
         if (inet_pton(AF_INET, ipv4, &ch->ipv4.addr.sin_addr) == 1)
 #else
-        if (inet_aton(ipv4Str, &ch->ipv4.addr.sin_addr) == 1)
+        if (inet_aton(ipv4, &ch->ipv4.addr.sin_addr) == 1)
 #endif
         {
             return (Channel *)ch;
