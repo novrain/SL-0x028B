@@ -56,7 +56,7 @@ void PacketCreatorFactory_dtor(PacketCreatorFactory *const me)
             DelInstance(c);
         }
     }
-    vec_clear(&me->packetCreators);
+    vec_deinit(&me->packetCreators);
 }
 
 PacketCreator *PacketCreatorFactory_getPacketCreator(PacketCreatorFactory *const me, const char *schemaName)
