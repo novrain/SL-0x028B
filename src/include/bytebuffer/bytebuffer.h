@@ -116,6 +116,8 @@ extern "C"
     uint8_t BB_CRC16(ByteBuffer *const me, uint16_t *crc16, uint32_t start, uint32_t size);
 
     ByteBuffer *BB_GetByteBuffer(ByteBuffer *const me, uint32_t size);
+    bool BB_CopyToByteBufferAt(ByteBuffer *const me, uint32_t start, uint32_t size, ByteBuffer *const dest);
+    bool BB_CopyToByteBuffer(ByteBuffer *const me, uint32_t size, ByteBuffer *const dest);
     bool BB_PutByteBuffer(ByteBuffer *const me, ByteBuffer *const src);
     ByteBuffer *BB_PeekByteBuffer(ByteBuffer *const me, uint32_t start, uint32_t size);
     bool BB_PutString(ByteBuffer *const me, char *src);

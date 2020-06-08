@@ -823,7 +823,7 @@ bool handleRUNTIME_CONFIG(Channel *const ch, Package *const request)
                 if (t != NULL && v != NULL)
                 {
                     NumberElement *el = NewInstance(NumberElement);
-                    NumberElement_ctor(el, identifierLeader, t->valueint);
+                    NumberElement_ctor(el, identifierLeader, t->valueint, false);
                     if ((t->valueint & NUMBER_ELEMENT_PRECISION_MASK) == 0)
                     {
                         NumberElement_SetInteger(el, v->valueint);
@@ -884,7 +884,7 @@ bool handleMODIFY_RUNTIME_CONFIG(Channel *const ch, Package *const request)
             if (BB_Available(reqBuff) >= dataLen)
             {
                 Element *el = (Element *)NewInstance(NumberElement);
-                NumberElement_ctor_noBuff((NumberElement *)el, identifierLeader, dataDef);
+                NumberElement_ctor_nullNumber((NumberElement *)el, identifierLeader, dataDef, false);
                 Element_SetDirection(el, Up);
                 bool decoded = el->vptr->decode(el, reqBuff); // 解析
                 if (!decoded)                                 // 解析失败，需要手动删除指针
