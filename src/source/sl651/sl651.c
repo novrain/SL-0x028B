@@ -1663,23 +1663,182 @@ void DurationElement_ctor(DurationElement *const me)
 }
 // DurationElement END
 
+// BCDNumber
+void BCDNumber_ctor(BCDNumber *const me, uint8_t size, uint8_t precision, bool supportSignedFlag, ByteBuffer *const buff)
+{
+    assert(me);
+    me->supportSignedFlag = supportSignedFlag;
+    if (supportSignedFlag)
+    {
+        assert(size + 1 > 1);
+        me->size = size + 1;
+    }
+    else
+    {
+        me->size = size;
+    }
+    if (buff != NULL)
+    {
+        // read status and size available
+        assert(BB_Size(buff) == me->size);
+        me->buff = buff;
+    }
+    else
+    {
+        me->buff = NewInstance(ByteBuffer);
+        BB_ctor(me->buff, me->size); // 多一个字节给符号位;
+    }
+    me->precision = precision;
+}
+
+void BCDNumber_dtor(BCDNumber *const me)
+{
+    assert(me);
+    if (me->buff != NULL)
+    {
+        BB_dtor(me->buff);
+        DelInstance(me->buff);
+    }
+}
+
+uint8_t BCDNumber_SetInteger(BCDNumber *const me, uint64_t val)
+{
+    assert(me);
+    assert(me->buff);
+    BB_Clear(me->buff);
+    if (val < 0)
+    {
+        BB_PutUInt8(me->buff, 0xFF);
+        val *= -1;
+    }
+    return BB_BE_BCDPutUInt(me->buff, &val, me->supportSignedFlag ? me->size - 1 : me->size);
+}
+
+uint8_t BCDNumber_SetFloat(BCDNumber *const me, float val)
+{
+    assert(me);
+    return BCDNumber_SetInteger(me, val * pow(10, me->precision));
+}
+
+uint8_t BCDNumber_SetDouble(BCDNumber *const me, double val)
+{
+    assert(me);
+    return BCDNumber_SetInteger(me, val * pow(10, me->precision));
+}
+
+uint8_t BCDNumber_GetInteger(BCDNumber *const me, uint64_t *val)
+{
+    assert(me);
+    assert(val);
+    if (me->buff == NULL)
+    {
+        return 0;
+    }
+    uint8_t at = 0;
+    uint8_t size = me->size;
+    uint8_t signedFlag = 0;
+    if (me->supportSignedFlag)
+    {
+        BB_PeekUInt8(me->buff, &signedFlag);
+        if (signedFlag == 0xFF) // 如果不是负值
+        {
+            at = 1;
+        }
+        size = me->size - 1;
+    }
+    *val = 0; // 副作用
+    uint8_t res = BB_BCDPeekUIntAt(me->buff, at, val, size);
+    if (res != size)
+    {
+        *val = 0xFFFFFFFFFFFFFFFF;
+        return res;
+    }
+    if (me->supportSignedFlag && signedFlag == 0xFF)
+    {
+        *val *= -1;
+    }
+    return res;
+}
+
+uint8_t BCDNumber_GetFloat(BCDNumber *const me, float *val)
+{
+    assert(me);
+    assert(val);
+    uint64_t u64 = 0;
+    uint8_t res = BCDNumber_GetInteger(me, &u64);
+    *val = u64;
+    if (me->precision > 0)
+    {
+        *val = u64 / pow(10, me->precision);
+    }
+    return res;
+}
+
+uint8_t BCDNumber_GetDouble(BCDNumber *const me, double *val)
+{
+    assert(me);
+    assert(val);
+    uint64_t u64 = 0;
+    uint8_t res = BCDNumber_GetInteger(me, &u64);
+    *val = u64;
+    if (me->precision > 0)
+    {
+        *val = u64 / pow(10, me->precision);
+    }
+    return res;
+}
+
+BCDNumber *decodeBCDNumber(ByteBuffer *const byteBuff, uint8_t size, uint8_t percision, bool supportSignedFlag)
+{
+    assert(byteBuff);
+    ByteBuffer *buff = NULL;
+    if (supportSignedFlag)
+    {
+        uint8_t signedFlag = 0;
+        BB_PeekUInt8(byteBuff, &signedFlag);
+        if (signedFlag == 0xFF)
+        {
+            buff = BB_GetByteBuffer(byteBuff, size + 1);
+        }
+        else
+        {
+            buff = NewInstance(ByteBuffer);
+            BB_ctor(buff, size + 1);
+            if (!BB_CopyToByteBuffer(byteBuff, size, buff))
+            {
+                BB_dtor(buff);
+                DelInstance(buff);
+            }
+        }
+    }
+    else
+    {
+        buff = BB_GetByteBuffer(byteBuff, size);
+    }
+    if (buff == NULL)
+    {
+        return NULL;
+    }
+    BB_Flip(buff);
+    BCDNumber *number = NewInstance(BCDNumber);
+    BCDNumber_ctor(number, size, percision, supportSignedFlag, buff);
+    return number;
+}
+// BCDNumber END
+
 // NumberElement
 static bool NumberElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
     assert(byteBuff);
     NumberElement *self = (NumberElement *)me;
-    if (me->direction == Up && self->buff == NULL)
+    if (me->direction == Up && self->number == NULL && self->number->buff == NULL)
     {
         return false;
     }
-    if (self->buff != NULL)
-    {
-        BB_Flip(self->buff);
-    }
     return me->direction == Up
                ? Element_EncodeIdentifier(me, byteBuff) &&
-                     (BB_PutByteBuffer(byteBuff, self->buff) ||
+                     (BB_PutByteBuffer(byteBuff, self->number->buff) ||
                       set_error_indicate(SL651_ERROR_ENCODE_CANNOT_PROCESS_NUMBER_DATA))
                : Element_EncodeIdentifier(me, byteBuff);
 }
@@ -1692,31 +1851,30 @@ static bool NumberElement_Decode(Element *const me, ByteBuffer *const byteBuff)
     {
         return true;
     }
-    uint8_t size = me->dataDef >> NUMBER_ELEMENT_LEN_OFFSET;
-    if (BB_Available(byteBuff) < size)
-    {
-        return set_error_indicate(SL651_ERROR_DECODE_ELEMENT_NUMBER_SIZE_NOT_MATCH_DATADEF);
-    }
     NumberElement *self = (NumberElement *)me;
-    if (self->buff != NULL) // 释放
-    {
-        BB_dtor(self->buff);
-        DelInstance(self->buff);
-    }
-    self->buff = BB_GetByteBuffer(byteBuff, size); //read all bcd
-    if (self->buff == NULL)
+    BCDNumber *number = decodeBCDNumber(byteBuff,
+                                        me->dataDef >> NUMBER_ELEMENT_LEN_OFFSET,
+                                        me->dataDef & NUMBER_ELEMENT_PRECISION_MASK,
+                                        self->supportSignedFlag);
+    if (number == NULL)
     {
         return set_error_indicate(SL651_ERROR_DECODE_ELEMENT_NUMBER_SIZE_NOT_MATCH_DATADEF);
     }
-    BB_Flip(self->buff); // Flip to read it.
+    if (self->number != NULL) // 释放
+    {
+        BCDNumber_dtor(self->number);
+        DelInstance(self->number);
+    }
+    self->number = number;
     return true;
 }
 
 static size_t NumberElement_Size(Element const *const me)
 {
     assert(me);
+    NumberElement *self = (NumberElement *)me;
     return me->direction == Up
-               ? ELEMENT_IDENTIFER_LEN + (me->dataDef >> NUMBER_ELEMENT_LEN_OFFSET)
+               ? ELEMENT_IDENTIFER_LEN + BB_Available(self->number->buff)
                : ELEMENT_IDENTIFER_LEN;
 }
 
@@ -1725,14 +1883,14 @@ void NumberElement_dtor(Element *const me)
     assert(me);
     Element_dtor(me);
     NumberElement *self = (NumberElement *)me;
-    if (self->buff != NULL)
+    if (self->number != NULL)
     {
-        BB_dtor(self->buff);
-        DelInstance(self->buff);
+        BCDNumber_dtor(self->number);
+        DelInstance(self->number);
     }
 }
 
-void NumberElement_ctor_noBuff(NumberElement *const me, uint8_t identifierLeader, uint8_t dataDef)
+void NumberElement_ctor_nullNumber(NumberElement *const me, uint8_t identifierLeader, uint8_t dataDef, bool supportSignedFlag)
 {
     assert(me);
     static ElementVtbl const vtbl = {
@@ -1744,125 +1902,123 @@ void NumberElement_ctor_noBuff(NumberElement *const me, uint8_t identifierLeader
     me->super.vptr = &vtbl;
 }
 
-void NumberElement_ctor(NumberElement *const me, uint8_t identifierLeader, uint8_t dataDef)
+void NumberElement_ctor(NumberElement *const me, uint8_t identifierLeader, uint8_t dataDef, bool supportSignedFlag)
 {
-    NumberElement_ctor_noBuff(me, identifierLeader, dataDef);
-    if (me->buff == NULL)
+    NumberElement_ctor_nullNumber(me, identifierLeader, dataDef, supportSignedFlag);
+    if (me->number != NULL)
     {
-        uint8_t size = me->super.dataDef >> NUMBER_ELEMENT_LEN_OFFSET;
-        me->buff = NewInstance(ByteBuffer);
-        BB_ctor(me->buff, size + 1); // 多一个字节给符号位
+        BCDNumber_dtor(me->number);
+        DelInstance(me->number);
     }
+    uint8_t size = me->super.dataDef >> NUMBER_ELEMENT_LEN_OFFSET;
+    uint8_t precision = me->super.dataDef & NUMBER_ELEMENT_PRECISION_MASK;
+    me->number = NewInstance(BCDNumber);
+    BCDNumber_ctor(me->number, size, precision, supportSignedFlag, NULL);
 }
 
 uint8_t NumberElement_SetInteger(NumberElement *const me, uint64_t val)
 {
     assert(me);
-    assert(me->buff);
-    BB_Clear(me->buff);
-    if (val < 0)
-    {
-        BB_PutUInt8(me->buff, 0xFF);
-        val *= -1;
-    }
-    return BB_BE_BCDPutUInt(me->buff, &val, me->super.dataDef >> NUMBER_ELEMENT_LEN_OFFSET);
+    assert(me->number);
+    return BCDNumber_SetInteger(me->number, val);
 }
 
 uint8_t NumberElement_SetFloat(NumberElement *const me, float val)
 {
     assert(me);
-    uint8_t precision = me->super.dataDef & NUMBER_ELEMENT_PRECISION_MASK;
-    return NumberElement_SetInteger(me, val * pow(10, precision));
+    assert(me->number);
+    return BCDNumber_SetFloat(me->number, val);
 }
 
 uint8_t NumberElement_SetDouble(NumberElement *const me, double val)
 {
     assert(me);
-    uint8_t precision = me->super.dataDef & NUMBER_ELEMENT_PRECISION_MASK;
-    return NumberElement_SetInteger(me, val * pow(10, precision));
+    assert(me->number);
+    return BCDNumber_SetDouble(me->number, val);
 }
 
 uint8_t NumberElement_GetInteger(NumberElement *const me, uint64_t *val)
 {
     assert(me);
     assert(val);
-    if (me->buff == NULL)
-    {
-        return 0;
-    }
-    uint8_t signedFlag = 0;
-    uint8_t at = 0;
-    BB_PeekUInt8(me->buff, &signedFlag);
-    if (signedFlag == 0xFF) // 如果不是负值
-    {
-        at = 1;
-    }
-    uint8_t size = me->super.dataDef >> NUMBER_ELEMENT_LEN_OFFSET;
-    *val = 0; // 副作用
-    uint8_t res = BB_BCDPeekUIntAt(me->buff, at, val, size);
-    if (res != size)
-    {
-        *val = 0xFFFFFFFFFFFFFFFF;
-        return res;
-    }
-    if (signedFlag == 0xFF)
-    {
-        *val *= -1;
-    }
-    return res;
+    assert(me->number);
+    return BCDNumber_GetInteger(me->number, val);
 }
 
 uint8_t NumberElement_GetFloat(NumberElement *const me, float *val)
 {
     assert(me);
     assert(val);
-    uint64_t u64 = 0;
-    uint8_t res = NumberElement_GetInteger(me, &u64);
-    uint8_t precision = me->super.dataDef & NUMBER_ELEMENT_PRECISION_MASK;
-    *val = u64;
-    if (precision > 0)
-    {
-        *val = u64 / pow(10, precision);
-    }
-    return res;
+    assert(me->number);
+    return BCDNumber_GetFloat(me->number, val);
 }
 
 uint8_t NumberElement_GetDouble(NumberElement *const me, double *val)
 {
     assert(me);
     assert(val);
-    uint64_t u64 = 0;
-    uint8_t res = NumberElement_GetInteger(me, &u64);
-    uint8_t precision = me->super.dataDef & NUMBER_ELEMENT_PRECISION_MASK;
-    *val = u64;
-    if (precision > 0)
-    {
-        *val = u64 / pow(10, precision);
-    }
-    return res;
+    assert(me->number);
+    return BCDNumber_GetDouble(me->number, val);
 }
 // NumberElement END
 
 // TimeStepCodeElement
 // Nest NumberListElement
+static bool NumberListElement_EncodeNumbers(NumberListElement *me, ByteBuffer *const byteBuffer)
+{
+    assert(me);
+    assert(byteBuffer);
+    BCDNumber *number;
+    size_t i;
+    bool res = true;
+    vec_foreach(&me->numbers, number, i)
+    {
+        if (number != NULL)
+        {
+            res = BB_PutByteBuffer(byteBuffer, number->buff);
+            if (res)
+            {
+                continue;
+            }
+            else
+            {
+                break;
+            }
+        }
+    }
+    return res;
+}
+
 static bool NumberListElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
     assert(me);
     assert(byteBuff);
     NumberListElement *self = (NumberListElement *)me;
-    if (me->direction == Up && self->buff == NULL)
+    if (me->direction == Up && self->numbers.length == 0)
     {
         return false;
     }
-    if (self->buff != NULL)
-    {
-        BB_Flip(self->buff);
-    }
     return me->direction == Up
                ? Element_EncodeIdentifier(me, byteBuff) &&
-                     (BB_PutByteBuffer(byteBuff, self->buff) ||
+                     (NumberListElement_EncodeNumbers((NumberListElement *)me, byteBuff) ||
                       set_error_indicate(SL651_ERROR_ENCODE_CANNOT_PROCESS_NUMBERLIST_DATA))
                : Element_EncodeIdentifier(me, byteBuff);
+}
+
+void NumberListElement_ClearNumbers(NumberListElement *const me)
+{
+    assert(me);
+    BCDNumber *number;
+    size_t i;
+    vec_foreach(&me->numbers, number, i)
+    {
+        if (number != NULL)
+        {
+            BCDNumber_dtor(number);
+            DelInstance(number);
+        }
+    }
+    vec_deinit(&me->numbers);
 }
 
 static bool NumberListElement_Decode(Element *const me, ByteBuffer *const byteBuff)
@@ -1874,23 +2030,18 @@ static bool NumberListElement_Decode(Element *const me, ByteBuffer *const byteBu
         return true;
     }
     uint8_t size = me->dataDef >> NUMBER_ELEMENT_LEN_OFFSET;
-    if (BB_Available(byteBuff) % size != 0)
-    {
-        return set_error_indicate(SL651_ERROR_DECODE_ELEMENT_NUMBERLIST_ODD_SIZE);
-    }
+    uint8_t precision = me->dataDef & NUMBER_ELEMENT_PRECISION_MASK;
     NumberListElement *self = (NumberListElement *)me;
-    if (self->buff != NULL) // 释放
+    NumberListElement_ClearNumbers(self);
+    while (BB_Available(byteBuff) >= size)
     {
-        BB_dtor(self->buff);
-        DelInstance(self->buff);
+        BCDNumber *number = decodeBCDNumber(byteBuff, size, precision, self->supportSignedFlag);
+        if (number == NULL)
+        {
+            return set_error_indicate(SL651_ERROR_DECODE_ELEMENT_NUMBER_SIZE_NOT_MATCH_DATADEF);
+        }
+        vec_push(&self->numbers, number);
     }
-    self->buff = BB_GetByteBuffer(byteBuff, BB_Available(byteBuff)); //read all
-    if (self->buff == NULL)
-    {
-        return false;
-    }
-    BB_Flip(self->buff); // Flip to read it.
-    self->count = BB_Available(self->buff) / size;
     return true;
 }
 
@@ -1898,8 +2049,18 @@ static size_t NumberListElement_Size(Element const *const me)
 {
     assert(me);
     NumberListElement *self = (NumberListElement *)me;
+    size_t size = 0;
+    BCDNumber *number;
+    size_t i;
+    vec_foreach(&self->numbers, number, i)
+    {
+        if (number != NULL)
+        {
+            size += BB_Available(number->buff);
+        }
+    }
     return me->direction == Up
-               ? ELEMENT_IDENTIFER_LEN + BB_Size(self->buff)
+               ? ELEMENT_IDENTIFER_LEN + size
                : ELEMENT_IDENTIFER_LEN;
 }
 
@@ -1908,64 +2069,83 @@ void NumberListElement_dtor(Element *const me)
     assert(me);
     Element_dtor(me);
     NumberListElement *self = (NumberListElement *)me;
-    if (self->buff != NULL)
-    {
-        BB_dtor(self->buff);
-        DelInstance(self->buff);
-    }
+    NumberListElement_ClearNumbers(self);
 }
 
-void NumberListElement_ctor(NumberListElement *const me, uint8_t identifierLeader, uint8_t dataDef)
+void NumberListElement_ctor_noNumbers(NumberListElement *const me, uint8_t identifierLeader, uint8_t dataDef, bool supportSignedFlag)
 {
+    assert(me);
     static ElementVtbl const vtbl = {
         &NumberListElement_Encode,
         &NumberListElement_Decode,
         &NumberListElement_Size,
         &NumberListElement_dtor};
     Element_ctor(&me->super, identifierLeader, dataDef);
+    me->supportSignedFlag = supportSignedFlag;
     me->super.vptr = &vtbl;
+    vec_init(&me->numbers);
+}
+
+void NumberListElement_ctor(NumberListElement *const me, uint8_t identifierLeader, uint8_t dataDef, bool supportSignedFlag, uint8_t count)
+{
+    assert(me);
+    assert(count > 0);
+    NumberListElement_ctor_noNumbers(me, identifierLeader, dataDef, supportSignedFlag);
+    NumberListElement_ClearNumbers(me);
+    uint8_t size = dataDef >> NUMBER_ELEMENT_LEN_OFFSET;
+    uint8_t precision = dataDef & NUMBER_ELEMENT_PRECISION_MASK;
+    for (uint8_t i = 0; i < count; i++)
+    {
+        BCDNumber *number = NewInstance(BCDNumber);
+        BCDNumber_ctor(number, size, precision, supportSignedFlag, NULL);
+        vec_push(&me->numbers, number);
+    }
+}
+
+BCDNumber *NumberListElement_GetBCDNumberAt(NumberListElement *const me, uint8_t index)
+{
+    assert(me);
+    if (index < 0 || NumberListElement_Count(me) <= 0 || index > NumberListElement_Count(me) || me->numbers.length < index + 1)
+    {
+        return 0;
+    }
+    return me->numbers.data[index];
 }
 
 uint8_t NumberListElement_GetIntegerAt(NumberListElement *const me, uint8_t index, uint64_t *val)
 {
     assert(me);
-    if (index < 0 || me->count <= 0 || index > me->count || me->buff == NULL)
+    assert(val);
+    BCDNumber *number = NumberListElement_GetBCDNumberAt(me, index);
+    if (number == NULL)
     {
         return 0;
     }
-    uint8_t size = me->super.dataDef >> NUMBER_ELEMENT_LEN_OFFSET;
-    index = index * size;
-    // @Todo 暂时无法支持负值
-    // uint8_t signedFlag = 0;
-    // BB_PeekUInt8At(me->buff, index, &signedFlag);
-    // if (signedFlag == 0xFF) // 如果是负值
-    // {
-    //     index++;
-    // }
-    *val = 0; // 副作用
-    uint8_t res = BB_BCDPeekUIntAt(me->buff, index, val, size);
-    // if (signedFlag == 0xFF && res != 0)
-    // {
-    //     *val *= -1;
-    // }
-    if (res != size)
-    {
-        *val = 0xFFFFFFFFFFFFFF;
-    }
-    return res;
+    return BCDNumber_GetInteger(number, val);
 }
 
 uint8_t NumberListElement_GetFloatAt(NumberListElement *const me, uint8_t index, float *val)
 {
-    uint64_t u64 = 0;
-    uint8_t res = NumberListElement_GetIntegerAt(me, index, &u64);
-    uint8_t precision = me->super.dataDef & NUMBER_ELEMENT_PRECISION_MASK;
-    *val = u64;
-    if (precision > 0)
+    assert(me);
+    assert(val);
+    BCDNumber *number = NumberListElement_GetBCDNumberAt(me, index);
+    if (number == NULL)
     {
-        *val = u64 / pow(10, precision);
+        return 0;
     }
-    return res;
+    return BCDNumber_GetFloat(number, val);
+}
+
+uint8_t NumberListElement_GetDoubleAt(NumberListElement *const me, uint8_t index, double *val)
+{
+    assert(me);
+    assert(val);
+    BCDNumber *number = NumberListElement_GetBCDNumberAt(me, index);
+    if (number == NULL)
+    {
+        return 0;
+    }
+    return BCDNumber_GetDouble(number, val);
 }
 // Nest NumberListElement END
 
@@ -2000,7 +2180,7 @@ static bool TimeStepCodeElement_Decode(Element *const me, ByteBuffer *const byte
     usedLen += BB_GetUInt8(byteBuff, &identifierLeader); // 解析一个字节的 标识符引导符 ， 同时位移
     uint8_t dataDef = 0;                                 //
     usedLen += BB_GetUInt8(byteBuff, &dataDef);          // 解析一个字节的 数据定义符，同时位移
-    NumberListElement_ctor(&self->numberListElement, identifierLeader, dataDef);
+    NumberListElement_ctor_noNumbers(&self->numberListElement, identifierLeader, dataDef, self->supportSignedFlag);
     Element_SetDirection(&self->numberListElement.super, me->direction);
     if (!NumberListElement_Decode((Element *)&self->numberListElement, byteBuff))
     {
@@ -2027,9 +2207,10 @@ void TimeStepCodeElement_dtor(Element *me)
     NumberListElement_dtor((Element *)&self->numberListElement);
 }
 
-void TimeStepCodeElement_ctor(TimeStepCodeElement *const me)
+void TimeStepCodeElement_ctor(TimeStepCodeElement *const me, bool supportSignedFlag)
 {
     assert(me);
+    me->supportSignedFlag = supportSignedFlag;
     // override
     static ElementVtbl const vtbl = {
         &TimeStepCodeElement_Encode,
@@ -2121,8 +2302,8 @@ Element *decodeElement(ByteBuffer *const byteBuff, Head *const head)
             set_error(SL651_ERROR_DECODE_ELEMENT_TIMESTEPCODE_DATADEF_ERROR);
             return NULL;
         }
-        el = (Element *)(NewInstance(TimeStepCodeElement));  // 创建指针，需要转为Element*
-        TimeStepCodeElement_ctor((TimeStepCodeElement *)el); // 构造函数
+        el = (Element *)(NewInstance(TimeStepCodeElement));         // 创建指针，需要转为Element*
+        TimeStepCodeElement_ctor((TimeStepCodeElement *)el, false); // 构造函数 // 暂时不支持符号位
         break;
     case STATION_STATUS:
         if (dataDef != STATION_STATUS_DATADEF) //固定为 0x60
@@ -2147,7 +2328,7 @@ Element *decodeElement(ByteBuffer *const byteBuff, Head *const head)
         if (isNumberElement(identifierLeader))
         {
             el = (Element *)NewInstance(NumberElement);
-            NumberElement_ctor_noBuff((NumberElement *)el, identifierLeader, dataDef);
+            NumberElement_ctor_nullNumber((NumberElement *)el, identifierLeader, dataDef, false); //暂时固定不支持符号位置
         }
         else
         {

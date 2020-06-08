@@ -286,6 +286,34 @@ ByteBuffer *BB_GetByteBuffer(ByteBuffer *const me, uint32_t size)
     return val;
 }
 
+bool BB_PeekToByteBufferAt(ByteBuffer *const me, uint32_t start, uint32_t size, ByteBuffer *const dest)
+{
+    assert(me);
+    assert(dest);
+    if (start < 0 || size <= 0 || start + size > me->limit || BB_Available(dest) < size)
+    {
+        return false;
+    }
+    memcpy(dest->buff + dest->position, me->buff + start, size);
+    dest->position += size;
+    return true;
+}
+
+bool BB_CopyToByteBuffer(ByteBuffer *const me, uint32_t size, ByteBuffer *const dest)
+{
+    assert(me);
+    assert(dest);
+    if (BB_PeekToByteBufferAt(me, me->position, size, dest))
+    {
+        me->position += size;
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
 bool BB_PutByteBuffer(ByteBuffer *const me, ByteBuffer *const src)
 {
     assert(me);

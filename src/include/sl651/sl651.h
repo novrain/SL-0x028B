@@ -770,12 +770,30 @@ extern "C"
     // All NumberElement
     typedef struct
     {
-        Element super;
         ByteBuffer *buff;
+        uint8_t size;
+        uint8_t precision;
+        bool supportSignedFlag;
+    } BCDNumber;
+
+    void BCDNumber_ctor(BCDNumber *const me, uint8_t size, uint8_t precision, bool supportSignedFlag, ByteBuffer *const buff);
+    void BCDNumber_dtor(BCDNumber *const me);
+    uint8_t BCDNumber_SetFloat(BCDNumber *const me, float val);
+    uint8_t BCDNumber_SetDouble(BCDNumber *const me, double val);
+    uint8_t BCDNumber_SetInteger(BCDNumber *const me, uint64_t val);
+    uint8_t BCDNumber_GetFloat(BCDNumber *const me, float *val);
+    uint8_t BCDNumber_GetDouble(BCDNumber *const me, double *val);
+    uint8_t BCDNumber_GetInteger(BCDNumber *const me, uint64_t *val);
+
+    typedef struct
+    {
+        Element super;
+        BCDNumber *number;
+        bool supportSignedFlag;
     } NumberElement;
 
-    void NumberElement_ctor(NumberElement *const me, uint8_t identifierLeader, uint8_t dataDef);
-    void NumberElement_ctor_noBuff(NumberElement *const me, uint8_t identifierLeader, uint8_t dataDef);
+    void NumberElement_ctor(NumberElement *const me, uint8_t identifierLeader, uint8_t dataDef, bool supportSignedFlag);
+    void NumberElement_ctor_nullNumber(NumberElement *const me, uint8_t identifierLeader, uint8_t dataDef, bool supportSignedFlag);
     void NumberElement_dtor(Element *const me);
     uint8_t NumberElement_SetFloat(NumberElement *const me, float val);
     uint8_t NumberElement_SetDouble(NumberElement *const me, double val);
@@ -794,17 +812,20 @@ extern "C"
         uint8_t minute;
     } TimeStepCode;
 
+    typedef vec_t(BCDNumber *) NumberPtrVector;
     typedef struct
     {
         Element super;
-        uint8_t count;
-        ByteBuffer *buff;
+        NumberPtrVector numbers;
+        bool supportSignedFlag;
     } NumberListElement;
-
-    void NumberListElement_ctor(NumberListElement *const me, uint8_t identifierLeader, uint8_t dataDef);
+    void NumberListElement_ctor(NumberListElement *const me, uint8_t identifierLeader, uint8_t dataDef, bool supportSignedFlag, uint8_t count);
+    void NumberListElement_ctor_noNumbers(NumberListElement *const me, uint8_t identifierLeader, uint8_t dataDef, bool supportSignedFlag);
     void NumberListElement_dtor(Element *const me);
     uint8_t NumberListElement_GetFloatAt(NumberListElement *const me, uint8_t index, float *val);
+    uint8_t NumberListElement_GetDoubleAt(NumberListElement *const me, uint8_t index, double *val);
     uint8_t NumberListElement_GetIntegerAt(NumberListElement *const me, uint8_t index, uint64_t *val);
+#define NumberListElement_Count(ptr_) (ptr_)->numbers.length
 
     typedef struct
     {
@@ -812,9 +833,10 @@ extern "C"
         Element super;
         TimeStepCode timeStepCode;
         NumberListElement numberListElement;
+        bool supportSignedFlag;
     } TimeStepCodeElement;
 
-    void TimeStepCodeElement_ctor(TimeStepCodeElement *const me);
+    void TimeStepCodeElement_ctor(TimeStepCodeElement *const me, bool supportSignedFlag);
     void TimeStepCodeElement_dtor(Element *me);
 #define TIME_STEP_CODE_LEN 3
 #define TIME_STEP_CODE_DATADEF 0x18
