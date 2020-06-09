@@ -3,12 +3,6 @@
 #include "common/class.h"
 #include "packet_creator.h"
 
-// a mock storage implement for test.
-typedef struct
-{
-    Storage super;
-} MockStorage;
-
 GTEST_TEST(Packet_creator, factoryLoad)
 {
     PacketCreatorFactory *factory = NewInstance(PacketCreatorFactory);
@@ -34,9 +28,7 @@ GTEST_TEST(Packet_creator, simpleNumberCreator)
     ASSERT_TRUE(c != NULL);
     ASSERT_TRUE(strcmp(PacketCreator_schemaName(c), "simple_number") == 0);
     ASSERT_TRUE(PacketCreatorFactory_count(factory) == 1);
-    // mock storage
-    Storage *storage = (Storage *)NewInstance(MockStorage);
-    Package *pkg = PacketCreator_createPacket(c, storage);
+    Package *pkg = PacketCreator_createPacket(c, NULL);
     ASSERT_TRUE(pkg != NULL);
     ASSERT_EQ(pkg->head.direction, Up);
     LinkMessage *linkMsg = (LinkMessage *)pkg;
