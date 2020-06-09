@@ -3,10 +3,12 @@
     "functionCode": "32",
     "_comment2": "schema 名称，唯一，后加载的，覆盖旧的",
     "schemaName": "test_schema",
-    "_comment3": "数据包的Elements, 数组，可以为空，",
+    "_comment3": "schema 名称，唯一，后加载的，覆盖旧的",
+    "direction": 0,
+    "_comment4": "数据包的Elements, 数组，可以为空，",
     "elements": [{
         "type": "number",
-        "identifyLeader": "",
+        "identifierLeader": "",
         "dataDef": "",
         "datasource": ""
     }]

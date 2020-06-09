@@ -108,6 +108,26 @@ void Channel_FillUplinkMessageHead(Channel *const me, UplinkMessage *const upMsg
     upMsg->messageHead.stationAddrElement.stationAddr = *config->stationAddr;
 }
 
+void Channel_FillPackageHead(Channel *const me, Package *const pkg)
+{
+    assert(me);
+    assert(pkg);
+    Config *config = &me->station->config;
+    pkg->head.centerAddr = me->centerAddr;
+    pkg->head.stationAddr = *config->stationAddr;
+    pkg->head.password = *config->password;
+    if (pkg->head.direction == Up)
+    {
+        UplinkMessage *upMsg = (UplinkMessage *)pkg;
+        DateTime_now(&upMsg->messageHead.sendTime);
+        upMsg->messageHead.stationAddrElement.stationAddr = *config->stationAddr;
+    }
+    else
+    {
+        DateTime_now(&((DownlinkMessage *)pkg)->messageHead.sendTime);
+    }
+}
+
 uint16_t Channel_NextSeq(Channel *const me)
 {
     return me->seq++;

@@ -3,6 +3,73 @@
 #include "common/class.h"
 #include "packet_creator.h"
 
+// Element Creators
+void ElementCreator_ctor(ElementCreator *const me, cJSON *const schema)
+{
+    assert(me);
+    assert(schema);
+    me->schema = schema;
+}
+void ElementCreator_dtor(ElementCreator *const me)
+{
+    assert(me);
+    // do nothing
+}
+
+Element *NumberElementCreator_createElement(ElementCreator *const me, Storage *const storage)
+{
+    assert(me);
+    assert(me->schema);
+    assert(storage);
+    cJSON *schema = me->schema;
+    cJSON_GET_NUMBER(identifierLeader, uint8_t, schema, 0, 16);
+    cJSON_GET_NUMBER(dataDef, uint8_t, schema, 0, 16);
+    cJSON_GET_NUMBER(supportSignedFlag, bool, schema, 0, 16);
+    cJSON_GET_VALUE(dataSource, char *, schema, valuestring, NULL);
+    if (identifierLeader == 0 || dataDef == 0 || dataSource == NULL)
+    {
+        return NULL;
+    }
+    Element *el = (Element *)NewInstance(NumberElement);
+    NumberElement_ctor((NumberElement *)el, identifierLeader, dataDef, supportSignedFlag);
+    double v = 0;
+    if (strcmp(dataSource, "valueField") == 0)
+    {
+        cJSON_COPY_VALUE(v, value, schema, valuedouble);
+    }
+    else // Get data from storage
+    {
+        // v = xx
+    }
+    if (dataDef & NUMBER_ELEMENT_PRECISION_MASK == 0)
+    {
+        NumberElement_SetInteger((NumberElement *)el, v);
+    }
+    else
+    {
+        NumberElement_SetDouble((NumberElement *)el, v);
+    }
+    return el;
+}
+
+void NumberElementCreator_dtor(ElementCreator *const me)
+{
+    assert(me);
+    ElementCreator_dtor(me);
+}
+
+void NumberElementCreator_ctor(NumberElementCreator *const me, cJSON *schema)
+{
+    assert(me);
+    assert(schema);
+    static ElementCreatorVtbl const vtbl = {
+        &NumberElementCreator_createElement,
+        &NumberElementCreator_dtor};
+    ElementCreator_ctor(&me->super, schema);
+    me->super.vptr = &vtbl;
+}
+// Element Creators END
+
 // PacketCreator
 void PacketCreator_ctor(PacketCreator *const me, cJSON *schema)
 {
@@ -13,12 +80,86 @@ void PacketCreator_ctor(PacketCreator *const me, cJSON *schema)
 
 void PacketCreator_dtor(PacketCreator *const me)
 {
+    assert(me);
     cJSON_Delete(me->schema);
 }
 
 Package *PacketCreator_createPacket(PacketCreator *const me, Storage *const storage)
 {
-    return NULL;
+    assert(me);
+    assert(me->schema);
+    assert(storage);
+    Package *pkg = NULL;
+    LinkMessage *linkMsg = NULL;
+    cJSON *schema = me->schema;
+    // functionCode 不做有效性判断
+    cJSON_GET_NUMBER(functionCode, uint8_t, schema, 0, 16);
+    cJSON_GET_VALUE(direction, Direction, schema, valuedouble, Up);
+    if (direction == Down)
+    {
+        DownlinkMessage *msg = NewInstance(DownlinkMessage);
+        DownlinkMessage_ctor((DownlinkMessage *)msg, DEFAULT_ELEMENT_NUMBER);
+        pkg = (Package *)msg;
+        linkMsg = (LinkMessage *)msg;
+    }
+    else
+    {
+        UplinkMessage *msg = NewInstance(UplinkMessage);
+        UplinkMessage_ctor((UplinkMessage *)msg, DEFAULT_ELEMENT_NUMBER);
+        pkg = (Package *)msg;
+        linkMsg = (LinkMessage *)msg;
+    }
+    bool validSchema = true;
+    cJSON *elements = cJSON_GetObjectItemCaseSensitive(schema, "elements");
+    if (elements->type == cJSON_Array)
+    {
+        cJSON *elementSchema;
+        cJSON_ArrayForEach(elementSchema, elements)
+        {
+            cJSON_GET_VALUE(type, char *, elementSchema, valuestring, NULL);
+            if (type == NULL)
+            {
+                validSchema = false;
+                break;
+            }
+            ElementCreator *ec = NULL;
+            // switch case ... 每种类型，创建对应的ElementCreator
+            if (strcmp(type, "number") == 0)
+            {
+                ec = (ElementCreator *)(NewInstance(NumberElementCreator)); // 创建指针，需要转为Element*
+                NumberElementCreator_ctor((NumberElementCreator *)ec, elementSchema);
+            }
+            // 无效的Element配置
+            if (ec == NULL)
+            {
+                validSchema = false;
+                break;
+            }
+            Element *el = ec->vptr->createElement(ec, storage);
+            el->direction = direction;
+            // 无法创建Element
+            if (el == NULL)
+            {
+                validSchema = false;
+                ec->vptr->dtor(ec);
+                DelInstance(ec);
+                break;
+            }
+            LinkMessage_PushElement(linkMsg, el);
+        }
+    }
+    if (validSchema)
+    {
+        pkg->head.funcCode = functionCode;
+        // 其他字段由Channel填写 @see Channel_FillUplinkMessageHead
+        //
+    }
+    else
+    {
+        pkg->vptr->dtor(pkg);
+        DelInstance(pkg);
+    }
+    return pkg;
 }
 
 const char *PacketCreator_schemaName(PacketCreator *const me)
