@@ -16,11 +16,11 @@ void ElementCreator_dtor(ElementCreator *const me)
     // do nothing
 }
 
-Element *NumberElementCreator_createElement(ElementCreator *const me, Storage *const storage)
+Element *NumberElementCreator_createElement(ElementCreator *const me, cJSON *const data)
 {
     assert(me);
     assert(me->schema);
-    assert(storage);
+    // assert(data);
     cJSON *schema = me->schema;
     cJSON_GET_NUMBER(identifierLeader, uint8_t, schema, 0, 16);
     cJSON_GET_NUMBER(dataDef, uint8_t, schema, 0, 16);
@@ -84,11 +84,11 @@ void PacketCreator_dtor(PacketCreator *const me)
     cJSON_Delete(me->schema);
 }
 
-Package *PacketCreator_createPacket(PacketCreator *const me, Storage *const storage)
+Package *PacketCreator_createPacket(PacketCreator *const me, cJSON *const data)
 {
     assert(me);
     assert(me->schema);
-    assert(storage);
+    // assert(data);
     Package *pkg = NULL;
     LinkMessage *linkMsg = NULL;
     cJSON *schema = me->schema;
@@ -135,7 +135,7 @@ Package *PacketCreator_createPacket(PacketCreator *const me, Storage *const stor
                 validSchema = false;
                 break;
             }
-            Element *el = ec->vptr->createElement(ec, storage);
+            Element *el = ec->vptr->createElement(ec, data);
             el->direction = direction;
             // 无法创建Element
             if (el == NULL)

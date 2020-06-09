@@ -11,11 +11,6 @@ extern "C"
 #include "tinydir/tinydir.h"
 #include "sl651/sl651.h"
 
-    // 伪存储接口，待与采集层对接
-    typedef struct Storage
-    {
-    } Storage;
-
     // Element Creator，对应一个Element
     typedef struct
     {
@@ -31,7 +26,7 @@ extern "C"
     {
 
         // 暂时不支持分包
-        Element *(*createElement)(ElementCreator *const me, Storage *const storage);
+        Element *(*createElement)(ElementCreator *const me, cJSON *const data);
         void (*dtor)(ElementCreator *const me);
     } ElementCreatorVtbl;
 
@@ -50,7 +45,7 @@ extern "C"
     void PacketCreator_ctor(PacketCreator *const me, cJSON *schema);
     void PacketCreator_dtor(PacketCreator *const me);
     const char *PacketCreator_schemaName(PacketCreator *const me);
-    Package *PacketCreator_createPacket(PacketCreator *const me, Storage *const storage);
+    Package *PacketCreator_createPacket(PacketCreator *const me, cJSON *const data);
     typedef vec_t(PacketCreator *) PacketCreatorPtrVector;
 
     typedef struct
@@ -62,6 +57,7 @@ extern "C"
     PacketCreator *PacketCreatorFactory_getPacketCreator(PacketCreatorFactory *const me, const char *schemaName);
     void PacketCreatorFactory_loadDirectory(PacketCreatorFactory *const me, const char *directory);
     PacketCreator *PacketCreatorFactory_loadFile(PacketCreatorFactory *const me, const char *directory);
+    Package *PacketCreatorFactory_createPacket(PacketCreatorFactory *const me, char *const schemaName, cJSON *const data);
 #define PacketCreatorFactory_count(ptr_) (ptr_)->packetCreators.length
 
 #ifdef __cplusplus
