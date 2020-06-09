@@ -22,19 +22,30 @@ extern "C"
         struct ElementCreatorVtbl const *vptr; // 虚函数，由子类实现
         cJSON *schema;
     } ElementCreator;
+    void ElementCreator_ctor(ElementCreator *const me, cJSON *const schema);
+    void ElementCreator_dtor(ElementCreator *const me);
     typedef vec_t(ElementCreator *) ElementCreatorPtrVector;
 
     // 虚函数表
     typedef struct ElementCreatorVtbl
     {
+
+        // 暂时不支持分包
         Element *(*createElement)(ElementCreator *const me, Storage *const storage);
+        void (*dtor)(ElementCreator *const me);
     } ElementCreatorVtbl;
+
+    typedef struct
+    {
+        ElementCreator super;
+    } NumberElementCreator;
+    void NumberElementCreator_ctor(NumberElementCreator *const me, cJSON *schema);
 
     // 包创建器，包头包尾，管理调用ElementCreator
     typedef struct
     {
         cJSON *schema;
-        ElementCreatorPtrVector elementCreators;
+        // ElementCreatorPtrVector elementCreators;
     } PacketCreator;
     void PacketCreator_ctor(PacketCreator *const me, cJSON *schema);
     void PacketCreator_dtor(PacketCreator *const me);

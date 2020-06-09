@@ -241,8 +241,11 @@ void BB_Expand(ByteBuffer *const me, uint32_t size)
     assert(size > 0);
     assert(me->limit == me->size);
     assert(me->wrapped != true);
-    me->buff = (uint8_t *)realloc(me->buff, me->size + size);
-    me->limit = me->size = me->size + size;
+    if (size > 0)
+    {
+        me->buff = (uint8_t *)realloc(me->buff, me->size + size);
+        me->limit = me->size = me->size + size;
+    }
 }
 
 #define CRC_POLY_VALUE 0xA001

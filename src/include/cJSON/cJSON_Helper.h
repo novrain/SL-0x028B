@@ -16,6 +16,21 @@ extern "C"
         (target) = (t)target##InJSON->vField;                                     \
     }
 
+#define cJSON_GET_NUMBER(target, t, jParent, defaultValue, base)                  \
+    cJSON *target##InJSON = cJSON_GetObjectItemCaseSensitive((jParent), #target); \
+    t target = defaultValue;                                                      \
+    if (target##InJSON != NULL)                                                   \
+    {                                                                             \
+        if (target##InJSON->type == cJSON_Number)                                 \
+        {                                                                         \
+            (target) = (t)target##InJSON->valuedouble;                            \
+        }                                                                         \
+        else if (target##InJSON->type == cJSON_String)                            \
+        {                                                                         \
+            (target) = (t)strtol(target##InJSON->valuestring, NULL, (base));      \
+        }                                                                         \
+    }
+
 #define cJSON_COPY_VALUE(target, jField, jParent, vField)                   \
     cJSON *(jField) = cJSON_GetObjectItemCaseSensitive((jParent), #jField); \
     if ((jField) != NULL)                                                   \

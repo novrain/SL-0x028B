@@ -1711,7 +1711,9 @@ uint8_t BCDNumber_SetInteger(BCDNumber *const me, uint64_t val)
         BB_PutUInt8(me->buff, 0xFF);
         val *= -1;
     }
-    return BB_BE_BCDPutUInt(me->buff, &val, me->supportSignedFlag ? me->size - 1 : me->size);
+    uint8_t res = BB_BE_BCDPutUInt(me->buff, &val, me->supportSignedFlag ? me->size - 1 : me->size);
+    BB_Flip(me->buff);
+    return res;
 }
 
 uint8_t BCDNumber_SetFloat(BCDNumber *const me, float val)
@@ -2119,7 +2121,7 @@ uint8_t NumberListElement_GetIntegerAt(NumberListElement *const me, uint8_t inde
     BCDNumber *number = NumberListElement_GetBCDNumberAt(me, index);
     if (number == NULL)
     {
-        return 0;
+        *val = 0xFFFFFFFFFFFFFF;
     }
     return BCDNumber_GetInteger(number, val);
 }
@@ -2131,7 +2133,7 @@ uint8_t NumberListElement_GetFloatAt(NumberListElement *const me, uint8_t index,
     BCDNumber *number = NumberListElement_GetBCDNumberAt(me, index);
     if (number == NULL)
     {
-        return 0;
+        return 0xFFFFFFFFFFFFFF;
     }
     return BCDNumber_GetFloat(number, val);
 }
@@ -2143,7 +2145,7 @@ uint8_t NumberListElement_GetDoubleAt(NumberListElement *const me, uint8_t index
     BCDNumber *number = NumberListElement_GetBCDNumberAt(me, index);
     if (number == NULL)
     {
-        return 0;
+        return 0xFFFFFFFFFFFFFF;
     }
     return BCDNumber_GetDouble(number, val);
 }
