@@ -510,7 +510,7 @@ GTEST_TEST(DecodeElement, decodeTimeStepCodeElement)
     ASSERT_EQ(4, NumberListElement_GetFloatAt(nle, 5, &fv));
     ASSERT_EQ(10.49f, fv);
     ASSERT_EQ(0, NumberListElement_GetFloatAt(nle, 6, &fv));
-    // ASSERT_EQ(1.84467e+16f, fv);
+    ASSERT_FLOAT_EQ(1.8446745e+16f, fv);
 
     ByteBuffer *encoded = NewInstance(ByteBuffer);
     BB_ctor(encoded, tscel->super.vptr->size(el));
