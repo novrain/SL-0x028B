@@ -2133,7 +2133,7 @@ uint8_t NumberListElement_GetFloatAt(NumberListElement *const me, uint8_t index,
     BCDNumber *number = NumberListElement_GetBCDNumberAt(me, index);
     if (number == NULL)
     {
-        return 0xFFFFFFFFFFFFFF;
+        return 0;
     }
     return BCDNumber_GetFloat(number, val);
 }
@@ -2145,7 +2145,7 @@ uint8_t NumberListElement_GetDoubleAt(NumberListElement *const me, uint8_t index
     BCDNumber *number = NumberListElement_GetBCDNumberAt(me, index);
     if (number == NULL)
     {
-        return 0xFFFFFFFFFFFFFF;
+        return 0;
     }
     return BCDNumber_GetDouble(number, val);
 }
