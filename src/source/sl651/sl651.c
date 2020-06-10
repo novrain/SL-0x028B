@@ -2109,9 +2109,42 @@ BCDNumber *NumberListElement_GetBCDNumberAt(NumberListElement *const me, uint8_t
     assert(me);
     if (index < 0 || NumberListElement_Count(me) <= 0 || index > NumberListElement_Count(me) || me->numbers.length < index + 1)
     {
-        return 0;
+        return NULL;
     }
     return me->numbers.data[index];
+}
+
+uint8_t NumberListElement_SetFloatAt(NumberListElement *const me, uint8_t index, float val)
+{
+    assert(me);
+    BCDNumber *number = NumberListElement_GetBCDNumberAt(me, index);
+    if (number == NULL)
+    {
+        return 0;
+    }
+    return BCDNumber_SetFloat(number, val);
+}
+
+uint8_t NumberListElement_SetDoubleAt(NumberListElement *const me, uint8_t index, double val)
+{
+    assert(me);
+    BCDNumber *number = NumberListElement_GetBCDNumberAt(me, index);
+    if (number == NULL)
+    {
+        return 0;
+    }
+    return BCDNumber_SetDouble(number, val);
+}
+
+uint8_t NumberListElement_SetIntegerAt(NumberListElement *const me, uint8_t index, uint64_t val)
+{
+    assert(me);
+    BCDNumber *number = NumberListElement_GetBCDNumberAt(me, index);
+    if (number == NULL)
+    {
+        return 0;
+    }
+    return BCDNumber_SetInteger(number, val);
 }
 
 uint8_t NumberListElement_GetIntegerAt(NumberListElement *const me, uint8_t index, uint64_t *val)
@@ -2150,6 +2183,15 @@ uint8_t NumberListElement_GetDoubleAt(NumberListElement *const me, uint8_t index
     return BCDNumber_GetDouble(number, val);
 }
 // Nest NumberListElement END
+bool TimeStepCode_Decode(TimeStepCode *me, ByteBuffer *const byteBuff)
+{
+    assert(me);
+    uint8_t usedLen = 0;
+    usedLen += BB_BCDGetUInt8(byteBuff, &me->day);
+    usedLen += BB_BCDGetUInt8(byteBuff, &me->hour);
+    usedLen += BB_BCDGetUInt8(byteBuff, &me->minute);
+    return usedLen == 3;
+}
 
 static bool TimeStepCodeElement_Encode(Element const *const me, ByteBuffer *const byteBuff)
 {
@@ -2173,10 +2215,8 @@ static bool TimeStepCodeElement_Decode(Element *const me, ByteBuffer *const byte
         return set_error_indicate(SL651_ERROR_DECODE_ELEMENT_TIMESTEPCODE_INSUFFICIENT_LEN);
     }
     TimeStepCodeElement *self = (TimeStepCodeElement *)me;
-    uint8_t usedLen = 0;
-    usedLen += BB_BCDGetUInt8(byteBuff, &self->timeStepCode.day);
-    usedLen += BB_BCDGetUInt8(byteBuff, &self->timeStepCode.hour);
-    usedLen += BB_BCDGetUInt8(byteBuff, &self->timeStepCode.minute);
+    TimeStepCode_Decode(&self->timeStepCode, byteBuff);
+    uint8_t usedLen = 3;
     // decode NumberListElement
     uint8_t identifierLeader = 0;                        //
     usedLen += BB_GetUInt8(byteBuff, &identifierLeader); // 解析一个字节的 标识符引导符 ， 同时位移

@@ -811,6 +811,7 @@ extern "C"
         uint8_t hour;
         uint8_t minute;
     } TimeStepCode;
+    bool TimeStepCode_Decode(TimeStepCode *me, ByteBuffer *const byteBuff);
 
     typedef vec_t(BCDNumber *) NumberPtrVector;
     typedef struct
@@ -822,6 +823,9 @@ extern "C"
     void NumberListElement_ctor(NumberListElement *const me, uint8_t identifierLeader, uint8_t dataDef, bool supportSignedFlag, uint8_t count);
     void NumberListElement_ctor_noNumbers(NumberListElement *const me, uint8_t identifierLeader, uint8_t dataDef, bool supportSignedFlag);
     void NumberListElement_dtor(Element *const me);
+    uint8_t NumberListElement_SetFloatAt(NumberListElement *const me, uint8_t index, float val);
+    uint8_t NumberListElement_SetDoubleAt(NumberListElement *const me, uint8_t index, double val);
+    uint8_t NumberListElement_SetIntegerAt(NumberListElement *const me, uint8_t index, uint64_t val);
     uint8_t NumberListElement_GetFloatAt(NumberListElement *const me, uint8_t index, float *val);
     uint8_t NumberListElement_GetDoubleAt(NumberListElement *const me, uint8_t index, double *val);
     uint8_t NumberListElement_GetIntegerAt(NumberListElement *const me, uint8_t index, uint64_t *val);
