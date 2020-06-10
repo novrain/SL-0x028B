@@ -186,6 +186,18 @@ ByteBuffer *Channel_OnRead(Channel *const me)
     return NULL;
 }
 
+bool Channel_IsConnected(Channel *const me)
+{
+    assert(me);
+    return me->isConnnected;
+}
+
+bool Channel_NotifyData(Channel *const me)
+{
+    assert(0);
+    return false;
+}
+
 bool Channel_Send(Channel *const me, ByteBuffer *const buff)
 {
     assert(0);
@@ -1028,6 +1040,7 @@ void Channel_ctor(Channel *me, Station *const station, size_t buffSize, uint8_t 
         &Channel_Send,
         &Channel_ExpandEncode,
         &Channel_OnFilesQuery,
+        &Channel_NotifyData,
         &Channel_dtor};
     me->vptr = &vtbl;
     me->station = station;
@@ -1101,6 +1114,15 @@ void IOChannel_Start(Channel *const me)
         cJSON_AddItemToObject(json, "records", cJSON_CreateObject());
     }
     me->recordsFileInJSON = json;
+    // start async watcher
+    ChannelAsyncWatcher *asyncWatcher = NewInstance(ChannelAsyncWatcher);
+    if (asyncWatcher != NULL)
+    {
+        ev_async_init(asyncWatcher, ((IOChannelVtbl *)me->vptr)->onAsyncEvent);
+        asyncWatcher->data = (void *)me;
+        ioCh->asyncWatcher = asyncWatcher;
+        ev_async_start(ioCh->reactor, ioCh->asyncWatcher);
+    }
     ev_run(ioCh->reactor, 0);
 }
 
@@ -1280,6 +1302,14 @@ void IOChannel_OnFilesQuery(Channel *const me)
     tinydir_close(&dir);
 }
 
+bool IOChannel_NotifyData(Channel *const me)
+{
+    assert(me);
+    IOChannel *ioCh = (IOChannel *)me;
+    ev_async_send(ioCh->reactor, ioCh->asyncWatcher);
+    return true;
+}
+
 void IOChannel_OnFilesScanEvent(Reactor *reactor, ev_timer *w, int revents)
 {
     IOChannel *ioCh = (IOChannel *)w->data;
@@ -1304,6 +1334,13 @@ void IOChannel_OnFilesScanEvent(Reactor *reactor, ev_timer *w, int revents)
     IOChannel_OnFilesQuery(ch);
     ioCh->filesWatcher->repeat = 10.; // slow down
     ev_timer_again(ioCh->reactor, ioCh->filesWatcher);
+}
+
+void IOChannel_OnAsyncEvent(Reactor *reactor, ev_async *w, int revents)
+{
+    IOChannel *ioCh = (IOChannel *)w->data;
+    Channel *ch = (Channel *)ioCh;
+    Station_SendPacketsToChannel(ch->station, ch);
 }
 
 void IOChannel_dtor(Channel *const me)
@@ -1340,10 +1377,12 @@ void IOChannel_ctor(IOChannel *me, Station *const station, size_t buffSize, uint
          &IOChannel_Send,
          &IOChannel_ExpandEncode,
          &IOChannel_OnFilesQuery,
+         &IOChannel_NotifyData,
          &IOChannel_dtor},
         &IOChannel_OnConnectTimerEvent,
         &IOChannel_OnIOReadEvent,
-        &IOChannel_OnFilesScanEvent};
+        &IOChannel_OnFilesScanEvent,
+        &IOChannel_OnAsyncEvent};
     Channel *super = (Channel *)me;
     Channel_ctor(super, station, buffSize, msgSendInterval);
     super->vptr = (const ChannelVtbl *)(&vtbl);
@@ -1509,9 +1548,19 @@ void SocketChannel_OnFilesQuery(Channel *const me)
     IOChannel_OnFilesQuery(me);
 }
 
+bool SocketChannel_NotifyData(Channel *const me)
+{
+    return IOChannel_NotifyData(me);
+}
+
 void SocketChannel_OnFilesScanEvent(Reactor *reactor, ev_timer *w, int revents)
 {
     IOChannel_OnFilesScanEvent(reactor, w, revents);
+}
+
+void SocketChannel_OnAsyncEvent(Reactor *reactor, ev_async *w, int revents)
+{
+    IOChannel_OnAsyncEvent(reactor, w, revents);
 }
 
 Ipv4 *SocketChannel_Ip(SocketChannel *me)
@@ -1542,10 +1591,12 @@ void SocketChannel_ctor(SocketChannel *me, Station *const station)
           &SocketChannel_Send,
           &SocketChannel_ExpandEncode,
           &SocketChannel_OnFilesQuery,
+          &SocketChannel_NotifyData,
           &SocketChannel_dtor},
          &SocketChannel_OnConnectTimerEvent,
          &SocketChannel_OnIOReadEvent,
-         &SocketChannel_OnFilesScanEvent},
+         &SocketChannel_OnFilesScanEvent,
+         &SocketChannel_OnAsyncEvent},
         &SocketChannel_Ip};
     IOChannel *super = (IOChannel *)me;
     IOChannel_ctor(super, station,
@@ -1609,10 +1660,12 @@ void Ipv4Channel_ctor(Ipv4Channel *me, Station *const station)
           &SocketChannel_Send,
           &Ipv4Channel_ExpandEncode,
           &SocketChannel_OnFilesQuery,
+          &SocketChannel_NotifyData,
           &Ipv4Channel_dtor},
          &SocketChannel_OnConnectTimerEvent,
          &SocketChannel_OnIOReadEvent,
-         &SocketChannel_OnFilesScanEvent},
+         &SocketChannel_OnFilesScanEvent,
+         &SocketChannel_OnAsyncEvent},
         &Ipv4Channel_Ip};
     SocketChannel *super = (SocketChannel *)me;
     SocketChannel_ctor(super, station);
@@ -1664,10 +1717,12 @@ void DomainChannel_ctor(DomainChannel *me, Station *const station)
           &SocketChannel_Send,
           &DomainChannel_ExpandEncode,
           &SocketChannel_OnFilesQuery,
+          &SocketChannel_NotifyData,
           &DomainChannel_dtor},
          &SocketChannel_OnConnectTimerEvent,
          &SocketChannel_OnIOReadEvent,
-         &SocketChannel_OnFilesScanEvent},
+         &SocketChannel_OnFilesScanEvent,
+         &SocketChannel_OnAsyncEvent},
         &DomainChannel_Ip};
     SocketChannel *super = (SocketChannel *)me;
     SocketChannel_ctor(super, station);
@@ -1943,6 +1998,15 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
             *me->msgSendInterval = CHANNEL_DEFAULT_MSG_SEND_INTERVAL;
         }
     }
+    // schemasDir
+    cJSON_COPY_VALUE(me->schemasDir, schemasDir, json, valuestring);
+    if (me->schemasDir == NULL)
+    {
+        size_t len = strlen(me->workDir) + 9;
+        me->schemasDir = (char *)malloc(len); // /pics\0
+        memset(me->schemasDir, '\0', len);
+        snprintf(me->schemasDir, len, "%s/schemas", me->workDir);
+    }
     // channels
     cJSON *channels = cJSON_GetObjectItemCaseSensitive(json, "channels");
     cJSON *channel;
@@ -2028,6 +2092,10 @@ void Config_dtor(Config *const me)
     {
         DelInstance(me->filesDir);
     }
+    if (me->schemasDir != NULL)
+    {
+        DelInstance(me->schemasDir);
+    }
     if (me->sentFilesDir != NULL)
     {
         DelInstance(me->sentFilesDir);
@@ -2051,12 +2119,77 @@ void Config_ctor(Config *const me, Station *const station)
     me->station = station;
 }
 
+// Packet
+void Packet_ctor(Packet *const me, Package *const pkg)
+{
+    assert(me);
+    me->pkg = pkg;
+    me->channelSentMask = 0;
+}
+
+void Packet_dtor(Packet *const me)
+{
+    assert(me);
+    if (me->pkg != NULL)
+    {
+        Package_dtor(me->pkg);
+        DelInstance(me->pkg);
+    }
+}
+
+void Packet_Marking(Packet *const me, uint8_t chId)
+{
+    assert(me);
+    assert(chId > 0 && chId <= 16);
+    me->channelSentMask != (1 << chId);
+}
+
+void Packet_MarkingByChannel(Packet *const me, Channel *const ch)
+{
+    assert(me);
+    assert(ch);
+    Packet_Marking(me, ch->id);
+}
+
+void Packet_Unmark(Packet *const me, uint8_t chId)
+{
+    assert(me);
+    assert(chId > 0 && chId <= 16);
+    me->channelSentMask &= ~(1 << chId);
+}
+
+void Packet_UnmarkByChannel(Packet *const me, Channel *const ch)
+{
+    assert(me);
+    assert(ch);
+    Packet_Unmark(me, ch->id);
+}
+
+bool Packet_ShouldSend(Packet *const me, uint8_t chId)
+{
+    assert(me);
+    assert(chId > 0 && chId <= 16);
+    return me->channelSentMask & (1 << chId);
+}
+
+bool Packet_ShouldSendByChannel(Packet *const me, Channel *const ch)
+{
+    assert(me);
+    assert(ch);
+    return Packet_ShouldSend(me, ch->id);
+}
+// Packet END
+
 void Station_ctor(Station *const me)
 {
     assert(me);
     // me->reactor = NULL;
     Config_ctor(&me->config, me);
+    PacketCreatorFactory_ctor(&me->pcFactory, 10);
     pthread_mutex_init(&me->cleanUpMutex, NULL);
+    pthread_mutex_init(&me->sendMutex, NULL);
+    vec_init(&me->packets);
+    vec_reserve(&me->packets, 20);
 }
 
 bool Station_StartBy(Station *const me, char const *workDir)
@@ -2078,6 +2211,8 @@ bool Station_StartBy(Station *const me, char const *workDir)
     {
         me->config.configInJSON = json;
         me->config.configFile = file;
+        // load creator factory
+        PacketCreatorFactory_loadDirectory(&me->pcFactory, me->config.schemasDir);
         // me->reactor = ev_loop_new(0);
         // if (me->reactor != NULL)
         // {
@@ -2186,11 +2321,115 @@ bool Station_IsFileSentByAllChannel(Station *const me, tinydir_file *const file,
     return true;
 }
 
+bool Station_AsyncSend(Station *const me, char *const schemaName, cJSON *const data)
+{
+    assert(me);
+    pthread_mutex_lock(&me->sendMutex);
+    // 生成
+    Package *pkg = PacketCreatorFactory_createPacket(&me->pcFactory, schemaName, data);
+    if (pkg == NULL)
+    {
+        return false;
+    }
+    Packet *packet = NewInstance(Packet);
+    Packet_ctor(packet, pkg);
+    size_t i = 0;
+    Channel *ch;
+    vec_foreach(&me->config.channels, ch, i)
+    {
+        if (ch != NULL &&
+            ch->id != CHANNEL_ID_FIXED &&
+            Config_IsChannelEnable(&me->config, ch) &&
+            Channel_IsConnected(ch) && // 尽可能不导致数据无法清理 isConnected是不安全的
+            ch->vptr->notifyData(ch))
+        {
+            Packet_MarkingByChannel(packet, ch);
+        }
+    }
+    if (packet->channelSentMask != 0)
+    {
+        vec_push(&me->packets, packet);
+    }
+    else
+    {
+        Packet_dtor(packet);
+        DelInstance(packet);
+    }
+    pthread_mutex_unlock(&me->sendMutex);
+    return true;
+}
+
+void Station_SendPacketsToChannel(Station *const me, Channel *const ch)
+{
+    assert(me);
+    pthread_mutex_lock(&me->sendMutex);
+    size_t i = 0;
+    Packet *packet;
+    vec_foreach(&me->packets, packet, i)
+    {
+        if (packet == NULL)
+        {
+            vec_remove(&me->packets, packet);
+            continue;
+        }
+        else
+        {
+            if (packet->pkg != NULL && Packet_ShouldSendByChannel(packet, ch))
+            {
+                Package *pkg = packet->pkg;
+                Channel_FillPackageHead(ch, pkg); // 每个channel不同
+                ByteBuffer *buff = pkg->vptr->encode(pkg);
+                if (buff == NULL)
+                {
+                    Packet_UnmarkByChannel(packet, ch);
+                    continue;
+                }
+                bool res = ch->vptr->send(ch, buff);
+                Packet_UnmarkByChannel(packet, ch); // @Todo 发送失败的重试机制
+                // if (res)
+                // {
+                //     Packet_UnmarkByChannel(packet, ch);
+                // }
+                // else
+                // {
+                //     ch->vptr->notifyData(ch); // try again later. 次数
+                // }
+            }
+            if (Packet_IsSent(packet))
+            {
+                vec_remove(&me->packets, packet);
+                Packet_dtor(packet);
+                DelInstance(packet);
+            }
+        }
+    }
+    // 压缩掉
+    vec_compact(&me->packets);
+    pthread_mutex_unlock(&me->sendMutex);
+}
+
+void Station_ClearPackets(Station *const me)
+{
+    size_t i = 0;
+    Packet *packet;
+    vec_foreach(&me->packets, packet, i)
+    {
+        if (packet != NULL)
+        {
+            Packet_dtor(packet);
+            DelInstance(packet);
+        }
+    }
+    vec_deinit(&me->packets);
+}
+
 void Station_dtor(Station *const me)
 {
     assert(me);
     Config_dtor(&me->config);
     pthread_mutex_destroy(&me->cleanUpMutex);
+    pthread_mutex_destroy(&me->sendMutex);
+    Station_ClearPackets(me);
     // if (me->reactor)
     // {
     //     ev_loop_destroy(me->reactor);

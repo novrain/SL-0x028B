@@ -1,9 +1,11 @@
 #include <assert.h>
+#include <stdio.h>
 #include "cJSON/cJSON_Helper.h"
 #include "common/class.h"
 #include "packet_creator.h"
 
 // Element Creators
+// ElementCreator Interface
 void ElementCreator_ctor(ElementCreator *const me, cJSON *const schema)
 {
     assert(me);
@@ -15,7 +17,9 @@ void ElementCreator_dtor(ElementCreator *const me)
     assert(me);
     // do nothing
 }
+// ElementCreator Interface END
 
+// NumberElementCreator
 Element *NumberElementCreator_createElement(ElementCreator *const me, cJSON *const data)
 {
     assert(me);
@@ -26,22 +30,50 @@ Element *NumberElementCreator_createElement(ElementCreator *const me, cJSON *con
     cJSON_GET_NUMBER(dataDef, uint8_t, schema, 0, 16);
     cJSON_GET_NUMBER(supportSignedFlag, bool, schema, 0, 16);
     cJSON_GET_VALUE(dataSource, char *, schema, valuestring, NULL);
-    if (identifierLeader == 0 || dataDef == 0 || dataSource == NULL)
+    if (identifierLeader == 0 || dataDef == 0)
     {
         return NULL;
     }
-    Element *el = (Element *)NewInstance(NumberElement);
-    NumberElement_ctor((NumberElement *)el, identifierLeader, dataDef, supportSignedFlag);
     double v = 0;
-    if (strcmp(dataSource, "valueField") == 0)
+    if (dataSource != NULL && strcmp(dataSource, "valueField") == 0)
     {
         cJSON_COPY_VALUE(v, value, schema, valuedouble);
     }
-    else // Get data from storage
+    else // Get data from data
     {
-        // v = xx
+        if (data != NULL)
+        {
+            char strIdentifier[5] = {0};
+            snprintf(strIdentifier, 20, "%02X", identifierLeader);
+            cJSON *valJSON = cJSON_GetObjectItem(data, strIdentifier);
+            if (valJSON != NULL)
+            {
+                if (valJSON->type == cJSON_Object)
+                {
+                    cJSON_COPY_VALUE(v, value, valJSON, valuedouble);
+                }
+                else if (valJSON->type == cJSON_Number)
+                {
+                    v = valJSON->valuedouble;
+                }
+                else
+                {
+                    return NULL;
+                }
+            }
+            else
+            {
+                return NULL;
+            }
+        }
+        else
+        {
+            return NULL;
+        }
     }
-    if (dataDef & NUMBER_ELEMENT_PRECISION_MASK == 0)
+    Element *el = (Element *)NewInstance(NumberElement);
+    NumberElement_ctor((NumberElement *)el, identifierLeader, dataDef, supportSignedFlag);
+    if ((dataDef & NUMBER_ELEMENT_PRECISION_MASK) == 0)
     {
         NumberElement_SetInteger((NumberElement *)el, v);
     }
@@ -68,6 +100,35 @@ void NumberElementCreator_ctor(NumberElementCreator *const me, cJSON *schema)
     ElementCreator_ctor(&me->super, schema);
     me->super.vptr = &vtbl;
 }
+// NumberElementCreator END
+
+// TimeStepCodeElementCreator
+Element *TimeStepCodeElementCreator_createElement(ElementCreator *const me, cJSON *const data)
+{
+    assert(me);
+    assert(me->schema);
+    assert(data);
+    cJSON *schema = me->schema;
+    cJSON *tscData = cJSON_GetObjectItem(data, "");
+}
+
+void TimeStepCodeElementCreator_dtor(ElementCreator *const me)
+{
+    assert(me);
+    ElementCreator_dtor(me);
+}
+
+void TimeStepCodeElementCreator_ctor(TimeStepCodeElementCreator *const me, cJSON *schema)
+{
+    assert(me);
+    assert(schema);
+    static ElementCreatorVtbl const vtbl = {
+        &TimeStepCodeElementCreator_createElement,
+        &TimeStepCodeElementCreator_dtor};
+    ElementCreator_ctor(&me->super, schema);
+    me->super.vptr = &vtbl;
+}
+// TimeStepCodeElementCreator END
 // Element Creators END
 
 // PacketCreator
@@ -108,10 +169,23 @@ Package *PacketCreator_createPacket(PacketCreator *const me, cJSON *const data)
         UplinkMessage_ctor((UplinkMessage *)msg, DEFAULT_ELEMENT_NUMBER);
         pkg = (Package *)msg;
         linkMsg = (LinkMessage *)msg;
+        cJSON_GET_VALUE(observeTime, char *, data, valuestring, NULL);
+        if (observeTime != NULL && strlen(observeTime) == 10)
+        {
+            ByteBuffer buff = {0};
+            BB_ctor_fromHexStr(&buff, observeTime, 10);
+            BB_Flip(&buff);
+            ObserveTime_Decode(&msg->messageHead.observeTimeElement.observeTime, &buff);
+        }
+        else
+        {
+            ObserveTime_now(&msg->messageHead.observeTimeElement.observeTime);
+        }
     }
     bool validSchema = true;
     cJSON *elements = cJSON_GetObjectItemCaseSensitive(schema, "elements");
-    if (elements->type == cJSON_Array)
+    cJSON *elementsData = cJSON_GetObjectItemCaseSensitive(data, "elements");
+    if (elements != NULL && elements->type == cJSON_Array && elementsData != NULL)
     {
         cJSON *elementSchema;
         cJSON_ArrayForEach(elementSchema, elements)
@@ -129,14 +203,18 @@ Package *PacketCreator_createPacket(PacketCreator *const me, cJSON *const data)
                 ec = (ElementCreator *)(NewInstance(NumberElementCreator)); // 创建指针，需要转为Element*
                 NumberElementCreator_ctor((NumberElementCreator *)ec, elementSchema);
             }
+            if (strcmp(type, "time_step_code") == 0)
+            {
+                ec = (ElementCreator *)(NewInstance(TimeStepCodeElementCreator)); // 创建指针，需要转为Element*
+                TimeStepCodeElementCreator_ctor((TimeStepCodeElementCreator *)ec, elementSchema);
+            }
             // 无效的Element配置
             if (ec == NULL)
             {
                 validSchema = false;
                 break;
             }
-            Element *el = ec->vptr->createElement(ec, data);
-            el->direction = direction;
+            Element *el = ec->vptr->createElement(ec, elementsData);
             // 无法创建Element
             if (el == NULL)
             {
@@ -145,6 +223,7 @@ Package *PacketCreator_createPacket(PacketCreator *const me, cJSON *const data)
                 DelInstance(ec);
                 break;
             }
+            el->direction = direction;
             LinkMessage_PushElement(linkMsg, el);
         }
     }
@@ -282,5 +361,18 @@ PacketCreator *PacketCreatorFactory_loadFile(PacketCreatorFactory *const me, con
         }
     }
     return packetCreator;
+}
+
+Package *PacketCreatorFactory_createPacket(PacketCreatorFactory *const me, char *const schemaName, cJSON *const data)
+{
+    assert(me);
+    assert(schemaName);
+    assert(data);
+    PacketCreator *creator = PacketCreatorFactory_getPacketCreator(me, schemaName);
+    if (creator == NULL)
+    {
+        return NULL;
+    }
+    return PacketCreator_createPacket(creator, data);
 }
 //  PacketCreatorFactory END
