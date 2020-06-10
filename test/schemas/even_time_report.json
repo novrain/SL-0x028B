@@ -1,0 +1,8 @@
+{
+    "functionCode": "31",
+    "schemaName": "even_time_report",
+    "direction": 0,
+    "elements": [{
+        "type": "time_step_code"
+    }]
+}

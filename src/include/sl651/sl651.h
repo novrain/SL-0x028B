@@ -442,8 +442,8 @@ extern "C"
         uint8_t hour;
         uint8_t minute;
     } ObserveTime;
-
     void ObserveTime_now(ObserveTime *const me);
+    bool ObserveTime_Decode(ObserveTime *const me, ByteBuffer *byteBuff);
 
 #define OBSERVETIME_LEN 5
 

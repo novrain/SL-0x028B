@@ -36,6 +36,12 @@ extern "C"
     } NumberElementCreator;
     void NumberElementCreator_ctor(NumberElementCreator *const me, cJSON *schema);
 
+    typedef struct
+    {
+        ElementCreator super;
+    } TimeStepCodeElementCreator;
+    void TimeStepCodeElementCreator_ctor(TimeStepCodeElementCreator *const me, cJSON *schema);
+
     // 包创建器，包头包尾，管理调用ElementCreator
     typedef struct
     {

@@ -304,7 +304,7 @@ static bool ObserveTime_Encode(ObserveTime const *const me, ByteBuffer *byteBuff
     return writeLen == OBSERVETIME_LEN || set_error_indicate(SL651_ERROR_INVALID_OBSERVETIME);
 }
 
-static bool ObserveTime_Decode(ObserveTime *const me, ByteBuffer *byteBuff)
+bool ObserveTime_Decode(ObserveTime *const me, ByteBuffer *byteBuff)
 {
     assert(me);
     assert(byteBuff);

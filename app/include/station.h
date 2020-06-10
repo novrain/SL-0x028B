@@ -22,6 +22,8 @@ extern "C"
 #include "sl651/sl651.h"
 #include "tinydir/tinydir.h"
 
+#include "packet_creator.h"
+
     typedef enum
     {
         SL651_APP_ERROR_SUCCESS = ERROR_ENUM_BEGIN_RANGE(0),
@@ -88,6 +90,7 @@ extern "C"
     typedef ev_timer ChannelConnectWatcher;
     typedef ev_io ChannelDataWatcher;
     typedef ev_timer ChannelFilesWatcher;
+    typedef ev_async ChannelAsyncWatcher;
 
     typedef enum
     {
@@ -157,6 +160,7 @@ extern "C"
         bool (*send)(Channel *const me, ByteBuffer *const buff);
         bool (*expandEncode)(Channel *const me, ByteBuffer *const buff);
         void (*onFilesQuery)(Channel *const me);
+        bool (*notifyData)(Channel *const me);
         void (*dtor)(Channel *const me);
     } ChannelVtbl;
 
@@ -170,6 +174,7 @@ extern "C"
         ChannelConnectWatcher *connectWatcher;
         ChannelFilesWatcher *filesWatcher;
         ChannelDataWatcher *dataWatcher;
+        ChannelAsyncWatcher *asyncWatcher;
     } IOChannel;
 
     typedef struct IOChannelVtbl
@@ -178,6 +183,7 @@ extern "C"
         void (*onConnectTimerEvent)(Reactor *reactor, ev_timer *w, int revents);
         void (*onIOReadEvent)(Reactor *reactor, ev_io *w, int revents);
         void (*onFilesScanTimerEvent)(Reactor *reactor, ev_timer *w, int revents);
+        void (*onAsyncEvent)(Reactor *reactor, ev_async *w, int revents);
     } IOChannelVtbl;
 
     typedef struct SocketChannel
@@ -226,6 +232,7 @@ extern "C"
         char *socketDevice;
         size_t *buffSize;
         uint16_t *msgSendInterval;
+        char *schemasDir;
         // reference
         Station *station;
     } Config;
@@ -239,17 +246,33 @@ extern "C"
 #define CHANNEL_MAX_MSG_SEND_INTERVAL 5000
 #define CHANNEL_DEFAULT_MSG_SEND_INTERVAL 10
 
+    typedef struct
+    {
+        Package *pkg;
+        // 发送时根据当前的channel设置mask位，当全零时，表示可以清除
+        uint16_t channelSentMask;
+    } Packet;
+    typedef vec_t(Packet *) PacketPtrVector;
+    void Packet_dtor(Packet *const me);
+#define Packet_IsSent(ptr_) (ptr_)->channelSentMask == 0
+
     struct _station
     {
         // Reactor *reactor;
         Config config;
+        PacketCreatorFactory pcFactory;
+        PacketPtrVector packets;
         pthread_mutex_t cleanUpMutex;
+        pthread_mutex_t sendMutex;
     };
     void Station_ctor(Station *const me);
     bool Station_Start(Station *const me);
     bool Station_StartBy(Station *const me, char const *dir);
     void Station_dtor(Station *const me);
     bool Station_IsFileSentByAllChannel(Station *const me, tinydir_file *const file, Channel *const currentCh);
+    // for other thread to call this function
+    bool Station_AsyncSend(Station *const me, char *const schemaName, cJSON *const data);
+    void Station_SendPacketsToChannel(Station *const me, Channel *const ch);
 #define SL651_DEFAULT_WORKDIR "/sl651"
 #define SL651_DEFAULT_CONFIG_FILE_NAME_LEN 11
     // #define SL651_DEFAULT_CONFIGFILE "/sl651/config.json"
