@@ -31,6 +31,7 @@ GTEST_TEST(Packet_creator, timingReport)
     ASSERT_FLOAT_EQ(0.06f, fv);
     pkg->vptr->dtor(pkg);
     DelInstance(pkg);
+    cJSON_Delete(data);
 }
 
 GTEST_TEST(Packet_creator, evenTimeReport)
@@ -46,6 +47,7 @@ GTEST_TEST(Packet_creator, evenTimeReport)
     ASSERT_EQ(el->numberListElement.numbers.length, 13);
     pkg->vptr->dtor(pkg);
     DelInstance(pkg);
+    cJSON_Delete(data);
 }
 
 GTEST_TEST(Packet_creator, rain5Min)
@@ -64,6 +66,7 @@ GTEST_TEST(Packet_creator, rain5Min)
     ASSERT_EQ(1.5, fv);
     pkg->vptr->dtor(pkg);
     DelInstance(pkg);
+    cJSON_Delete(data);
 }
 
 GTEST_TEST(Packet_creator, water5Min)
@@ -86,6 +89,7 @@ GTEST_TEST(Packet_creator, water5Min)
     ASSERT_EQ(1.25f, fv);
     pkg->vptr->dtor(pkg);
     DelInstance(pkg);
+    cJSON_Delete(data);
 }
 
 GTEST_TEST(Packet_creator, hourReport)
@@ -144,6 +148,7 @@ GTEST_TEST(Packet_creator, hourReport)
 
     pkg->vptr->dtor(pkg);
     DelInstance(pkg);
+    cJSON_Delete(data);
 }
 
 int main(int argc, char *argv[])
