@@ -2124,7 +2124,7 @@ void Packet_dtor(Packet *const me)
     assert(me);
     if (me->pkg != NULL)
     {
-        Package_dtor(me->pkg);
+        me->pkg->vptr->dtor(me->pkg);
         DelInstance(me->pkg);
     }
 }
@@ -2384,6 +2384,8 @@ void Station_SendPacketsToChannel(Station *const me, Channel *const ch)
                 }
                 BB_Flip(buff);
                 bool res = ch->vptr->send(ch, buff);
+                BB_dtor(buff);
+                DelInstance(buff);
                 Packet_UnmarkByChannel(packet, ch); // @Todo 发送失败的重试机制
                 // if (res)
                 // {
