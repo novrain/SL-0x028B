@@ -339,6 +339,8 @@ Package *createPackage(cJSON *const schema)
                 DelInstance(ec);
                 break;
             }
+            ec->vptr->dtor(ec);
+            DelInstance(ec);
             el->direction = direction;
             LinkMessage_PushElement(linkMsg, el);
         }
