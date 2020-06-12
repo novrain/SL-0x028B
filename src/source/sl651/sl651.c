@@ -1326,6 +1326,11 @@ static bool DRP5MINElement_Decode(Element *const me, ByteBuffer *const byteBuff)
         return set_error_indicate(SL651_ERROR_DECODE_ELEMENT_DRP5MIN_INSUFFICIENT_LEN);
     }
     DRP5MINElement *self = (DRP5MINElement *)me;
+    if (self->buff != NULL)
+    {
+        BB_dtor(self->buff);
+        DelInstance(self->buff);
+    }
     self->buff = BB_GetByteBuffer(byteBuff, DRP5MIN_LEN);
     BB_Flip(self->buff);
     return true;
@@ -1351,8 +1356,9 @@ void DRP5MINElement_dtor(Element *const me)
     }
 }
 
-void DRP5MINElement_ctor(DRP5MINElement *const me)
+void DRP5MINElement_ctor_noBuff(DRP5MINElement *const me)
 {
+    assert(me);
     // override
     static ElementVtbl const vtbl = {
         &DRP5MINElement_Encode,
@@ -1363,7 +1369,20 @@ void DRP5MINElement_ctor(DRP5MINElement *const me)
     me->super.vptr = &vtbl;
 }
 
-uint8_t DRP5MINElement_ValueAt(DRP5MINElement *const me, uint8_t index, float *val)
+void DRP5MINElement_ctor(DRP5MINElement *const me)
+{
+    assert(me);
+    DRP5MINElement_ctor_noBuff(me);
+    if (me->buff != NULL)
+    {
+        BB_dtor(me->buff);
+        DelInstance(me->buff);
+    }
+    me->buff = NewInstance(ByteBuffer);
+    BB_ctor(me->buff, DRP5MIN_LEN);
+}
+
+uint8_t DRP5MINElement_GetValueAt(DRP5MINElement *const me, uint8_t index, float *val)
 {
     assert(me);
     if (me->buff == NULL)
@@ -1377,6 +1396,19 @@ uint8_t DRP5MINElement_ValueAt(DRP5MINElement *const me, uint8_t index, float *v
         *val = u8 != 0xFF ? u8 / 10.0f : u8; // FF 为无效值
     }
     return res;
+}
+
+uint8_t DRP5MINElement_SetValueAt(DRP5MINElement *const me, uint8_t index, float val)
+{
+    assert(me);
+    if (me->buff == NULL)
+    {
+        return 0;
+    }
+    uint8_t u8;
+    BB_Rewind(me->buff);
+    BB_Skip(me->buff, index);
+    return BB_PutUInt8(me->buff, val * 10);
 }
 // DRP5MINElement END
 
@@ -1477,6 +1509,11 @@ static bool RelativeWaterLevelElement_Decode(Element *const me, ByteBuffer *cons
         return set_error_indicate(SL651_ERROR_DECODE_ELEMENT_RELATIVEWATERLEVEL_INSUFFICIENT_LEN);
     }
     RelativeWaterLevelElement *self = (RelativeWaterLevelElement *)me;
+    if (self->buff != NULL)
+    {
+        BB_dtor(self->buff);
+        DelInstance(self->buff);
+    }
     self->buff = BB_GetByteBuffer(byteBuff, RELATIVE_WATER_LEVEL_LEN);
     BB_Flip(self->buff);
     return true;
@@ -1502,8 +1539,9 @@ void RelativeWaterLevelElement_dtor(Element *const me)
     }
 }
 
-void RelativeWaterLevelElement_ctor(RelativeWaterLevelElement *const me, uint8_t identifierLeader)
+void RelativeWaterLevelElement_ctor_noBuff(RelativeWaterLevelElement *const me, uint8_t identifierLeader)
 {
+    assert(me);
     // override
     static ElementVtbl const vtbl = {
         &RelativeWaterLevelElement_Encode,
@@ -1514,7 +1552,20 @@ void RelativeWaterLevelElement_ctor(RelativeWaterLevelElement *const me, uint8_t
     me->super.vptr = &vtbl;
 }
 
-uint8_t RelativeWaterLevelElement_ValueAt(RelativeWaterLevelElement *const me, uint8_t index, float *val)
+void RelativeWaterLevelElement_ctor(RelativeWaterLevelElement *const me, uint8_t identifierLeader)
+{
+    assert(me);
+    RelativeWaterLevelElement_ctor_noBuff(me, identifierLeader);
+    if (me->buff != NULL)
+    {
+        BB_dtor(me->buff);
+        DelInstance(me->buff);
+    }
+    me->buff = NewInstance(ByteBuffer);
+    BB_ctor(me->buff, RELATIVE_WATER_LEVEL_LEN);
+}
+
+uint8_t RelativeWaterLevelElement_GetValueAt(RelativeWaterLevelElement *const me, uint8_t index, float *val)
 {
     assert(me);
     if (me->buff == NULL)
@@ -1528,6 +1579,19 @@ uint8_t RelativeWaterLevelElement_ValueAt(RelativeWaterLevelElement *const me, u
         *val = u16 != 0xFFFF ? u16 / 100.0f : u16; // FF 为无效值
     }
     return res;
+}
+
+uint8_t RelativeWaterLevelElement_SetValueAt(RelativeWaterLevelElement *const me, uint8_t index, float val)
+{
+    assert(me);
+    if (me->buff == NULL)
+    {
+        return 0;
+    }
+    uint8_t u8;
+    BB_Rewind(me->buff);
+    BB_Skip(me->buff, index * 2);
+    return BB_BE_PutUInt16(me->buff, val * 100);
 }
 // RelativeWaterLevelElement END
 
@@ -2310,8 +2374,8 @@ Element *decodeElement(ByteBuffer *const byteBuff, Head *const head)
             set_error(SL651_ERROR_DECODE_ELEMENT_DRP5MIN_DATADEF_ERROR);
             return NULL;
         }
-        el = (Element *)(NewInstance(DRP5MINElement)); // 创建指针，需要转为Element*
-        DRP5MINElement_ctor((DRP5MINElement *)el);     // 构造函数
+        el = (Element *)(NewInstance(DRP5MINElement));    // 创建指针，需要转为Element*
+        DRP5MINElement_ctor_noBuff((DRP5MINElement *)el); // 构造函数
         break;
     case RELATIVE_WATER_LEVEL_5MIN1:
     case RELATIVE_WATER_LEVEL_5MIN2:
@@ -2326,8 +2390,8 @@ Element *decodeElement(ByteBuffer *const byteBuff, Head *const head)
             set_error(SL651_ERROR_DECODE_ELEMENT_RELATIVEWATERLEVEL_DATADEF_ERROR);
             return NULL;
         }
-        el = (Element *)(NewInstance(RelativeWaterLevelElement));                          // 创建指针，需要转为Element*
-        RelativeWaterLevelElement_ctor((RelativeWaterLevelElement *)el, identifierLeader); // 构造函数
+        el = (Element *)(NewInstance(RelativeWaterLevelElement));                                 // 创建指针，需要转为Element*
+        RelativeWaterLevelElement_ctor_noBuff((RelativeWaterLevelElement *)el, identifierLeader); // 构造函数
         break;
     case FLOW_RATE_DATA:
         if (dataDef != FLOW_RATE_DATA_DATADEF) //固定为 0xF6

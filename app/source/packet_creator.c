@@ -162,6 +162,90 @@ void ObserveTimeElementCreator_ctor(ObserveTimeElementCreator *const me)
     me->super.vptr = &vtbl;
 }
 // ObserveTimeElementCreator END
+
+// DRP5MINElementCreator
+Element *DRP5MINElementCreator_createElement(ElementCreator *const me, cJSON *const data)
+{
+    assert(me);
+    assert(data);
+    cJSON *values = cJSON_GetObjectItem(data, "v");
+    if (values == NULL ||
+        values->type != cJSON_Array ||
+        cJSON_GetArraySize(values) != 12)
+    {
+        return NULL;
+    }
+    DRP5MINElement *el = NewInstance(DRP5MINElement);
+    DRP5MINElement_ctor(el);
+    cJSON *v;
+    size_t i = 0;
+    cJSON_ArrayForEach(v, values)
+    {
+        DRP5MINElement_SetValueAt(el, i, v->valuedouble);
+        i++;
+    }
+    return (Element *)el;
+}
+
+void DRP5MINElementCreator_dtor(ElementCreator *const me)
+{
+    assert(me);
+    ElementCreator_dtor(me);
+}
+
+void DRP5MINElementCreator_ctor(DRP5MINElementCreator *const me)
+{
+    assert(me);
+    static ElementCreatorVtbl const vtbl = {
+        &DRP5MINElementCreator_createElement,
+        &DRP5MINElementCreator_dtor};
+    ElementCreator_ctor(&me->super);
+    me->super.vptr = &vtbl;
+}
+// DRP5MINElementCreator END
+
+// RelativeWaterLevelElementCreator
+Element *RelativeWaterLevelElementCreator_createElement(ElementCreator *const me, cJSON *const data)
+{
+    assert(me);
+    assert(data);
+    cJSON_GET_NUMBER(id, uint8_t, data, 0, 16);
+    cJSON *values = cJSON_GetObjectItem(data, "v");
+    if (id == 0 ||
+        values == NULL ||
+        values->type != cJSON_Array ||
+        cJSON_GetArraySize(values) != 12)
+    {
+        return NULL;
+    }
+    RelativeWaterLevelElement *el = NewInstance(RelativeWaterLevelElement);
+    RelativeWaterLevelElement_ctor(el, id);
+    cJSON *v;
+    size_t i = 0;
+    cJSON_ArrayForEach(v, values)
+    {
+        RelativeWaterLevelElement_SetValueAt(el, i, v->valuedouble);
+        i++;
+    }
+    return (Element *)el;
+}
+
+void RelativeWaterLevelElementCreator_dtor(ElementCreator *const me)
+{
+    assert(me);
+    ElementCreator_dtor(me);
+}
+
+void RelativeWaterLevelElementCreator_ctor(RelativeWaterLevelElementCreator *const me)
+{
+    assert(me);
+    static ElementCreatorVtbl const vtbl = {
+        &RelativeWaterLevelElementCreator_createElement,
+        &RelativeWaterLevelElementCreator_dtor};
+    ElementCreator_ctor(&me->super);
+    me->super.vptr = &vtbl;
+}
+// RelativeWaterLevelElementCreator END
 // Element Creators END
 
 Package *createPackage(cJSON *const schema)
@@ -229,6 +313,16 @@ Package *createPackage(cJSON *const schema)
             {
                 ec = (ElementCreator *)(NewInstance(ObserveTimeElementCreator)); // 创建指针，需要转为Element*
                 ObserveTimeElementCreator_ctor((ObserveTimeElementCreator *)ec);
+            }
+            if (strcmp(t, "rain_hour_5min") == 0)
+            {
+                ec = (ElementCreator *)(NewInstance(DRP5MINElementCreator)); // 创建指针，需要转为Element*
+                DRP5MINElementCreator_ctor((DRP5MINElementCreator *)ec);
+            }
+            if (strcmp(t, "water_hour_5min") == 0)
+            {
+                ec = (ElementCreator *)(NewInstance(RelativeWaterLevelElementCreator)); // 创建指针，需要转为Element*
+                RelativeWaterLevelElementCreator_ctor((RelativeWaterLevelElementCreator *)ec);
             }
             // 无效的Element配置
             if (ec == NULL)

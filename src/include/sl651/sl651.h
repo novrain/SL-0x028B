@@ -690,10 +690,11 @@ extern "C"
         Element super;
         ByteBuffer *buff;
     } DRP5MINElement;
-
     void DRP5MINElement_ctor(DRP5MINElement *const me);
+    void DRP5MINElement_ctor_noBuff(DRP5MINElement *const me);
     void DRP5MINElement_dtor(Element *const me);
-    uint8_t DRP5MINElement_ValueAt(DRP5MINElement *const me, uint8_t index, float *val);
+    uint8_t DRP5MINElement_GetValueAt(DRP5MINElement *const me, uint8_t index, float *val);
+    uint8_t DRP5MINElement_SetValueAt(DRP5MINElement *const me, uint8_t index, float val);
 
 #define DRP5MIN_LEN 12
 #define DRP5MIN_DATADEF 0x60
@@ -730,8 +731,10 @@ extern "C"
     } RelativeWaterLevelElement;
 
     void RelativeWaterLevelElement_ctor(RelativeWaterLevelElement *const me, uint8_t identifierLeader);
+    void RelativeWaterLevelElement_ctor_noBuff(RelativeWaterLevelElement *const me, uint8_t identifierLeader);
     void RelativeWaterLevelElement_dtor(Element *const me);
-    uint8_t RelativeWaterLevelElement_ValueAt(RelativeWaterLevelElement *const me, uint8_t index, float *val);
+    uint8_t RelativeWaterLevelElement_GetValueAt(RelativeWaterLevelElement *const me, uint8_t index, float *val);
+    uint8_t RelativeWaterLevelElement_SetValueAt(RelativeWaterLevelElement *const me, uint8_t index, float val);
 
 #define RELATIVE_WATER_LEVEL_LEN 24
 #define RELATIVE_WATER_LEVEL_5MIN1_DATADEF 0xC0

@@ -98,6 +98,139 @@ GTEST_TEST(Packet_creator, evenTimeReport)
     DelInstance(pkg);
 }
 
+GTEST_TEST(Packet_creator, rain5Min)
+{
+    cJSON *data = cJSON_Parse("{                                         "
+                              "    \"fcode\":\"34\",                     "
+                              "    \"observetime\":\"2006101700\",       "
+                              "    \"direction\":0,                      "
+                              "    \"elements\":[                        "
+                              "        {                                 "
+                              "            \"t\":\"rain_hour_5min\",     "
+                              "            \"v\":[                       "
+                              "                1.5,                      "
+                              "                1.5,                      "
+                              "                1.5,                      "
+                              "                1.5,                      "
+                              "                1.5,                      "
+                              "                1.5,                      "
+                              "                1.5,                      "
+                              "                1.5,                      "
+                              "                1.5,                      "
+                              "                1.5,                      "
+                              "                1.5,                      "
+                              "                1.5                       "
+                              "            ]                             "
+                              "        }                                 "
+                              "    ]                                     "
+                              "}                                         ");
+    Package *pkg = createPackage(data);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.direction, Up);
+    ASSERT_EQ(pkg->head.funcCode, 0x34);
+    LinkMessage *linkMsg = (LinkMessage *)pkg;
+    // ASSERT_EQ(12, LinkMessage_ElementsSize(linkMsg));
+    DRP5MINElement *el = (DRP5MINElement *)LinkMessage_ElementAt(linkMsg, 0);
+    ASSERT_EQ(BB_Size(el->buff), 12);
+    float fv = 0;
+    ASSERT_EQ(1, DRP5MINElement_GetValueAt(el, 0, &fv));
+    ASSERT_EQ(1.5, fv);
+    pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
+}
+
+GTEST_TEST(Packet_creator, water5Min)
+{
+    cJSON *data = cJSON_Parse("{                                         "
+                              "    \"fcode\":\"34\",                     "
+                              "    \"observetime\":\"2006101700\",       "
+                              "    \"direction\":0,                      "
+                              "    \"elements\":[                        "
+                              "        {                                 "
+                              "            \"t\":\"water_hour_5min\",    "
+                              "            \"id\":\"F5\",                "
+                              "            \"v\":[                       "
+                              "                1.15,                     "
+                              "                1.15,                     "
+                              "                1.15,                     "
+                              "                1.15,                     "
+                              "                1.15,                     "
+                              "                1.15,                     "
+                              "                1.15,                     "
+                              "                1.15,                     "
+                              "                1.15,                     "
+                              "                1.25,                     "
+                              "                1.5,                      "
+                              "                1.5                       "
+                              "            ]                             "
+                              "        }                                 "
+                              "    ]                                     "
+                              "}                                         ");
+    Package *pkg = createPackage(data);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.direction, Up);
+    ASSERT_EQ(pkg->head.funcCode, 0x34);
+    LinkMessage *linkMsg = (LinkMessage *)pkg;
+    // ASSERT_EQ(12, LinkMessage_ElementsSize(linkMsg));
+    RelativeWaterLevelElement *el = (RelativeWaterLevelElement *)LinkMessage_ElementAt(linkMsg, 0);
+    ASSERT_EQ(BB_Size(el->buff), 24);
+    float fv = 0;
+    ASSERT_EQ(2, RelativeWaterLevelElement_GetValueAt(el, 0, &fv));
+    ASSERT_EQ(1.15f, fv);
+    ASSERT_EQ(2, RelativeWaterLevelElement_GetValueAt(el, 11, &fv));
+    ASSERT_EQ(1.5f, fv);
+    ASSERT_EQ(2, RelativeWaterLevelElement_GetValueAt(el, 9, &fv));
+    ASSERT_EQ(1.25f, fv);
+    pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
+}
+
+GTEST_TEST(Packet_creator, water5Min)
+{
+    cJSON *data = cJSON_Parse("{                                         "
+                              "    \"fcode\":\"34\",                     "
+                              "    \"observetime\":\"2006101700\",       "
+                              "    \"direction\":0,                      "
+                              "    \"elements\":[                        "
+                              "        {                                 "
+                              "            \"t\":\"water_hour_5min\",    "
+                              "            \"id\":\"F5\",                "
+                              "            \"v\":[                       "
+                              "                1.15,                     "
+                              "                1.15,                     "
+                              "                1.15,                     "
+                              "                1.15,                     "
+                              "                1.15,                     "
+                              "                1.15,                     "
+                              "                1.15,                     "
+                              "                1.15,                     "
+                              "                1.15,                     "
+                              "                1.25,                     "
+                              "                1.5,                      "
+                              "                1.5                       "
+                              "            ]                             "
+                              "        }                                 "
+                              "    ]                                     "
+                              "}                                         ");
+    Package *pkg = createPackage(data);
+    ASSERT_TRUE(pkg != NULL);
+    ASSERT_EQ(pkg->head.direction, Up);
+    ASSERT_EQ(pkg->head.funcCode, 0x34);
+    LinkMessage *linkMsg = (LinkMessage *)pkg;
+    // ASSERT_EQ(12, LinkMessage_ElementsSize(linkMsg));
+    RelativeWaterLevelElement *el = (RelativeWaterLevelElement *)LinkMessage_ElementAt(linkMsg, 0);
+    ASSERT_EQ(BB_Size(el->buff), 24);
+    float fv = 0;
+    ASSERT_EQ(2, RelativeWaterLevelElement_GetValueAt(el, 0, &fv));
+    ASSERT_EQ(1.15f, fv);
+    ASSERT_EQ(2, RelativeWaterLevelElement_GetValueAt(el, 11, &fv));
+    ASSERT_EQ(1.5f, fv);
+    ASSERT_EQ(2, RelativeWaterLevelElement_GetValueAt(el, 9, &fv));
+    ASSERT_EQ(1.25f, fv);
+    pkg->vptr->dtor(pkg);
+    DelInstance(pkg);
+}
+
 int main(int argc, char *argv[])
 {
     ::testing::InitGoogleTest(&argc, argv);

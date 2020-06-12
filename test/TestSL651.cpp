@@ -262,9 +262,9 @@ GTEST_TEST(DecodeElement, decodeDRP5MINElement)
     ASSERT_EQ(drp5el->super.identifierLeader, DRP5MIN);
     ASSERT_EQ(drp5el->super.dataDef, DRP5MIN_DATADEF);
     float fv = 1;
-    ASSERT_EQ(1, DRP5MINElement_ValueAt(drp5el, 0, &fv));
+    ASSERT_EQ(1, DRP5MINElement_GetValueAt(drp5el, 0, &fv));
     ASSERT_TRUE(0 == fv);
-    ASSERT_EQ(1, DRP5MINElement_ValueAt(drp5el, 1, &fv));
+    ASSERT_EQ(1, DRP5MINElement_GetValueAt(drp5el, 1, &fv));
     ASSERT_EQ(0.1f, fv);
 
     ByteBuffer *encoded = NewInstance(ByteBuffer);
@@ -369,9 +369,9 @@ GTEST_TEST(DecodeElement, decodeRelativeWaterLevelElement)
     ASSERT_EQ(rwl5el->super.identifierLeader, RELATIVE_WATER_LEVEL_5MIN1);
     ASSERT_EQ(rwl5el->super.dataDef, RELATIVE_WATER_LEVEL_5MIN1_DATADEF);
     float fv = 1;
-    ASSERT_EQ(2, RelativeWaterLevelElement_ValueAt(rwl5el, 0, &fv));
+    ASSERT_EQ(2, RelativeWaterLevelElement_GetValueAt(rwl5el, 0, &fv));
     ASSERT_TRUE(0x0AAA / 100.0f == fv);
-    ASSERT_EQ(2, RelativeWaterLevelElement_ValueAt(rwl5el, 1, &fv));
+    ASSERT_EQ(2, RelativeWaterLevelElement_GetValueAt(rwl5el, 1, &fv));
     ASSERT_EQ(0x0AAA / 100.0f, fv);
 
     ByteBuffer *encoded = NewInstance(ByteBuffer);
@@ -761,9 +761,9 @@ GTEST_TEST(Package, decodeRainfallStationHourlyUplinkMessage)
     ASSERT_EQ(drp5el->super.identifierLeader, DRP5MIN);
     ASSERT_EQ(drp5el->super.dataDef, DRP5MIN_DATADEF);
     float fv = 1;
-    ASSERT_EQ(1, DRP5MINElement_ValueAt(drp5el, 0, &fv));
+    ASSERT_EQ(1, DRP5MINElement_GetValueAt(drp5el, 0, &fv));
     ASSERT_TRUE(0 == fv);
-    ASSERT_EQ(1, DRP5MINElement_ValueAt(drp5el, 1, &fv));
+    ASSERT_EQ(1, DRP5MINElement_GetValueAt(drp5el, 1, &fv));
     ASSERT_EQ(0, fv);
 
     NumberElement *nel = NULL;
@@ -924,11 +924,11 @@ GTEST_TEST(Package, decodeWaterRainStationHourlyUplinkMessage)
     ASSERT_EQ(rwlel->super.identifierLeader, RELATIVE_WATER_LEVEL_5MIN1);
     ASSERT_EQ(rwlel->super.dataDef, 0xc0);
     float fv = 0;
-    ASSERT_EQ(2, RelativeWaterLevelElement_ValueAt(rwlel, 0, &fv));
+    ASSERT_EQ(2, RelativeWaterLevelElement_GetValueAt(rwlel, 0, &fv));
     ASSERT_EQ(27.3f, fv);
-    ASSERT_EQ(2, RelativeWaterLevelElement_ValueAt(rwlel, 1, &fv));
+    ASSERT_EQ(2, RelativeWaterLevelElement_GetValueAt(rwlel, 1, &fv));
     ASSERT_EQ(27.3f, fv);
-    ASSERT_EQ(2, RelativeWaterLevelElement_ValueAt(rwlel, 11, &fv));
+    ASSERT_EQ(2, RelativeWaterLevelElement_GetValueAt(rwlel, 11, &fv));
     ASSERT_EQ(0xffff, fv);
 
     ByteBuffer *encoded = pkg->vptr->encode(pkg);
@@ -2316,11 +2316,11 @@ GTEST_TEST(Package, decodeQueryElementUplinkMessage1)
     ASSERT_EQ(rwlel->super.identifierLeader, RELATIVE_WATER_LEVEL_5MIN1);
     ASSERT_EQ(rwlel->super.dataDef, 0xc0);
     float fv = 0;
-    ASSERT_EQ(2, RelativeWaterLevelElement_ValueAt(rwlel, 0, &fv));
+    ASSERT_EQ(2, RelativeWaterLevelElement_GetValueAt(rwlel, 0, &fv));
     ASSERT_EQ(0.12f, fv);
-    ASSERT_EQ(2, RelativeWaterLevelElement_ValueAt(rwlel, 1, &fv));
+    ASSERT_EQ(2, RelativeWaterLevelElement_GetValueAt(rwlel, 1, &fv));
     ASSERT_EQ(0.12f, fv);
-    ASSERT_EQ(2, RelativeWaterLevelElement_ValueAt(rwlel, 11, &fv));
+    ASSERT_EQ(2, RelativeWaterLevelElement_GetValueAt(rwlel, 11, &fv));
     ASSERT_EQ(0.49f, fv);
 
     ByteBuffer *encoded = pkg->vptr->encode(pkg);
@@ -3212,11 +3212,11 @@ GTEST_TEST(Package, nanshuiHourPackage)
     ASSERT_EQ(nlel->super.identifierLeader, 0xF4);
     ASSERT_EQ(nlel->super.dataDef, 0x60);
     float fv = 1;
-    ASSERT_EQ(1, DRP5MINElement_ValueAt(nlel, 0, &fv));
+    ASSERT_EQ(1, DRP5MINElement_GetValueAt(nlel, 0, &fv));
     ASSERT_EQ(0, fv);
-    ASSERT_EQ(1, DRP5MINElement_ValueAt(nlel, 5, &fv));
+    ASSERT_EQ(1, DRP5MINElement_GetValueAt(nlel, 5, &fv));
     ASSERT_EQ(0, fv);
-    ASSERT_EQ(1, DRP5MINElement_ValueAt(nlel, 6, &fv));
+    ASSERT_EQ(1, DRP5MINElement_GetValueAt(nlel, 6, &fv));
     ASSERT_EQ(0, fv);
 
     ByteBuffer *encoded = pkg->vptr->encode(pkg);

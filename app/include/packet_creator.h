@@ -23,8 +23,6 @@ extern "C"
     // 虚函数表
     typedef struct ElementCreatorVtbl
     {
-
-        // 暂时不支持分包
         Element *(*createElement)(ElementCreator *const me, cJSON *const data);
         void (*dtor)(ElementCreator *const me);
     } ElementCreatorVtbl;
@@ -46,6 +44,18 @@ extern "C"
         ElementCreator super;
     } ObserveTimeElementCreator;
     void ObserveTimeElementCreator_ctor(ObserveTimeElementCreator *const me);
+
+    typedef struct
+    {
+        ElementCreator super;
+    } DRP5MINElementCreator;
+    void DRP5MINElementCreator_ctor(DRP5MINElementCreator *const me);
+
+    typedef struct
+    {
+        ElementCreator super;
+    } RelativeWaterLevelElementCreator;
+    void RelativeWaterLevelElementCreator_ctor(RelativeWaterLevelElementCreator *const me);
 
     Package *createPackage(cJSON *const data);
 
