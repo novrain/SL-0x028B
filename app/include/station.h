@@ -223,6 +223,7 @@ extern "C"
         uint16_t *password;
         ChannelPtrVector channels;
         uint8_t *workMode;
+        StationCategory stationCategory;
         // extend config
         cJSON *configInJSON;
         char *configFile;
@@ -232,7 +233,6 @@ extern "C"
         char *socketDevice;
         size_t *buffSize;
         uint16_t *msgSendInterval;
-        char *schemasDir;
         // reference
         Station *station;
     } Config;

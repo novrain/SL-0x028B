@@ -146,6 +146,10 @@ GTEST_TEST(Packet_creator, hourReport)
     ASSERT_FLOAT_EQ(2, NumberElement_GetFloat(nel, &fv));
     ASSERT_FLOAT_EQ(0.06f, fv);
 
+    ByteBuffer *buff = pkg->vptr->encode(pkg);
+    BB_dtor(buff);
+    DelInstance(buff);
+
     pkg->vptr->dtor(pkg);
     DelInstance(pkg);
     cJSON_Delete(data);

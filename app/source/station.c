@@ -106,6 +106,7 @@ void Channel_FillUplinkMessageHead(Channel *const me, UplinkMessage *const upMsg
     DateTime_now(&upMsg->messageHead.sendTime);
     ObserveTime_now(&upMsg->messageHead.observeTimeElement.observeTime);
     upMsg->messageHead.stationAddrElement.stationAddr = *config->stationAddr;
+    upMsg->messageHead.stationCategory = config->stationCategory;
 }
 
 void Channel_FillPackageHead(Channel *const me, Package *const pkg)
@@ -121,6 +122,7 @@ void Channel_FillPackageHead(Channel *const me, Package *const pkg)
         UplinkMessage *upMsg = (UplinkMessage *)pkg;
         DateTime_now(&upMsg->messageHead.sendTime);
         upMsg->messageHead.stationAddrElement.stationAddr = *config->stationAddr;
+        upMsg->messageHead.stationCategory = config->stationCategory;
     }
     else
     {
@@ -1951,6 +1953,9 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
     me->workMode = NewInstance(uint8_t);
     *me->workMode = QUERY_ACK; //
     cJSON_COPY_VALUE(*me->workMode, workMode, json, valuedouble);
+    // StationCategory
+    cJSON_GET_NUMBER(stationCategory, StationCategory, json, RIVER_STATION, 16);
+    me->stationCategory = stationCategory;
     // filesDir
     cJSON_COPY_VALUE(me->filesDir, filesDir, json, valuestring);
     if (me->filesDir == NULL)
@@ -1997,15 +2002,6 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
         {
             *me->msgSendInterval = CHANNEL_DEFAULT_MSG_SEND_INTERVAL;
         }
-    }
-    // schemasDir
-    cJSON_COPY_VALUE(me->schemasDir, schemasDir, json, valuestring);
-    if (me->schemasDir == NULL)
-    {
-        size_t len = strlen(me->workDir) + 9;
-        me->schemasDir = (char *)malloc(len); // /pics\0
-        memset(me->schemasDir, '\0', len);
-        snprintf(me->schemasDir, len, "%s/schemas", me->workDir);
     }
     // channels
     cJSON *channels = cJSON_GetObjectItem(json, "channels");
@@ -2092,10 +2088,6 @@ void Config_dtor(Config *const me)
     {
         DelInstance(me->filesDir);
     }
-    if (me->schemasDir != NULL)
-    {
-        DelInstance(me->schemasDir);
-    }
     if (me->sentFilesDir != NULL)
     {
         DelInstance(me->sentFilesDir);
@@ -2141,7 +2133,7 @@ void Packet_Marking(Packet *const me, uint8_t chId)
 {
     assert(me);
     assert(chId > 0 && chId <= 16);
-    me->channelSentMask != (1 << chId);
+    me->channelSentMask |= (1 << chId);
 }
 
 void Packet_MarkingByChannel(Packet *const me, Channel *const ch)
@@ -2321,6 +2313,10 @@ bool Station_IsFileSentByAllChannel(Station *const me, tinydir_file *const file,
 bool Station_AsyncSend(Station *const me, cJSON *const data)
 {
     assert(me);
+    if (data == NULL)
+    {
+        return true;
+    }
     pthread_mutex_lock(&me->sendMutex);
     // 生成
     Package *pkg = createPackage(data);
@@ -2374,6 +2370,11 @@ void Station_SendPacketsToChannel(Station *const me, Channel *const ch)
             if (packet->pkg != NULL && Packet_ShouldSendByChannel(packet, ch))
             {
                 Package *pkg = packet->pkg;
+                if (pkg->head.direction == Up)
+                {
+                    UplinkMessage *msg = (UplinkMessage *)pkg;
+                    msg->messageHead.seq = Channel_NextSeq(ch);
+                }
                 Channel_FillPackageHead(ch, pkg); // 每个channel不同
                 ByteBuffer *buff = pkg->vptr->encode(pkg);
                 if (buff == NULL)
@@ -2381,6 +2382,7 @@ void Station_SendPacketsToChannel(Station *const me, Channel *const ch)
                     Packet_UnmarkByChannel(packet, ch);
                     continue;
                 }
+                BB_Flip(buff);
                 bool res = ch->vptr->send(ch, buff);
                 Packet_UnmarkByChannel(packet, ch); // @Todo 发送失败的重试机制
                 // if (res)
@@ -2407,6 +2409,7 @@ void Station_SendPacketsToChannel(Station *const me, Channel *const ch)
 
 void Station_ClearPackets(Station *const me)
 {
+    assert(me);
     size_t i = 0;
     Packet *packet;
     vec_foreach(&me->packets, packet, i)
