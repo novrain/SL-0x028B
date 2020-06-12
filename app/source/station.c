@@ -837,7 +837,7 @@ bool handleRUNTIME_CONFIG(Channel *const ch, Package *const request)
     head->funcCode = RUNTIME_CONFIG;              // 心跳功能码功能码
     upMsg->messageHead.seq = Channel_NextSeq(ch); // 根据功能码填写报文头 @Todo 这里是否要填写请求端对应的流水号
     Config *config = &ch->station->config;
-    cJSON *params = cJSON_GetObjectItemCaseSensitive(config->configInJSON, "runtimeParameters");
+    cJSON *params = cJSON_GetObjectItem(config->configInJSON, "runtimeParameters");
     if (reqBuff != NULL && params != NULL)
     {
         LinkMessage *uplinkMsg = (LinkMessage *)upMsg;
@@ -847,11 +847,11 @@ bool handleRUNTIME_CONFIG(Channel *const ch, Package *const request)
             BB_GetUInt8(reqBuff, &identifierLeader);
             char path[30] = {0}; // enough
             snprintf(path, 30, "%04X", identifierLeader);
-            cJSON *param = cJSON_GetObjectItemCaseSensitive(params, path);
+            cJSON *param = cJSON_GetObjectItem(params, path);
             if (param != NULL)
             {
-                cJSON *t = cJSON_GetObjectItemCaseSensitive(param, "t");
-                cJSON *v = cJSON_GetObjectItemCaseSensitive(param, "v");
+                cJSON *t = cJSON_GetObjectItem(param, "t");
+                cJSON *v = cJSON_GetObjectItem(param, "v");
                 if (t != NULL && v != NULL)
                 {
                     NumberElement *el = NewInstance(NumberElement);
@@ -1910,9 +1910,9 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
     assert(me);
     assert(json);
     // 中心地址
-    cJSON *centerAddrs = cJSON_GetObjectItemCaseSensitive(json, "centerAddrs");
+    cJSON *centerAddrs = cJSON_GetObjectItem(json, "centerAddrs");
     // 站地址
-    cJSON *remoteStationAddr = cJSON_GetObjectItemCaseSensitive(json, "remoteStationAddr");
+    cJSON *remoteStationAddr = cJSON_GetObjectItem(json, "remoteStationAddr");
     if (centerAddrs == NULL || remoteStationAddr == NULL)
     {
         return false;
@@ -2008,7 +2008,7 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
         snprintf(me->schemasDir, len, "%s/schemas", me->workDir);
     }
     // channels
-    cJSON *channels = cJSON_GetObjectItemCaseSensitive(json, "channels");
+    cJSON *channels = cJSON_GetObjectItem(json, "channels");
     cJSON *channel;
     cJSON_ArrayForEach(channel, channels)
     {
