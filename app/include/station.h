@@ -260,7 +260,6 @@ extern "C"
     {
         // Reactor *reactor;
         Config config;
-        PacketCreatorFactory pcFactory;
         PacketPtrVector packets;
         pthread_mutex_t cleanUpMutex;
         pthread_mutex_t sendMutex;
@@ -271,7 +270,7 @@ extern "C"
     void Station_dtor(Station *const me);
     bool Station_IsFileSentByAllChannel(Station *const me, tinydir_file *const file, Channel *const currentCh);
     // for other thread to call this function
-    bool Station_AsyncSend(Station *const me, char *const schemaName, cJSON *const data);
+    bool Station_AsyncSend(Station *const me, cJSON *const data);
     void Station_SendPacketsToChannel(Station *const me, Channel *const ch);
 #define SL651_DEFAULT_WORKDIR "/sl651"
 #define SL651_DEFAULT_CONFIG_FILE_NAME_LEN 11

@@ -2185,7 +2185,6 @@ void Station_ctor(Station *const me)
     assert(me);
     // me->reactor = NULL;
     Config_ctor(&me->config, me);
-    PacketCreatorFactory_ctor(&me->pcFactory, 10);
     pthread_mutex_init(&me->cleanUpMutex, NULL);
     pthread_mutex_init(&me->sendMutex, NULL);
     vec_init(&me->packets);
@@ -2211,8 +2210,6 @@ bool Station_StartBy(Station *const me, char const *workDir)
     {
         me->config.configInJSON = json;
         me->config.configFile = file;
-        // load creator factory
-        PacketCreatorFactory_loadDirectory(&me->pcFactory, me->config.schemasDir);
         // me->reactor = ev_loop_new(0);
         // if (me->reactor != NULL)
         // {
@@ -2321,12 +2318,12 @@ bool Station_IsFileSentByAllChannel(Station *const me, tinydir_file *const file,
     return true;
 }
 
-bool Station_AsyncSend(Station *const me, char *const schemaName, cJSON *const data)
+bool Station_AsyncSend(Station *const me, cJSON *const data)
 {
     assert(me);
     pthread_mutex_lock(&me->sendMutex);
     // 生成
-    Package *pkg = PacketCreatorFactory_createPacket(&me->pcFactory, schemaName, data);
+    Package *pkg = createPackage(data);
     if (pkg == NULL)
     {
         return false;
