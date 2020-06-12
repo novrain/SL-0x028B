@@ -250,12 +250,14 @@ void RelativeWaterLevelElementCreator_ctor(RelativeWaterLevelElementCreator *con
 
 Package *createPackage(cJSON *const schema)
 {
-    assert(schema);
-    // assert(data);
+    if (schema == NULL)
+    {
+        return NULL;
+    }
+    // RT_ASSERT(data);
     Package *pkg = NULL;
     LinkMessage *linkMsg = NULL;
     // functionCode 不做有效性判断
-    cJSON_GET_NUMBER(fcode, uint8_t, schema, 0, 16);
     cJSON_GET_VALUE(direction, Direction, schema, valuedouble, Up);
     if (direction == Down)
     {
@@ -347,7 +349,13 @@ Package *createPackage(cJSON *const schema)
     }
     if (validSchema)
     {
+        cJSON_GET_NUMBER(fcode, uint8_t, schema, 0, 16);
+        // 以下两个值由发送方决定
+        cJSON_GET_NUMBER(stxFlag, uint8_t, schema, STX, 16);
+        cJSON_GET_NUMBER(etxFlag, uint8_t, schema, ETX, 16);
         pkg->head.funcCode = fcode;
+        pkg->head.stxFlag = stxFlag;
+        pkg->tail.etxFlag = etxFlag;
     }
     else
     {

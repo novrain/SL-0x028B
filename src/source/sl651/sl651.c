@@ -1408,7 +1408,9 @@ uint8_t DRP5MINElement_SetValueAt(DRP5MINElement *const me, uint8_t index, float
     uint8_t u8;
     BB_Rewind(me->buff);
     BB_Skip(me->buff, index);
-    return BB_PutUInt8(me->buff, val * 10);
+    uint8_t res = BB_PutUInt8(me->buff, val * 10);
+    BB_Rewind(me->buff);
+    return res;
 }
 // DRP5MINElement END
 
@@ -1591,7 +1593,9 @@ uint8_t RelativeWaterLevelElement_SetValueAt(RelativeWaterLevelElement *const me
     uint8_t u8;
     BB_Rewind(me->buff);
     BB_Skip(me->buff, index * 2);
-    return BB_BE_PutUInt16(me->buff, val * 100);
+    uint8_t res = BB_BE_PutUInt16(me->buff, val * 100);
+    BB_Rewind(me->buff);
+    return res;
 }
 // RelativeWaterLevelElement END
 

@@ -108,7 +108,7 @@ extern "C"
 //ESC (escape)
 #define ESC 0x1b //传输结束，终端保持在线
 
-    enum StationCategory
+    typedef enum
     {
         // 降水  P
         RAIN_STATION = 0x50,
@@ -132,7 +132,7 @@ extern "C"
         WATER_INTAKE_STATION = 0x49,
         // 排水口 O
         DRIAN_STATION = 0x4F
-    };
+    } StationCategory;
 
     typedef enum
     {
