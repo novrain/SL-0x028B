@@ -238,6 +238,8 @@ extern "C"
     } Config;
     Channel *Config_FindChannel(Config *const me, uint8_t chId);
     int32_t Config_IndexOfChannel(Config *const me, uint8_t chid);
+    bool Config_IsChannelEnable(Config *const me, Channel *const ch);
+    bool Config_IsChannelEnableById(Config *const me, uint8_t id);
 #define CHANNEL_MIN_BUFF_SIZE 200
 #define CHANNEL_MAX_BUFF_SIZE 10240
 #define CHANNEL_DEFAULT_BUFF_SIZE 256

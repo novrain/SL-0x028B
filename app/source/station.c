@@ -1737,6 +1737,10 @@ Channel *Channel_Ipv4FromJson(cJSON *const channelInJson, Config *const config)
 {
     assert(channelInJson);
     cJSON_GET_VALUE(id, uint8_t, channelInJson, valuedouble, 0);
+    if (!Config_IsChannelEnableById(config, id))
+    {
+        return NULL;
+    }
     cJSON_GET_VALUE(ipv4, char *, channelInJson, valuestring, NULL);
     cJSON_GET_VALUE(port, uint16_t, channelInJson, valuedouble, 60338);
     cJSON_GET_VALUE(keepalive, uint8_t, channelInJson, valuedouble, CHANNLE_DEFAULT_KEEPALIVE_INTERVAL);
@@ -1776,6 +1780,10 @@ Channel *Channel_DomainFromJson(cJSON *const channelInJson, Config *const config
 {
     assert(channelInJson);
     cJSON_GET_VALUE(id, uint8_t, channelInJson, valuedouble, 0);
+    if (!Config_IsChannelEnableById(config, id))
+    {
+        return NULL;
+    }
     cJSON_GET_VALUE(domain, char *, channelInJson, valuestring, NULL);
     cJSON_GET_VALUE(port, uint16_t, channelInJson, valuedouble, 60338);
     cJSON_GET_VALUE(keepalive, uint8_t, channelInJson, valuedouble, CHANNLE_DEFAULT_KEEPALIVE_INTERVAL);
@@ -1877,6 +1885,12 @@ bool Config_IsChannelEnable(Config *const me, Channel *const ch)
 {
     assert(me);
     return ch->id == CHANNEL_ID_FIXED || Config_CenterAddrOfChannel(me, ch) != CENTER_DISABLED;
+}
+
+bool Config_IsChannelEnableById(Config *const me, uint8_t id)
+{
+    assert(me);
+    return id == CHANNEL_ID_FIXED || Config_CenterAddr(me, (id / 2) - 1) != CENTER_DISABLED;
 }
 
 Channel *Config_FindChannel(Config *const me, uint8_t chId)
@@ -2301,7 +2315,9 @@ bool Station_IsFileSentByAllChannel(Station *const me, tinydir_file *const file,
     }
     vec_foreach(&me->config.channels, ch, i)
     {
-        if (ch != NULL && (currentCh != NULL ? ch->id != currentCh->id : true))
+        if (ch != NULL &&
+            (currentCh != NULL ? ch->id != currentCh->id : true) &&
+            Config_IsChannelEnable(&me->config, ch))
         {
             Channel_ClearSentFileRecord(ch, file);
         }
