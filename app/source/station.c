@@ -2301,12 +2301,20 @@ bool Station_IsFileSentByAllChannel(Station *const me, tinydir_file *const file,
     }
     // clear
     // move file
+    char dir[40] = {0};
+    time_t nSeconds;
+    struct tm *pTM;
+    time(&nSeconds);
+    pTM = localtime(&nSeconds);
+    snprintf(dir, 300, "%s/%04d%02d%02d", me->config.sentFilesDir, pTM->tm_year + 1900, pTM->tm_mon + 1, pTM->tm_mday);
+    mode_t mode = S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH;
+    mkpath(dir, mode);
     char newFile[300] = {0};
-    snprintf(newFile, 300, "%s/%s", me->config.sentFilesDir, file->name);
+    snprintf(newFile, 300, "%s/%s", dir, file->name);
     i = 1;
     while (access(newFile, 0) == SL651_APP_ERROR_SUCCESS)
     {
-        snprintf(newFile, 300, "%s/%s.(%d)", me->config.sentFilesDir, file->name, (int)i);
+        snprintf(newFile, 300, "%s/%s.(%d)", dir, file->name, (int)i);
         i++;
     }
     if (rename(file->path, newFile) != SL651_APP_ERROR_SUCCESS)
