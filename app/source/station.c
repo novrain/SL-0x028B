@@ -2387,11 +2387,15 @@ void Station_ctor(Station *const me)
     assert(me);
     // me->reactor = NULL;
     Config_ctor(&me->config, me);
-    pthread_mutexattr_t mutexAttr;
-    pthread_mutexattr_init(&mutexAttr);
-    pthread_mutexattr_settype(&mutexAttr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&me->cleanUpMutex, &mutexAttr);
-    pthread_mutex_init(&me->sendMutex, &mutexAttr);
+    pthread_mutexattr_t cleanUpMutexAttr;
+    pthread_mutexattr_init(&cleanUpMutexAttr);
+    pthread_mutexattr_settype(&cleanUpMutexAttr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&me->cleanUpMutex, &cleanUpMutexAttr);
+
+    pthread_mutexattr_t sendMutexAttr;
+    pthread_mutexattr_init(&sendMutexAttr);
+    pthread_mutexattr_settype(&sendMutexAttr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&me->sendMutex, &sendMutexAttr);
     vec_init(&me->packets);
     vec_reserve(&me->packets, 20);
 }
