@@ -260,6 +260,66 @@ void Channel_ClearSentFileRecord(Channel *const me, tinydir_file const *file)
     pthread_mutex_unlock(&me->cleanUpMutex);
 }
 
+bool Channel_SendFileByFd(Channel *const me, struct stat *fStat, int fd)
+{
+    assert(me);
+    assert(fStat);
+    if (fStat->st_size <= 0)
+    {
+        return true;
+    }
+    uint16_t pkgCount = fStat->st_size / me->buffSize;
+    if (fStat->st_size % me->buffSize != 0)
+    {
+        pkgCount++;
+    }
+    uint16_t pkgNo = 1;
+    ssize_t readBytes = -1;
+    while ((readBytes = read(fd, me->buff, me->buffSize)) > 0)
+    {
+        // create package
+        UplinkMessage *upMsg = NewInstance(UplinkMessage); // 选择是上行还是下行
+        UplinkMessage_ctor(upMsg, 0);                      // 调用构造函数,如果有要素，需要指定要素数量
+        Package *pkg = (Package *)upMsg;                   // 获取父结构Package
+        Head *head = &pkg->head;                           // 获取Head结构
+        Channel_FillUplinkMessageHead(me, upMsg);          // Fill head by config
+        head->funcCode = PICTURE;                          // 心跳功能码功能码
+        head->stxFlag = SYN;
+        head->sequence.count = pkgCount;
+        head->sequence.seq = pkgNo;
+        upMsg->messageHead.seq = Channel_LastSeq(me); // 根据功能码填写报文头
+        if (pkgNo != pkgCount)
+        {
+            pkg->tail.etxFlag = ETB; // 截止符
+        }
+        else
+        {
+            pkg->tail.etxFlag = ETX; // 截止符
+        }
+        LinkMessage *uplinkMsg = (LinkMessage *)upMsg;
+        PictureElement *picEl = NewInstance(PictureElement);
+        PictureElement_ctor(picEl, pkgNo);
+        ByteBuffer *rawBuff = picEl->buff = NewInstance(ByteBuffer);
+        BB_ctor_wrapped(rawBuff, (uint8_t *)me->buff, readBytes);
+        BB_Flip(rawBuff);
+        LinkMessage_PushElement(uplinkMsg, (Element *const)picEl);
+        ByteBuffer *byteOut = pkg->vptr->encode(pkg); // 编码
+        BB_Flip(byteOut);                             // 转为读模式
+        bool res = me->vptr->send(me, byteOut);       // 调用发送实现
+        UplinkMessage_dtor((Package *)upMsg);         // 析构
+        DelInstance(upMsg);                           // free
+        BB_dtor(byteOut);                             // 析构
+        DelInstance(byteOut);                         // free
+        if (!res)
+        {
+            return false;
+        }
+        usleep(me->msgSendInterval * 1000);
+        pkgNo++;
+    }
+    return pkgNo == pkgCount + 1;
+}
+
 void Channel_SendFile(Channel *const me, tinydir_file *file)
 {
     assert(me);
@@ -268,7 +328,11 @@ void Channel_SendFile(Channel *const me, tinydir_file *file)
     // {
     //     return;
     // }
-    printf("ch[%2d] pick up file[%s] to send.\r\n", me->id, file->path);
+    if (me->status != CHANNEL_STATUS_RUNNING)
+    {
+        return;
+    }
+    printf("ch[%2d] pick up file [%s] to send.\r\n", me->id, file->path);
     memset(me->buff, 0, me->buffSize);
     struct stat fStat = {0};
     int fd = 0;
@@ -289,58 +353,65 @@ void Channel_SendFile(Channel *const me, tinydir_file *file)
             me->status = CHANNEL_STATUS_RUNNING;
             return;
         }
-        uint16_t pkgCount = fStat.st_size / me->buffSize;
-        if (fStat.st_size % me->buffSize != 0)
+
+        if (Channel_SendFileByFd(me, &fStat, fd))
         {
-            pkgCount++;
+            if (me->station->config.waitFileSendAck) // 等待应答
+            {
+                me->status = CHANNEL_STATUS_WAITTING_SCAN_FILESEND_ACK;
+                me->currentFile = NewInstance(tinydir_file);
+                memcpy(me->currentFile, &file, sizeof(tinydir_file));
+            }
+            else // 不等待应答
+            {
+                me->status = CHANNEL_STATUS_RUNNING;
+                Channel_RecordSentFile(me, (tinydir_file *const)file);
+            }
         }
-        uint16_t pkgNo = 1;
-        ssize_t readBytes = -1;
-        while ((readBytes = read(fd, me->buff, me->buffSize)) > 0)
+        close(fd);
+        // @Todo 隔段时间 做一次反向清理同步
+    }
+}
+
+void Channel_SendFilePkg(Channel *const me, FilePkg *const filePkg)
+{
+    assert(me);
+    assert(filePkg);
+    if (me->status != CHANNEL_STATUS_RUNNING)
+    {
+        return;
+    }
+    printf("ch[%2d] sending file[%s].\r\n", me->id, filePkg->file);
+    memset(me->buff, 0, me->buffSize);
+    struct stat fStat = {0};
+    int fd = 0;
+#ifndef WIN32
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
+#endif
+    if (stat(filePkg->file, &fStat) == SL651_APP_ERROR_SUCCESS &&
+        (fd = open(filePkg->file, O_RDONLY | O_BINARY)))
+    {
+        if (fStat.st_size <= 0) // 0 字节文件
         {
-            // create package
-            UplinkMessage *upMsg = NewInstance(UplinkMessage); // 选择是上行还是下行
-            UplinkMessage_ctor(upMsg, 0);                      // 调用构造函数,如果有要素，需要指定要素数量
-            Package *pkg = (Package *)upMsg;                   // 获取父结构Package
-            Head *head = &pkg->head;                           // 获取Head结构
-            Channel_FillUplinkMessageHead(me, upMsg);          // Fill head by config
-            head->funcCode = PICTURE;                          // 心跳功能码功能码
-            head->stxFlag = SYN;
-            head->sequence.count = pkgCount;
-            head->sequence.seq = pkgNo;
-            upMsg->messageHead.seq = Channel_LastSeq(me); // 根据功能码填写报文头
-            if (pkgNo != pkgCount)
-            {
-                pkg->tail.etxFlag = ETB; // 截止符
-            }
-            else
-            {
-                pkg->tail.etxFlag = ETX; // 截止符
-            }
-            LinkMessage *uplinkMsg = (LinkMessage *)upMsg;
-            PictureElement *picEl = NewInstance(PictureElement);
-            PictureElement_ctor(picEl, pkgNo);
-            ByteBuffer *rawBuff = picEl->buff = NewInstance(ByteBuffer);
-            BB_ctor_wrapped(rawBuff, (uint8_t *)me->buff, readBytes);
-            BB_Flip(rawBuff);
-            LinkMessage_PushElement(uplinkMsg, (Element *const)picEl);
-            ByteBuffer *byteOut = pkg->vptr->encode(pkg); // 编码
-            BB_Flip(byteOut);                             // 转为读模式
-            bool res = me->vptr->send(me, byteOut);       // 调用发送实现
-            UplinkMessage_dtor((Package *)upMsg);         // 析构
-            DelInstance(upMsg);                           // free
-            BB_dtor(byteOut);                             // 析构
-            DelInstance(byteOut);                         // free
-            if (!res)
-            {
-                break;
-            }
-            usleep(me->msgSendInterval * 1000);
-            pkgNo++;
+            Station_MarkFilePkgSent(me->station, me, filePkg, true);
+            me->status = CHANNEL_STATUS_RUNNING;
+            return;
         }
-        if (pkgNo == pkgCount + 1)
+
+        if (Channel_SendFileByFd(me, &fStat, fd))
         {
-            me->status = CHANNEL_STATUS_WAITTING_FILESEND_ACK;
+            if (me->station->config.waitFileSendAck) // 等待应答
+            {
+                me->status = CHANNEL_STATUS_WAITTING_AYNC_FILESEND_ACK;
+                me->currentFilePkg = filePkg;
+            }
+            else // 不等待应答
+            {
+                me->status = CHANNEL_STATUS_RUNNING;
+                Station_MarkFilePkgSent(me->station, me, filePkg, true);
+            }
         }
         close(fd);
         // @Todo 隔段时间 做一次反向清理同步
@@ -996,7 +1067,7 @@ bool handlePICTURE(Channel *const ch, Package *const request)
     assert(ch);
     assert(request);
     assert(request->head.funcCode == PICTURE);
-    if (ch->status == CHANNEL_STATUS_WAITTING_FILESEND_ACK)
+    if (ch->status == CHANNEL_STATUS_WAITTING_SCAN_FILESEND_ACK) // 扫描式的
     {
         if (request->tail.etxFlag == ENQ)
         {
@@ -1009,6 +1080,22 @@ bool handlePICTURE(Channel *const ch, Package *const request)
                 Channel_RecordCurrentSentFile(ch);
             }
             DelInstance(ch->currentFile);
+            ch->status = CHANNEL_STATUS_RUNNING;
+        }
+        return true;
+    }
+    else if (ch->status == CHANNEL_STATUS_WAITTING_AYNC_FILESEND_ACK) // 触发式的
+    {
+        if (request->tail.etxFlag == ENQ)
+        {
+            return false; // 不能交叉
+        }
+        if (request->tail.etxFlag == EOT || request->tail.etxFlag == ACK) // 确认成功
+        {
+            if (ch->currentFilePkg != NULL)
+            {
+                Station_MarkFilePkgSent(ch->station, ch, ch->currentFilePkg, true);
+            }
             ch->status = CHANNEL_STATUS_RUNNING;
         }
         return true;
@@ -1043,6 +1130,7 @@ void Channel_ctor(Channel *me, Station *const station, size_t buffSize, uint8_t 
         &Channel_ExpandEncode,
         &Channel_OnFilesQuery,
         &Channel_NotifyData,
+        &Channel_SendFilePkg,
         &Channel_dtor};
     me->vptr = &vtbl;
     me->station = station;
@@ -1291,10 +1379,8 @@ void IOChannel_OnFilesQuery(Channel *const me)
             ev_suspend(ioCh->reactor);
             Channel_SendFile(me, &file);
             ev_resume(ioCh->reactor);
-            if (me->status == CHANNEL_STATUS_WAITTING_FILESEND_ACK)
+            if (me->status == CHANNEL_STATUS_WAITTING_SCAN_FILESEND_ACK)
             {
-                me->currentFile = NewInstance(tinydir_file);
-                memcpy(me->currentFile, &file, sizeof(tinydir_file));
                 ioCh->filesWatcher->repeat = 2.; // 复用这个定时器2秒等应答
                 ev_timer_again(ioCh->reactor, ioCh->filesWatcher);
             }
@@ -1302,6 +1388,21 @@ void IOChannel_OnFilesQuery(Channel *const me)
         }
     }
     tinydir_close(&dir);
+}
+
+void IOChannel_SendFilePkg(Channel *const me, FilePkg *const filePkg)
+{
+    assert(me);
+    assert(filePkg);
+    IOChannel *ioCh = (IOChannel *)me;
+    ev_suspend(ioCh->reactor);
+    Channel_SendFilePkg(me, filePkg);
+    ev_resume(ioCh->reactor);
+    if (me->status == CHANNEL_STATUS_WAITTING_AYNC_FILESEND_ACK)
+    {
+        ioCh->filesWatcher->repeat = 2.; // 复用这个定时器2秒等应答
+        ev_timer_again(ioCh->reactor, ioCh->filesWatcher);
+    }
 }
 
 bool IOChannel_NotifyData(Channel *const me)
@@ -1316,7 +1417,19 @@ void IOChannel_OnFilesScanEvent(Reactor *reactor, ev_timer *w, int revents)
 {
     IOChannel *ioCh = (IOChannel *)w->data;
     Channel *ch = (Channel *)ioCh;
-    if (ch->status == CHANNEL_STATUS_WAITTING_FILESEND_ACK) // 没有等到应答
+    if (ch->status == CHANNEL_STATUS_WAITTING_AYNC_FILESEND_ACK) // 主动发送没有等到应答
+    {
+        ch->status = CHANNEL_STATUS_RUNNING;
+        if (ch->currentFilePkg != NULL)
+        {
+            Station_MarkFilePkgSent(ch->station, ch, ch->currentFilePkg, false);
+            ch->currentFilePkg = NULL;
+        }
+        ioCh->filesWatcher->repeat = 10.; // slow down
+        ev_timer_again(ioCh->reactor, ioCh->filesWatcher);
+        return;
+    }
+    if (ch->status == CHANNEL_STATUS_WAITTING_SCAN_FILESEND_ACK) // 没有等到应答
     {
         ch->status = CHANNEL_STATUS_RUNNING;
         if (ch->currentFile != NULL)
@@ -1325,6 +1438,10 @@ void IOChannel_OnFilesScanEvent(Reactor *reactor, ev_timer *w, int revents)
         }
         ioCh->filesWatcher->repeat = 10.; // slow down
         ev_timer_again(ioCh->reactor, ioCh->filesWatcher);
+        return;
+    }
+    if (!ch->station->config.scanFiles) // 没有启动扫描
+    {
         return;
     }
     // 停止 文件扫描
@@ -1380,6 +1497,7 @@ void IOChannel_ctor(IOChannel *me, Station *const station, size_t buffSize, uint
          &IOChannel_ExpandEncode,
          &IOChannel_OnFilesQuery,
          &IOChannel_NotifyData,
+         &IOChannel_SendFilePkg,
          &IOChannel_dtor},
         &IOChannel_OnConnectTimerEvent,
         &IOChannel_OnIOReadEvent,
@@ -1555,6 +1673,11 @@ bool SocketChannel_NotifyData(Channel *const me)
     return IOChannel_NotifyData(me);
 }
 
+void SocketChannel_SendFilePkg(Channel *const me, FilePkg *const filePkg)
+{
+    IOChannel_SendFilePkg(me, filePkg);
+}
+
 void SocketChannel_OnFilesScanEvent(Reactor *reactor, ev_timer *w, int revents)
 {
     IOChannel_OnFilesScanEvent(reactor, w, revents);
@@ -1594,6 +1717,7 @@ void SocketChannel_ctor(SocketChannel *me, Station *const station)
           &SocketChannel_ExpandEncode,
           &SocketChannel_OnFilesQuery,
           &SocketChannel_NotifyData,
+          &SocketChannel_SendFilePkg,
           &SocketChannel_dtor},
          &SocketChannel_OnConnectTimerEvent,
          &SocketChannel_OnIOReadEvent,
@@ -1663,6 +1787,7 @@ void Ipv4Channel_ctor(Ipv4Channel *me, Station *const station)
           &Ipv4Channel_ExpandEncode,
           &SocketChannel_OnFilesQuery,
           &SocketChannel_NotifyData,
+          &SocketChannel_SendFilePkg,
           &Ipv4Channel_dtor},
          &SocketChannel_OnConnectTimerEvent,
          &SocketChannel_OnIOReadEvent,
@@ -1720,6 +1845,7 @@ void DomainChannel_ctor(DomainChannel *me, Station *const station)
           &DomainChannel_ExpandEncode,
           &SocketChannel_OnFilesQuery,
           &SocketChannel_NotifyData,
+          &SocketChannel_SendFilePkg,
           &DomainChannel_dtor},
          &SocketChannel_OnConnectTimerEvent,
          &SocketChannel_OnIOReadEvent,
@@ -2017,6 +2143,12 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
             *me->msgSendInterval = CHANNEL_DEFAULT_MSG_SEND_INTERVAL;
         }
     }
+    // wait send file ack: default false
+    me->waitFileSendAck = cJSON_IsTrue(cJSON_GetObjectItem(json, "waitFileSendAck"));
+
+    // enable scan file to send: default false
+    me->scanFiles = cJSON_IsTrue(cJSON_GetObjectItem(json, "scanFiles"));
+
     // channels
     cJSON *channels = cJSON_GetObjectItem(json, "channels");
     cJSON *channel;
@@ -2185,6 +2317,66 @@ bool Packet_ShouldSendByChannel(Packet *const me, Channel *const ch)
     return Packet_ShouldSend(me, ch->id);
 }
 // Packet END
+
+// FilePkg
+void FilePkg_ctor(FilePkg *const me, const char *file)
+{
+    assert(me);
+    me->file = strdup(file);
+    me->channelSentMask = 0;
+}
+
+void FilePkg_dtor(FilePkg *const me)
+{
+    assert(me);
+    if (me->file != NULL)
+    {
+        DelInstance(me->file);
+    }
+}
+
+void FilePkg_Marking(FilePkg *const me, uint8_t chId)
+{
+    assert(me);
+    assert(chId > 0 && chId <= 16);
+    me->channelSentMask |= (1 << chId);
+}
+
+void FilePkg_MarkingByChannel(FilePkg *const me, Channel *const ch)
+{
+    assert(me);
+    assert(ch);
+    FilePkg_Marking(me, ch->id);
+}
+
+void FilePkg_Unmark(FilePkg *const me, uint8_t chId)
+{
+    assert(me);
+    assert(chId > 0 && chId <= 16);
+    me->channelSentMask &= ~(1 << chId);
+}
+
+void FilePkg_UnmarkByChannel(FilePkg *const me, Channel *const ch)
+{
+    assert(me);
+    assert(ch);
+    FilePkg_Unmark(me, ch->id);
+}
+
+bool FilePkg_ShouldSend(FilePkg *const me, uint8_t chId)
+{
+    assert(me);
+    assert(chId > 0 && chId <= 16);
+    return me->channelSentMask & (1 << chId);
+}
+
+bool FilePkg_ShouldSendByChannel(FilePkg *const me, Channel *const ch)
+{
+    assert(me);
+    assert(ch);
+    return FilePkg_ShouldSend(me, ch->id);
+}
+// FilePkg END
 
 void Station_ctor(Station *const me)
 {
@@ -2449,6 +2641,102 @@ void Station_ClearPackets(Station *const me)
     vec_deinit(&me->packets);
 }
 
+bool Station_AsyncSendFilePkg(Station *const me, const char *file)
+{
+    assert(me);
+    if (file == NULL)
+    {
+        return true;
+    }
+    struct stat fStat = {0};
+    if (stat(file, &fStat) != SL651_APP_ERROR_SUCCESS)
+    {
+        return true;
+    }
+    if (fStat.st_size <= 0)
+    {
+        return true;
+    }
+    pthread_mutex_lock(&me->sendMutex);
+    // 生成
+    FilePkg *f = NewInstance(FilePkg);
+    FilePkg_ctor(f, file);
+    size_t i = 0;
+    Channel *ch;
+    vec_foreach(&me->config.channels, ch, i)
+    {
+        if (ch != NULL &&
+            ch->id != CHANNEL_ID_FIXED &&
+            Config_IsChannelEnable(&me->config, ch) &&
+            Channel_IsConnected(ch) && // 尽可能不导致数据无法清理 isConnected是不安全的
+            ch->vptr->notifyData(ch))
+        {
+            FilePkg_MarkingByChannel(f, ch);
+        }
+    }
+    if (f->channelSentMask != 0)
+    {
+        vec_push(&me->files, f);
+    }
+    else
+    {
+        FilePkg_dtor(f);
+        DelInstance(f);
+    }
+    pthread_mutex_unlock(&me->sendMutex);
+    return true;
+}
+
+void Station_SendFilePkgsToChannel(Station *const me, Channel *const ch)
+{
+    assert(me);
+    pthread_mutex_lock(&me->sendMutex);
+    size_t i = 0;
+    FilePkg *f;
+    vec_foreach(&me->files, f, i)
+    {
+        if (f == NULL)
+        {
+            vec_remove(&me->files, f);
+            continue;
+        }
+        else
+        {
+            if (f->file != NULL && FilePkg_ShouldSendByChannel(f, ch))
+            {
+                ch->vptr->sendFilePkg(ch, f);
+            }
+        }
+    }
+    pthread_mutex_unlock(&me->sendMutex);
+}
+
+void Station_MarkFilePkgSent(Station *const me, Channel *const ch, FilePkg *const filePkg, bool result)
+{
+    assert(me);
+    assert(ch);
+    assert(filePkg);
+    pthread_mutex_lock(&me->sendMutex);
+    vec_remove(&me->files, filePkg);
+    pthread_mutex_unlock(&me->sendMutex);
+}
+
+void Station_ClearFilePkgs(Station *const me)
+{
+    assert(me);
+    size_t i = 0;
+    FilePkg *f;
+    vec_foreach(&me->files, f, i)
+    {
+        if (f != NULL)
+        {
+            FilePkg_dtor(f);
+            DelInstance(f);
+        }
+    }
+    vec_deinit(&me->files);
+}
+
 void Station_dtor(Station *const me)
 {
     assert(me);
@@ -2456,6 +2744,7 @@ void Station_dtor(Station *const me)
     pthread_mutex_destroy(&me->cleanUpMutex);
     pthread_mutex_destroy(&me->sendMutex);
     Station_ClearPackets(me);
+    Station_ClearFilePkgs(me);
     // if (me->reactor)
     // {
     //     ev_loop_destroy(me->reactor);
