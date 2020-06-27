@@ -121,10 +121,21 @@ extern "C"
 #define CHANNEL_RESERVED_HANDLER_SIZE 10
 #define CHANNLE_DEFAULT_KEEPALIVE_INTERVAL 40
 
+    typedef struct
+    {
+        char *file;
+        // 发送时根据当前的channel设置mask位，当全零时，表示可以清除
+        uint16_t channelSentMask;
+    } FilePkg;
+    typedef vec_t(FilePkg *) FilePkgPtrVector;
+    void FilePkg_dtor(FilePkg *const me);
+#define FilePkg_IsSent(ptr_) (ptr_)->channelSentMask == 0
+
     typedef enum
     {
         CHANNEL_STATUS_RUNNING,
-        CHANNEL_STATUS_WAITTING_FILESEND_ACK
+        CHANNEL_STATUS_WAITTING_SCAN_FILESEND_ACK,
+        CHANNEL_STATUS_WAITTING_AYNC_FILESEND_ACK
     } ChannelStatus;
     typedef struct Channel
     {
@@ -142,6 +153,7 @@ extern "C"
         pthread_t *thread;
         ChannelStatus status;
         tinydir_file *currentFile;
+        FilePkg *currentFilePkg;
         // recordsFile
         char *recordsFile;
         cJSON *recordsFileInJSON;
@@ -161,6 +173,7 @@ extern "C"
         bool (*expandEncode)(Channel *const me, ByteBuffer *const buff);
         void (*onFilesQuery)(Channel *const me);
         bool (*notifyData)(Channel *const me);
+        void (*sendFilePkg)(Channel *const me, FilePkg *const filePkg);
         void (*dtor)(Channel *const me);
     } ChannelVtbl;
 
@@ -233,6 +246,8 @@ extern "C"
         char *socketDevice;
         size_t *buffSize;
         uint16_t *msgSendInterval;
+        bool waitFileSendAck;
+        bool scanFiles;
         // reference
         Station *station;
     } Config;
@@ -263,6 +278,7 @@ extern "C"
         // Reactor *reactor;
         Config config;
         PacketPtrVector packets;
+        FilePkgPtrVector files;
         pthread_mutex_t cleanUpMutex;
         pthread_mutex_t sendMutex;
     };
@@ -274,6 +290,10 @@ extern "C"
     // for other thread to call this function
     bool Station_AsyncSend(Station *const me, cJSON *const data);
     void Station_SendPacketsToChannel(Station *const me, Channel *const ch);
+    // file
+    bool Station_AsyncSendFilePkg(Station *const me, const char *file);
+    void Station_SendFilePkgsToChannel(Station *const me, Channel *const ch);
+    void Station_MarkFilePkgSent(Station *const me, Channel *const ch, FilePkg *const filePkg, bool result);
 #define SL651_DEFAULT_WORKDIR "/sl651"
 #define SL651_DEFAULT_CONFIG_FILE_NAME_LEN 11
     // #define SL651_DEFAULT_CONFIGFILE "/sl651/config.json"
