@@ -1158,7 +1158,10 @@ void Channel_ctor(Channel *me, Station *const station, size_t buffSize, uint8_t 
     static ChannelHandler const h_PICTRUE = {PICTURE, &handlePICTURE};
     vec_push(&me->handlers, (ChannelHandler *)&h_PICTRUE);
     me->status = CHANNEL_STATUS_RUNNING;
-    pthread_mutex_init(&me->cleanUpMutex, NULL);
+    pthread_mutexattr_t mutexAttr;
+    pthread_mutexattr_init(&mutexAttr);
+    pthread_mutexattr_settype(&mutexAttr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&me->cleanUpMutex, &mutexAttr);
 }
 // Virtual Channel END
 
@@ -1460,6 +1463,7 @@ void IOChannel_OnAsyncEvent(Reactor *reactor, ev_async *w, int revents)
     IOChannel *ioCh = (IOChannel *)w->data;
     Channel *ch = (Channel *)ioCh;
     Station_SendPacketsToChannel(ch->station, ch);
+    Station_SendFilePkgsToChannel(ch->station, ch);
 }
 
 void IOChannel_dtor(Channel *const me)
@@ -2383,8 +2387,11 @@ void Station_ctor(Station *const me)
     assert(me);
     // me->reactor = NULL;
     Config_ctor(&me->config, me);
-    pthread_mutex_init(&me->cleanUpMutex, NULL);
-    pthread_mutex_init(&me->sendMutex, NULL);
+    pthread_mutexattr_t mutexAttr;
+    pthread_mutexattr_init(&mutexAttr);
+    pthread_mutexattr_settype(&mutexAttr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&me->cleanUpMutex, &mutexAttr);
+    pthread_mutex_init(&me->sendMutex, &mutexAttr);
     vec_init(&me->packets);
     vec_reserve(&me->packets, 20);
 }
