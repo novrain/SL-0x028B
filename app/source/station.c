@@ -2715,6 +2715,8 @@ void Station_SendFilePkgsToChannel(Station *const me, Channel *const ch)
             }
         }
     }
+    // 压缩掉
+    vec_compact(&me->packets);
     pthread_mutex_unlock(&me->sendMutex);
 }
 
@@ -2724,7 +2726,21 @@ void Station_MarkFilePkgSent(Station *const me, Channel *const ch, FilePkg *cons
     assert(ch);
     assert(filePkg);
     pthread_mutex_lock(&me->sendMutex);
-    vec_remove(&me->files, filePkg);
+    int i = -1;
+    vec_find(&me->files, filePkg, i);
+    if (i >= 0)
+    {
+        FilePkg *f = me->files.data[i];
+        FilePkg_UnmarkByChannel(f, ch);
+        if (FilePkg_IsSent(f))
+        {
+            vec_splice(&me->files, i, 1);
+            FilePkg_dtor(f);
+            DelInstance(f);
+            // 压缩掉
+            vec_compact(&me->packets);
+        }
+    }
     pthread_mutex_unlock(&me->sendMutex);
 }
 
