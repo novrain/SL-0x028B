@@ -121,6 +121,13 @@ extern "C"
 #define CHANNEL_RESERVED_HANDLER_SIZE 10
 #define CHANNLE_DEFAULT_KEEPALIVE_INTERVAL 40
 
+    typedef enum
+    {
+        FILE_SEND_SUCCESS = 0,
+        FILE_SEND_FAIL,
+        FILE_SEND_WAIT_ACK
+    } FilePkgSendStatus;
+
     typedef struct
     {
         char *file;
@@ -173,7 +180,7 @@ extern "C"
         bool (*expandEncode)(Channel *const me, ByteBuffer *const buff);
         void (*onFilesQuery)(Channel *const me);
         bool (*notifyData)(Channel *const me);
-        void (*sendFilePkg)(Channel *const me, FilePkg *const filePkg);
+        FilePkgSendStatus (*sendFilePkg)(Channel *const me, FilePkg *const filePkg);
         void (*dtor)(Channel *const me);
     } ChannelVtbl;
 

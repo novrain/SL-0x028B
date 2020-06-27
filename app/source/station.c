@@ -373,13 +373,13 @@ void Channel_SendFile(Channel *const me, tinydir_file *file)
     }
 }
 
-void Channel_SendFilePkg(Channel *const me, FilePkg *const filePkg)
+FilePkgSendStatus Channel_SendFilePkg(Channel *const me, FilePkg *const filePkg)
 {
     assert(me);
     assert(filePkg);
     if (me->status != CHANNEL_STATUS_RUNNING)
     {
-        return;
+        return FILE_SEND_FAIL;
     }
     printf("ch[%2d] sending file[%s].\r\n", me->id, filePkg->file);
     memset(me->buff, 0, me->buffSize);
@@ -390,14 +390,15 @@ void Channel_SendFilePkg(Channel *const me, FilePkg *const filePkg)
 #define O_BINARY 0
 #endif
 #endif
+    FilePkgSendStatus res = FILE_SEND_SUCCESS;
     if (stat(filePkg->file, &fStat) == SL651_APP_ERROR_SUCCESS &&
         (fd = open(filePkg->file, O_RDONLY | O_BINARY)))
     {
         if (fStat.st_size <= 0) // 0 字节文件
         {
-            Station_MarkFilePkgSent(me->station, me, filePkg, true);
+            // Station_MarkFilePkgSent(me->station, me, filePkg, true);
             me->status = CHANNEL_STATUS_RUNNING;
-            return;
+            res = FILE_SEND_SUCCESS;
         }
 
         if (Channel_SendFileByFd(me, &fStat, fd))
@@ -410,12 +411,13 @@ void Channel_SendFilePkg(Channel *const me, FilePkg *const filePkg)
             else // 不等待应答
             {
                 me->status = CHANNEL_STATUS_RUNNING;
-                Station_MarkFilePkgSent(me->station, me, filePkg, true);
+                // Station_MarkFilePkgSent(me->station, me, filePkg, true);
+                res = FILE_SEND_SUCCESS;
             }
         }
         close(fd);
-        // @Todo 隔段时间 做一次反向清理同步
     }
+    return res;
 }
 
 void Channel_dtor(Channel *const me)
@@ -1095,6 +1097,7 @@ bool handlePICTURE(Channel *const ch, Package *const request)
             if (ch->currentFilePkg != NULL)
             {
                 Station_MarkFilePkgSent(ch->station, ch, ch->currentFilePkg, true);
+                ch->currentFilePkg == NULL;
             }
             ch->status = CHANNEL_STATUS_RUNNING;
         }
@@ -1158,10 +1161,10 @@ void Channel_ctor(Channel *me, Station *const station, size_t buffSize, uint8_t 
     static ChannelHandler const h_PICTRUE = {PICTURE, &handlePICTURE};
     vec_push(&me->handlers, (ChannelHandler *)&h_PICTRUE);
     me->status = CHANNEL_STATUS_RUNNING;
-    pthread_mutexattr_t mutexAttr;
-    pthread_mutexattr_init(&mutexAttr);
-    pthread_mutexattr_settype(&mutexAttr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&me->cleanUpMutex, &mutexAttr);
+    // pthread_mutexattr_t mutexAttr;
+    // pthread_mutexattr_init(&mutexAttr);
+    // pthread_mutexattr_settype(&mutexAttr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&me->cleanUpMutex, NULL);
 }
 // Virtual Channel END
 
@@ -1393,19 +1396,20 @@ void IOChannel_OnFilesQuery(Channel *const me)
     tinydir_close(&dir);
 }
 
-void IOChannel_SendFilePkg(Channel *const me, FilePkg *const filePkg)
+FilePkgSendStatus IOChannel_SendFilePkg(Channel *const me, FilePkg *const filePkg)
 {
     assert(me);
     assert(filePkg);
     IOChannel *ioCh = (IOChannel *)me;
     ev_suspend(ioCh->reactor);
-    Channel_SendFilePkg(me, filePkg);
+    FilePkgSendStatus res = Channel_SendFilePkg(me, filePkg);
     ev_resume(ioCh->reactor);
     if (me->status == CHANNEL_STATUS_WAITTING_AYNC_FILESEND_ACK)
     {
         ioCh->filesWatcher->repeat = 2.; // 复用这个定时器2秒等应答
         ev_timer_again(ioCh->reactor, ioCh->filesWatcher);
     }
+    return res;
 }
 
 bool IOChannel_NotifyData(Channel *const me)
@@ -1677,9 +1681,9 @@ bool SocketChannel_NotifyData(Channel *const me)
     return IOChannel_NotifyData(me);
 }
 
-void SocketChannel_SendFilePkg(Channel *const me, FilePkg *const filePkg)
+FilePkgSendStatus SocketChannel_SendFilePkg(Channel *const me, FilePkg *const filePkg)
 {
-    IOChannel_SendFilePkg(me, filePkg);
+    return IOChannel_SendFilePkg(me, filePkg);
 }
 
 void SocketChannel_OnFilesScanEvent(Reactor *reactor, ev_timer *w, int revents)
@@ -2387,15 +2391,14 @@ void Station_ctor(Station *const me)
     assert(me);
     // me->reactor = NULL;
     Config_ctor(&me->config, me);
-    pthread_mutexattr_t cleanUpMutexAttr;
-    pthread_mutexattr_init(&cleanUpMutexAttr);
-    pthread_mutexattr_settype(&cleanUpMutexAttr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&me->cleanUpMutex, &cleanUpMutexAttr);
-
-    pthread_mutexattr_t sendMutexAttr;
-    pthread_mutexattr_init(&sendMutexAttr);
-    pthread_mutexattr_settype(&sendMutexAttr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&me->sendMutex, &sendMutexAttr);
+    // pthread_mutexattr_t mutexAttr;
+    // pthread_mutexattr_init(&mutexAttr);
+    // pthread_mutexattr_settype(&mutexAttr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&me->cleanUpMutex, NULL);
+    // pthread_mutexattr_t sendMutexAttr;
+    // pthread_mutexattr_init(&sendMutexAttr);
+    // pthread_mutexattr_settype(&sendMutexAttr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&me->sendMutex, NULL);
     vec_init(&me->packets);
     vec_reserve(&me->packets, 20);
 }
@@ -2715,7 +2718,17 @@ void Station_SendFilePkgsToChannel(Station *const me, Channel *const ch)
         {
             if (f->file != NULL && FilePkg_ShouldSendByChannel(f, ch))
             {
-                ch->vptr->sendFilePkg(ch, f);
+                FilePkgSendStatus res = ch->vptr->sendFilePkg(ch, f);
+                if (res == FILE_SEND_SUCCESS || res == FILE_SEND_FAIL) // 立即返回结果的情况下，立即处理
+                {
+                    FilePkg_UnmarkByChannel(f, ch);
+                }
+            }
+            if (FilePkg_IsSent(f))
+            {
+                vec_splice(&me->files, i, 1);
+                FilePkg_dtor(f);
+                DelInstance(f);
             }
         }
     }
