@@ -360,7 +360,7 @@ void Channel_SendFile(Channel *const me, tinydir_file *file)
             {
                 me->status = CHANNEL_STATUS_WAITTING_SCAN_FILESEND_ACK;
                 me->currentFile = NewInstance(tinydir_file);
-                memcpy(me->currentFile, &file, sizeof(tinydir_file));
+                memcpy(me->currentFile, file, sizeof(tinydir_file));
             }
             else // 不等待应答
             {
