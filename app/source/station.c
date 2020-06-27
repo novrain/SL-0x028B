@@ -360,7 +360,7 @@ void Channel_SendFile(Channel *const me, tinydir_file *file)
             {
                 me->status = CHANNEL_STATUS_WAITTING_SCAN_FILESEND_ACK;
                 me->currentFile = NewInstance(tinydir_file);
-                memcpy(me->currentFile, &file, sizeof(tinydir_file));
+                memcpy(me->currentFile, file, sizeof(tinydir_file));
             }
             else // 不等待应答
             {
@@ -2387,11 +2387,15 @@ void Station_ctor(Station *const me)
     assert(me);
     // me->reactor = NULL;
     Config_ctor(&me->config, me);
-    pthread_mutexattr_t mutexAttr;
-    pthread_mutexattr_init(&mutexAttr);
-    pthread_mutexattr_settype(&mutexAttr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&me->cleanUpMutex, &mutexAttr);
-    pthread_mutex_init(&me->sendMutex, &mutexAttr);
+    pthread_mutexattr_t cleanUpMutexAttr;
+    pthread_mutexattr_init(&cleanUpMutexAttr);
+    pthread_mutexattr_settype(&cleanUpMutexAttr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&me->cleanUpMutex, &cleanUpMutexAttr);
+
+    pthread_mutexattr_t sendMutexAttr;
+    pthread_mutexattr_init(&sendMutexAttr);
+    pthread_mutexattr_settype(&sendMutexAttr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&me->sendMutex, &sendMutexAttr);
     vec_init(&me->packets);
     vec_reserve(&me->packets, 20);
 }
@@ -2715,6 +2719,8 @@ void Station_SendFilePkgsToChannel(Station *const me, Channel *const ch)
             }
         }
     }
+    // 压缩掉
+    vec_compact(&me->packets);
     pthread_mutex_unlock(&me->sendMutex);
 }
 
@@ -2724,7 +2730,21 @@ void Station_MarkFilePkgSent(Station *const me, Channel *const ch, FilePkg *cons
     assert(ch);
     assert(filePkg);
     pthread_mutex_lock(&me->sendMutex);
-    vec_remove(&me->files, filePkg);
+    int i = -1;
+    vec_find(&me->files, filePkg, i);
+    if (i >= 0)
+    {
+        FilePkg *f = me->files.data[i];
+        FilePkg_UnmarkByChannel(f, ch);
+        if (FilePkg_IsSent(f))
+        {
+            vec_splice(&me->files, i, 1);
+            FilePkg_dtor(f);
+            DelInstance(f);
+            // 压缩掉
+            vec_compact(&me->packets);
+        }
+    }
     pthread_mutex_unlock(&me->sendMutex);
 }
 
