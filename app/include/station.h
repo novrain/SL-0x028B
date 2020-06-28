@@ -133,6 +133,7 @@ extern "C"
         char *file;
         // 发送时根据当前的channel设置mask位，当全零时，表示可以清除
         uint16_t channelSentMask;
+        bool result;
     } FilePkg;
     typedef vec_t(FilePkg *) FilePkgPtrVector;
     void FilePkg_dtor(FilePkg *const me);
@@ -254,6 +255,7 @@ extern "C"
         size_t *buffSize;
         uint16_t *msgSendInterval;
         bool waitFileSendAck;
+        bool fastFailed;
         bool scanFiles;
         // reference
         Station *station;
@@ -275,6 +277,7 @@ extern "C"
         Package *pkg;
         // 发送时根据当前的channel设置mask位，当全零时，表示可以清除
         uint16_t channelSentMask;
+        bool result;
     } Packet;
     typedef vec_t(Packet *) PacketPtrVector;
     void Packet_dtor(Packet *const me);

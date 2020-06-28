@@ -1097,7 +1097,7 @@ bool handlePICTURE(Channel *const ch, Package *const request)
             if (ch->currentFilePkg != NULL)
             {
                 Station_MarkFilePkgSent(ch->station, ch, ch->currentFilePkg, true);
-                ch->currentFilePkg == NULL;
+                ch->currentFilePkg = NULL;
             }
             ch->status = CHANNEL_STATUS_RUNNING;
         }
@@ -2157,6 +2157,10 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
     // enable scan file to send: default false
     me->scanFiles = cJSON_IsTrue(cJSON_GetObjectItem(json, "scanFiles"));
 
+    // multi channel fast failed enable
+    cJSON *jFastFailed = cJSON_GetObjectItem(json, "fastFailed");
+    me->fastFailed = jFastFailed == NULL || cJSON_IsNull(jFastFailed) || cJSON_IsTrue(jFastFailed);
+
     // channels
     cJSON *channels = cJSON_GetObjectItem(json, "channels");
     cJSON *channel;
@@ -2332,6 +2336,7 @@ void FilePkg_ctor(FilePkg *const me, const char *file)
     assert(me);
     me->file = strdup(file);
     me->channelSentMask = 0;
+    me->result = true;
 }
 
 void FilePkg_dtor(FilePkg *const me)
@@ -2491,7 +2496,7 @@ bool Station_IsFileSentByAllChannel(Station *const me, tinydir_file *const file,
     assert(file);
     pthread_mutex_lock(&me->cleanUpMutex);
     // 找文件记录，比较计数，是否移动文件
-    size_t i = 0;
+    int64_t i = 0;
     Channel *ch;
     vec_foreach(&me->config.channels, ch, i)
     {
@@ -2556,7 +2561,7 @@ bool Station_AsyncSend(Station *const me, cJSON *const data)
     }
     Packet *packet = NewInstance(Packet);
     Packet_ctor(packet, pkg);
-    size_t i = 0;
+    int64_t i = 0;
     Channel *ch;
     vec_foreach(&me->config.channels, ch, i)
     {
@@ -2582,17 +2587,35 @@ bool Station_AsyncSend(Station *const me, cJSON *const data)
     return true;
 }
 
+/**
+ *  DON NOT CALL THIS DIRECTLY
+ */
+static void Station_PacketSendResult(Station *const me, Packet *packet, size_t i)
+{
+    assert(me);
+    assert(packet);
+    vec_splice(&me->packets, i, 1);
+    // if (packet->ev != NULL)
+    // {
+    //     LOG_D("send event: %d", packet->result ? TASK_EVENT_MSG_ACK : TASK_EVENT_COMM_ERR);
+    //     rt_event_send(packet->ev, packet->result ? TASK_EVENT_MSG_ACK : TASK_EVENT_COMM_ERR);
+    // }
+    Packet_dtor(packet);
+    DelInstance(packet);
+}
+
 void Station_SendPacketsToChannel(Station *const me, Channel *const ch)
 {
     assert(me);
     pthread_mutex_lock(&me->sendMutex);
-    size_t i = 0;
+    int64_t i = 0;
     Packet *packet;
     vec_foreach(&me->packets, packet, i)
     {
         if (packet == NULL)
         {
-            vec_remove(&me->packets, packet);
+            vec_splice(&me->packets, i, 1);
+            i--;
             continue;
         }
         else
@@ -2609,40 +2632,48 @@ void Station_SendPacketsToChannel(Station *const me, Channel *const ch)
                 ByteBuffer *buff = pkg->vptr->encode(pkg);
                 if (buff == NULL)
                 {
-                    Packet_UnmarkByChannel(packet, ch);
-                    continue;
+                    packet->result = false;
+                    if (me->config.fastFailed)
+                    {
+                        Station_PacketSendResult(me, packet, i);
+                        i--;
+                        continue;
+                    }
+                    else
+                    {
+                        Packet_UnmarkByChannel(packet, ch);
+                        continue;
+                    }
                 }
                 BB_Flip(buff);
                 bool res = ch->vptr->send(ch, buff);
                 BB_dtor(buff);
                 DelInstance(buff);
-                Packet_UnmarkByChannel(packet, ch); // @Todo 发送失败的重试机制
-                // if (res)
-                // {
-                //     Packet_UnmarkByChannel(packet, ch);
-                // }
-                // else
-                // {
-                //     ch->vptr->notifyData(ch); // try again later. 次数
-                // }
+                packet->result = packet->result && res; // 记录结果
+                Packet_UnmarkByChannel(packet, ch);
+                if (!res && me->config.fastFailed)
+                {
+                    Station_PacketSendResult(me, packet, i);
+                    i--;
+                    continue;
+                }
             }
-            if (Packet_IsSent(packet))
+            if (Packet_IsSent(packet) || (me->config.fastFailed && !packet->result))
             {
-                vec_remove(&me->packets, packet);
-                Packet_dtor(packet);
-                DelInstance(packet);
+                Station_PacketSendResult(me, packet, i);
+                i--;
             }
         }
     }
     // 压缩掉
-    vec_compact(&me->packets);
+    // vec_compact(&me->packets);
     pthread_mutex_unlock(&me->sendMutex);
 }
 
 void Station_ClearPackets(Station *const me)
 {
     assert(me);
-    size_t i = 0;
+    int64_t i = 0;
     Packet *packet;
     vec_foreach(&me->packets, packet, i)
     {
@@ -2675,7 +2706,7 @@ bool Station_AsyncSendFilePkg(Station *const me, const char *file)
     // 生成
     FilePkg *f = NewInstance(FilePkg);
     FilePkg_ctor(f, file);
-    size_t i = 0;
+    int64_t i = 0;
     Channel *ch;
     vec_foreach(&me->config.channels, ch, i)
     {
@@ -2701,17 +2732,35 @@ bool Station_AsyncSendFilePkg(Station *const me, const char *file)
     return true;
 }
 
+/**
+ *  DON NOT CALL THIS DIRECTLY
+ */
+static void Station_FilePkgSendResult(Station *const me, FilePkg *filePkg, size_t i)
+{
+    assert(me);
+    assert(filePkg);
+    vec_splice(&me->files, i, 1);
+    // if (filePkg->ev != NULL)
+    // {
+    //     LOG_D("send event: %d", filePkg->result ? TASK_EVENT_MSG_ACK : TASK_EVENT_COMM_ERR);
+    //     rt_event_send(filePkg->ev, filePkg->result ? TASK_EVENT_MSG_ACK : TASK_EVENT_COMM_ERR);
+    // }
+    FilePkg_dtor(filePkg);
+    DelInstance(filePkg);
+}
+
 void Station_SendFilePkgsToChannel(Station *const me, Channel *const ch)
 {
     assert(me);
     pthread_mutex_lock(&me->sendMutex);
-    size_t i = 0;
+    int64_t i = 0;
     FilePkg *f;
     vec_foreach(&me->files, f, i)
     {
         if (f == NULL)
         {
-            vec_remove(&me->files, f);
+            vec_splice(&me->files, i, 1);
+            i--;
             continue;
         }
         else
@@ -2719,21 +2768,22 @@ void Station_SendFilePkgsToChannel(Station *const me, Channel *const ch)
             if (f->file != NULL && FilePkg_ShouldSendByChannel(f, ch))
             {
                 FilePkgSendStatus res = ch->vptr->sendFilePkg(ch, f);
-                if (res == FILE_SEND_SUCCESS || res == FILE_SEND_FAIL) // 立即返回结果的情况下，立即处理
+                FilePkg_UnmarkByChannel(f, ch);
+                if (res == FILE_SEND_FAIL && me->config.fastFailed)
                 {
-                    FilePkg_UnmarkByChannel(f, ch);
+                    f->result = false;
+                    Station_FilePkgSendResult(me, f, i);
+                    i--;
+                    continue;
                 }
             }
             if (FilePkg_IsSent(f))
             {
-                vec_splice(&me->files, i, 1);
-                FilePkg_dtor(f);
-                DelInstance(f);
+                Station_FilePkgSendResult(me, f, i);
+                i--;
             }
         }
     }
-    // 压缩掉
-    vec_compact(&me->packets);
     pthread_mutex_unlock(&me->sendMutex);
 }
 
@@ -2748,14 +2798,11 @@ void Station_MarkFilePkgSent(Station *const me, Channel *const ch, FilePkg *cons
     if (i >= 0)
     {
         FilePkg *f = me->files.data[i];
+        f->result = f->result && result;
         FilePkg_UnmarkByChannel(f, ch);
-        if (FilePkg_IsSent(f))
+        if (FilePkg_IsSent(f) || (me->config.fastFailed && !f->result))
         {
-            vec_splice(&me->files, i, 1);
-            FilePkg_dtor(f);
-            DelInstance(f);
-            // 压缩掉
-            vec_compact(&me->packets);
+            Station_FilePkgSendResult(me, f, i);
         }
     }
     pthread_mutex_unlock(&me->sendMutex);
@@ -2764,7 +2811,7 @@ void Station_MarkFilePkgSent(Station *const me, Channel *const ch, FilePkg *cons
 void Station_ClearFilePkgs(Station *const me)
 {
     assert(me);
-    size_t i = 0;
+    int64_t i = 0;
     FilePkg *f;
     vec_foreach(&me->files, f, i)
     {
