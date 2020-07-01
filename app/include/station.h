@@ -121,11 +121,19 @@ extern "C"
 #define CHANNEL_RESERVED_HANDLER_SIZE 10
 #define CHANNLE_DEFAULT_KEEPALIVE_INTERVAL 40
 
+    typedef enum
+    {
+        FILE_SEND_SUCCESS = 0,
+        FILE_SEND_FAIL,
+        FILE_SEND_WAIT_ACK
+    } FilePkgSendStatus;
+
     typedef struct
     {
         char *file;
         // 发送时根据当前的channel设置mask位，当全零时，表示可以清除
         uint16_t channelSentMask;
+        bool result;
     } FilePkg;
     typedef vec_t(FilePkg *) FilePkgPtrVector;
     void FilePkg_dtor(FilePkg *const me);
@@ -142,7 +150,7 @@ extern "C"
         struct ChannelVtbl const *vptr;
         uint8_t id; // 04~0B 对应规范里的 master / slave
         ChannelType type;
-        bool isConnnected;
+        bool isConnected;
         size_t buffSize;
         uint8_t msgSendInterval;
         char *buff;
@@ -173,7 +181,7 @@ extern "C"
         bool (*expandEncode)(Channel *const me, ByteBuffer *const buff);
         void (*onFilesQuery)(Channel *const me);
         bool (*notifyData)(Channel *const me);
-        void (*sendFilePkg)(Channel *const me, FilePkg *const filePkg);
+        FilePkgSendStatus (*sendFilePkg)(Channel *const me, FilePkg *const filePkg);
         void (*dtor)(Channel *const me);
     } ChannelVtbl;
 
@@ -247,6 +255,7 @@ extern "C"
         size_t *buffSize;
         uint16_t *msgSendInterval;
         bool waitFileSendAck;
+        bool fastFailed;
         bool scanFiles;
         // reference
         Station *station;
@@ -268,6 +277,7 @@ extern "C"
         Package *pkg;
         // 发送时根据当前的channel设置mask位，当全零时，表示可以清除
         uint16_t channelSentMask;
+        bool result;
     } Packet;
     typedef vec_t(Packet *) PacketPtrVector;
     void Packet_dtor(Packet *const me);
