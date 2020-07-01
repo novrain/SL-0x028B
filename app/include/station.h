@@ -150,7 +150,7 @@ extern "C"
         struct ChannelVtbl const *vptr;
         uint8_t id; // 04~0B 对应规范里的 master / slave
         ChannelType type;
-        bool isConnnected;
+        bool isConnected;
         size_t buffSize;
         uint8_t msgSendInterval;
         char *buff;

@@ -160,7 +160,7 @@ void Channel_Keepalive(Channel *const me)
 {
     assert(me);
     assert(me->station);
-    if (!me->isConnnected)
+    if (!me->isConnected)
     {
         return;
     }
@@ -191,7 +191,7 @@ ByteBuffer *Channel_OnRead(Channel *const me)
 bool Channel_IsConnected(Channel *const me)
 {
     assert(me);
-    return me->isConnnected;
+    return me->isConnected;
 }
 
 bool Channel_NotifyData(Channel *const me)
@@ -260,7 +260,7 @@ void Channel_ClearSentFileRecord(Channel *const me, tinydir_file const *file)
     pthread_mutex_unlock(&me->cleanUpMutex);
 }
 
-bool Channel_SendFileByFd(Channel *const me, struct stat *fStat, int fd)
+bool Channel_SendFileByFd(Channel *const me, struct stat *fStat, int fd, const char *file)
 {
     assert(me);
     assert(fStat);
@@ -324,7 +324,7 @@ void Channel_SendFile(Channel *const me, tinydir_file *file)
 {
     assert(me);
     assert(file);
-    // if (Channel_isFileSent(me, file))
+    // if (Channel_IsFileSent(me, file))
     // {
     //     return;
     // }
@@ -332,7 +332,7 @@ void Channel_SendFile(Channel *const me, tinydir_file *file)
     {
         return;
     }
-    printf("ch[%2d] pick up file [%s] to send.\r\n", me->id, file->path);
+    // printf("ch[%2d] pick up file [%s] to send.\r\n", me->id, file->path);
     memset(me->buff, 0, me->buffSize);
     struct stat fStat = {0};
     int fd = 0;
@@ -354,7 +354,7 @@ void Channel_SendFile(Channel *const me, tinydir_file *file)
             return;
         }
 
-        if (Channel_SendFileByFd(me, &fStat, fd))
+        if (Channel_SendFileByFd(me, &fStat, fd, file->path))
         {
             if (me->station->config.waitFileSendAck) // 等待应答
             {
@@ -381,7 +381,6 @@ FilePkgSendStatus Channel_SendFilePkg(Channel *const me, FilePkg *const filePkg)
     {
         return FILE_SEND_FAIL;
     }
-    printf("ch[%2d] sending file[%s].\r\n", me->id, filePkg->file);
     memset(me->buff, 0, me->buffSize);
     struct stat fStat = {0};
     int fd = 0;
@@ -401,12 +400,13 @@ FilePkgSendStatus Channel_SendFilePkg(Channel *const me, FilePkg *const filePkg)
             res = FILE_SEND_SUCCESS;
         }
 
-        if (Channel_SendFileByFd(me, &fStat, fd))
+        if (Channel_SendFileByFd(me, &fStat, fd, filePkg->file))
         {
             if (me->station->config.waitFileSendAck) // 等待应答
             {
                 me->status = CHANNEL_STATUS_WAITTING_AYNC_FILESEND_ACK;
                 me->currentFilePkg = filePkg;
+                res = FILE_SEND_WAIT_ACK;
             }
             else // 不等待应答
             {
@@ -414,6 +414,11 @@ FilePkgSendStatus Channel_SendFilePkg(Channel *const me, FilePkg *const filePkg)
                 // Station_MarkFilePkgSent(me->station, me, filePkg, true);
                 res = FILE_SEND_SUCCESS;
             }
+        }
+        else
+        {
+            me->status = CHANNEL_STATUS_RUNNING;
+            res = FILE_SEND_FAIL;
         }
         close(fd);
     }
@@ -1137,6 +1142,7 @@ void Channel_ctor(Channel *me, Station *const station, size_t buffSize, uint8_t 
         &Channel_dtor};
     me->vptr = &vtbl;
     me->station = station;
+    me->isConnected = false;
     vec_init(&me->handlers);
     vec_reserve(&me->handlers, CHANNEL_RESERVED_HANDLER_SIZE);
     // init buff
@@ -1260,7 +1266,7 @@ void IOChannel_OnConnectTimerEvent(Reactor *reactor, ev_timer *w, int revents)
 {
     IOChannel *ioCh = (IOChannel *)w->data;
     Channel *ch = (Channel *)ioCh;
-    if (ch->isConnnected)
+    if (ch->isConnected)
     {
         Channel_Keepalive(ch);
         return;
@@ -1298,7 +1304,7 @@ void IOChannel_OnIOReadEvent(Reactor *reactor, ev_io *w, int revents)
     Channel *ch = (Channel *)ioCh;
     if (revents == EV_WRITE)
     {
-        ch->isConnnected = true;
+        ch->isConnected = true;
         ev_io_set(ioCh->dataWatcher, ioCh->fd, EV_READ);
         ioCh->filesWatcher->repeat = 1;
         ev_timer_start(ioCh->reactor, ioCh->filesWatcher);
@@ -1316,7 +1322,7 @@ void IOChannel_OnIOReadEvent(Reactor *reactor, ev_io *w, int revents)
     if (buff == NULL)
     {
         ev_io_stop(ioCh->reactor, ioCh->dataWatcher);
-        ch->isConnnected = false;
+        ch->isConnected = false;
         ch->vptr->close(ch);
         ioCh->connectWatcher->repeat = 10;
         ev_timer_again(ioCh->reactor, ioCh->connectWatcher);
@@ -1383,6 +1389,7 @@ void IOChannel_OnFilesQuery(Channel *const me)
         if (!file.is_dir && !Channel_IsFileSent(me, &file))
         {
             ev_suspend(ioCh->reactor);
+            printf("ch[%2d] pick up file[%s] to send.\r\n", me->id, file.path);
             Channel_SendFile(me, &file);
             ev_resume(ioCh->reactor);
             if (me->status == CHANNEL_STATUS_WAITTING_SCAN_FILESEND_ACK)
@@ -1453,7 +1460,7 @@ void IOChannel_OnFilesScanEvent(Reactor *reactor, ev_timer *w, int revents)
     }
     // 停止 文件扫描
     ev_timer_stop(ioCh->reactor, ioCh->filesWatcher);
-    if (!ch->isConnnected) // protect
+    if (!ch->isConnected) // protect
     {
         return;
     }
@@ -1641,7 +1648,7 @@ bool SocketChannel_Send(Channel *const me, ByteBuffer *const buff)
 {
     assert(me);
     assert(buff);
-    if (me->isConnnected)
+    if (me->isConnected)
     {
         IOChannel *ioCh = (IOChannel *)me;
         Channel *ch = (Channel *)ioCh;
@@ -2029,7 +2036,7 @@ bool Config_IsChannelEnableById(Config *const me, uint8_t id)
 
 Channel *Config_FindChannel(Config *const me, uint8_t chId)
 {
-    size_t i = 0;
+    int64_t i = 0;
     Channel *ch;
     vec_foreach(&me->channels, ch, i)
     {
@@ -2043,7 +2050,7 @@ Channel *Config_FindChannel(Config *const me, uint8_t chId)
 
 int32_t Config_IndexOfChannel(Config *const me, uint8_t chId)
 {
-    size_t i = 0;
+    int64_t i = 0;
     Channel *ch;
     vec_foreach(&me->channels, ch, i)
     {
@@ -2275,6 +2282,7 @@ void Packet_ctor(Packet *const me, Package *const pkg)
     assert(me);
     me->pkg = pkg;
     me->channelSentMask = 0;
+    me->result = true;
 }
 
 void Packet_dtor(Packet *const me)
@@ -2447,7 +2455,7 @@ bool Station_StartBy(Station *const me, char const *workDir)
                 int res = pthread_create(thread, &attr, (void *(*)(void *))ch->vptr->start, ch);
                 if (res)
                 {
-                    printf("ch[%2d] start failed.", ch->id);
+                    printf("ch[%2d] start failed.\r\n", ch->id);
                     DelInstance(thread);
                 }
                 else
@@ -2548,19 +2556,14 @@ bool Station_IsFileSentByAllChannel(Station *const me, tinydir_file *const file,
 bool Station_AsyncSend(Station *const me, cJSON *const data)
 {
     assert(me);
-    if (data == NULL)
-    {
-        return true;
-    }
-    pthread_mutex_lock(&me->sendMutex);
-    // 生成
-    Package *pkg = createPackage(data);
-    if (pkg == NULL)
+    Package *pkg = NULL;
+    if (data == NULL || (pkg = createPackage(data)) == NULL)
     {
         return false;
     }
     Packet *packet = NewInstance(Packet);
     Packet_ctor(packet, pkg);
+    pthread_mutex_lock(&me->sendMutex);
     int64_t i = 0;
     Channel *ch;
     vec_foreach(&me->config.channels, ch, i)
@@ -2595,11 +2598,6 @@ static void Station_PacketSendResult(Station *const me, Packet *packet, size_t i
     assert(me);
     assert(packet);
     vec_splice(&me->packets, i, 1);
-    // if (packet->ev != NULL)
-    // {
-    //     LOG_D("send event: %d", packet->result ? TASK_EVENT_MSG_ACK : TASK_EVENT_COMM_ERR);
-    //     rt_event_send(packet->ev, packet->result ? TASK_EVENT_MSG_ACK : TASK_EVENT_COMM_ERR);
-    // }
     Packet_dtor(packet);
     DelInstance(packet);
 }
@@ -2689,23 +2687,15 @@ void Station_ClearPackets(Station *const me)
 bool Station_AsyncSendFilePkg(Station *const me, const char *file)
 {
     assert(me);
-    if (file == NULL)
-    {
-        return true;
-    }
     struct stat fStat = {0};
-    if (stat(file, &fStat) != SL651_APP_ERROR_SUCCESS)
+    if (file == NULL || stat(file, &fStat) != SL651_APP_ERROR_SUCCESS || fStat.st_size <= 0)
     {
         return true;
     }
-    if (fStat.st_size <= 0)
-    {
-        return true;
-    }
-    pthread_mutex_lock(&me->sendMutex);
     // 生成
     FilePkg *f = NewInstance(FilePkg);
     FilePkg_ctor(f, file);
+    pthread_mutex_lock(&me->sendMutex);
     int64_t i = 0;
     Channel *ch;
     vec_foreach(&me->config.channels, ch, i)
@@ -2767,6 +2757,7 @@ void Station_SendFilePkgsToChannel(Station *const me, Channel *const ch)
         {
             if (f->file != NULL && FilePkg_ShouldSendByChannel(f, ch))
             {
+                printf("ch[%2d] sending file[%s]\r\n", ch->id, f->file);
                 FilePkgSendStatus res = ch->vptr->sendFilePkg(ch, f);
                 FilePkg_UnmarkByChannel(f, ch);
                 if (res == FILE_SEND_FAIL && me->config.fastFailed)
@@ -2777,7 +2768,7 @@ void Station_SendFilePkgsToChannel(Station *const me, Channel *const ch)
                     continue;
                 }
             }
-            if (FilePkg_IsSent(f))
+            if (FilePkg_IsSent(f) || (me->config.fastFailed && !f->result))
             {
                 Station_FilePkgSendResult(me, f, i);
                 i--;
