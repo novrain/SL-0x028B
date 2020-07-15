@@ -145,6 +145,11 @@ void Channel_Start(Channel *const me)
     assert(0);
 }
 
+void Channel_Stop(Channel *const me)
+{
+    assert(0);
+}
+
 bool Channel_Open(Channel *const me)
 {
     assert(0);
@@ -275,8 +280,14 @@ bool Channel_SendFileByFd(Channel *const me, struct stat *fStat, int fd, const c
     }
     uint16_t pkgNo = 1;
     ssize_t readBytes = -1;
-    while ((readBytes = read(fd, me->buff, me->buffSize)) > 0)
+    uint16_t imgseq = Channel_NextSeq(me);
+    while ((readBytes = read(fd, me->buff, me->buffSize)) > 0 && me->isConnected)
     {
+        if (me->status == CHANNEL_STATUS_STOP)
+        {
+            // break
+            return false;
+        }
         // create package
         UplinkMessage *upMsg = NewInstance(UplinkMessage); // 选择是上行还是下行
         UplinkMessage_ctor(upMsg, 0);                      // 调用构造函数,如果有要素，需要指定要素数量
@@ -287,7 +298,7 @@ bool Channel_SendFileByFd(Channel *const me, struct stat *fStat, int fd, const c
         head->stxFlag = SYN;
         head->sequence.count = pkgCount;
         head->sequence.seq = pkgNo;
-        upMsg->messageHead.seq = Channel_LastSeq(me); // 根据功能码填写报文头
+        upMsg->messageHead.seq = imgseq; // 根据功能码填写报文头
         if (pkgNo != pkgCount)
         {
             pkg->tail.etxFlag = ETB; // 截止符
@@ -314,6 +325,24 @@ bool Channel_SendFileByFd(Channel *const me, struct stat *fStat, int fd, const c
         {
             return false;
         }
+        // else if (me->station->config.waitFileSendAckEveryPack)
+        // {
+        //     ByteBuffer *buff = me->vptr->onRead(me);
+        //     if (buff == NULL)
+        //     {
+        //         return false;
+        //     }
+        //     Package *pkg = decodePackage(buff);
+        //     if (pkg == NULL)
+        //     {
+        //         BB_dtor(buff);
+        //         DelInstance(buff);
+        //         return false;
+        //     }
+        //     printf("ch[%2d] recv file send ack [%2x].\r\n", me->id, pkg->head.funcCode);
+        //     Package_dtor(pkg);
+        //     DelInstance(pkg);
+        // }
         usleep(me->msgSendInterval * 1000);
         pkgNo++;
     }
@@ -328,7 +357,7 @@ void Channel_SendFile(Channel *const me, tinydir_file *file)
     // {
     //     return;
     // }
-    if (me->status != CHANNEL_STATUS_RUNNING)
+    if (me->status != CHANNEL_STATUS_RUNNING || me->status == CHANNEL_STATUS_STOP)
     {
         return;
     }
@@ -365,7 +394,10 @@ void Channel_SendFile(Channel *const me, tinydir_file *file)
             else // 不等待应答
             {
                 me->status = CHANNEL_STATUS_RUNNING;
-                Channel_RecordSentFile(me, (tinydir_file *const)file);
+                if (!Station_IsFileSentByAllChannel((Station *const)me->station, (tinydir_file *const)file, me))
+                {
+                    Channel_RecordSentFile(me, (tinydir_file *const)file);
+                }
             }
         }
         close(fd);
@@ -437,6 +469,12 @@ void Channel_dtor(Channel *const me)
         cJSON_Delete(me->recordsFileInJSON);
     }
     pthread_mutex_destroy(&me->cleanUpMutex);
+    if (me->thread != NULL)
+    {
+        // rt_thread_delete(me->thread);
+        // DelInstance(me->thread);
+        me->thread = NULL;
+    }
 }
 
 // 工作方式 1/2 主动上报
@@ -1123,13 +1161,14 @@ bool handlePICTURE(Channel *const ch, Package *const request)
 }
 // HANDLERS END
 
-void Channel_ctor(Channel *me, Station *const station, size_t buffSize, uint8_t msgSendInterval)
+void Channel_ctor(Channel *me, uint8_t id, Station *const station, size_t buffSize, uint8_t msgSendInterval)
 {
     assert(me);
     assert(buffSize > 0);
     // assert(station);
     static ChannelVtbl const vtbl = {
         &Channel_Start,
+        &Channel_Stop,
         &Channel_Open,
         &Channel_Close,
         &Channel_Keepalive,
@@ -1140,6 +1179,7 @@ void Channel_ctor(Channel *me, Station *const station, size_t buffSize, uint8_t 
         &Channel_NotifyData,
         &Channel_SendFilePkg,
         &Channel_dtor};
+    me->id = id;
     me->vptr = &vtbl;
     me->station = station;
     me->isConnected = false;
@@ -1167,6 +1207,7 @@ void Channel_ctor(Channel *me, Station *const station, size_t buffSize, uint8_t 
     static ChannelHandler const h_PICTRUE = {PICTURE, &handlePICTURE};
     vec_push(&me->handlers, (ChannelHandler *)&h_PICTRUE);
     me->status = CHANNEL_STATUS_RUNNING;
+    me->thread = NULL;
     // pthread_mutexattr_t mutexAttr;
     // pthread_mutexattr_init(&mutexAttr);
     // pthread_mutexattr_settype(&mutexAttr, PTHREAD_MUTEX_RECURSIVE);
@@ -1226,6 +1267,23 @@ void IOChannel_Start(Channel *const me)
         ev_async_start(ioCh->reactor, ioCh->asyncWatcher);
     }
     ev_run(ioCh->reactor, 0);
+}
+
+void IOChannel_Stop(Channel *const me)
+{
+    assert(me);
+    if (me->status == CHANNEL_STATUS_STOP)
+    {
+        return;
+    }
+    IOChannel *ioCh = (IOChannel *)me;
+    ev_timer_stop(ioCh->reactor, ioCh->filesWatcher);
+    ev_timer_stop(ioCh->reactor, ioCh->connectWatcher);
+    ev_io_stop(ioCh->reactor, ioCh->dataWatcher);
+    ev_async_stop(ioCh->reactor, ioCh->asyncWatcher);
+    ev_break(ioCh->reactor, EVBREAK_ALL);
+    me->vptr->close(me);
+    me->status = CHANNEL_STATUS_STOP;
 }
 
 bool IOChannel_Open(Channel *const me)
@@ -1312,7 +1370,6 @@ void IOChannel_OnIOReadEvent(Reactor *reactor, ev_io *w, int revents)
             (*ch->station->config.workMode == REPORT || *ch->station->config.workMode == REPORT_CONFIRM))
         {
             Channel_TEST(ch, Channel_LastSeq(ch));
-            usleep(*ch->station->config.msgSendInterval * 1000);
             // Channel_BASIC_CONFIG(ch);
         }
         return;
@@ -1498,12 +1555,13 @@ void IOChannel_dtor(Channel *const me)
     Channel_dtor(me);
 }
 
-void IOChannel_ctor(IOChannel *me, Station *const station, size_t buffSize, uint8_t msgSendInterval)
+void IOChannel_ctor(IOChannel *me, uint8_t id, Station *const station, size_t buffSize, uint8_t msgSendInterval)
 {
     assert(me);
     // assert(station);
     static IOChannelVtbl const vtbl = {
         {&IOChannel_Start,
+         &IOChannel_Stop,
          &IOChannel_Open,
          &IOChannel_Close,
          &IOChannel_Keepalive,
@@ -1519,7 +1577,7 @@ void IOChannel_ctor(IOChannel *me, Station *const station, size_t buffSize, uint
         &IOChannel_OnFilesScanEvent,
         &IOChannel_OnAsyncEvent};
     Channel *super = (Channel *)me;
-    Channel_ctor(super, station, buffSize, msgSendInterval);
+    Channel_ctor(super, id, station, buffSize, msgSendInterval);
     super->vptr = (const ChannelVtbl *)(&vtbl);
     me->reactor = ev_loop_new(0);
 }
@@ -1530,6 +1588,12 @@ void SocketChannel_Start(Channel *const me)
 {
     assert(me);
     IOChannel_Start(me);
+}
+
+void SocketChannel_Stop(Channel *const me)
+{
+    assert(me);
+    IOChannel_Stop(me);
 }
 
 bool setSocketBlockingEnabled(int fd, bool blocking)
@@ -1565,12 +1629,20 @@ bool SocketChannel_Connect(Channel *const me)
         return false;
     }
     int on = 1;
+    int recvtimeout = 3;
+    int sendtimeout = 5;
 #ifdef _WIN32
     setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, (const char *)&on, sizeof(on));
     setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char *)&on, sizeof(on));
+
+    // 读写超时: 2s
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char *)&recvtimeout, sizeof(recvtimeout));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (const char *)&sendtimeout, sizeof(sendtimeout));
 #else
     setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, (void *)&on, sizeof(on));
     setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (void *)&on, sizeof(on));
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (void *)&recvtimeout, sizeof(recvtimeout));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (void *)&sendtimeout, sizeof(sendtimeout));
 #endif
     setSocketBlockingEnabled(sock, false);
     // if (connect(sock, (struct sockaddr *)ipv4, sizeof(struct sockaddr_in)) < 0)
@@ -1586,13 +1658,14 @@ bool SocketChannel_Connect(Channel *const me)
 
 void SocketChannel_Close(Channel *const me)
 {
+    assert(me);
+    if (!me->isConnected)
+    {
+        return;
+    }
     IOChannel *ioCh = (IOChannel *)me;
-    int sock = ioCh->fd;
-#ifdef _WIN32
-    closesocket(sock);
-#else
-    close(sock);
-#endif
+    closesocket(ioCh->fd);
+    me->isConnected = false;
 }
 
 void SocketChannel_Keepalive(Channel *const me)
@@ -1654,7 +1727,34 @@ bool SocketChannel_Send(Channel *const me, ByteBuffer *const buff)
         Channel *ch = (Channel *)ioCh;
         int sock = ioCh->fd;
         int len = BB_Available(buff);
-        return send(sock, (const char *)buff->buff, len, 0) == len;
+        int8_t tryCounts = me->station->config.sendRetryCounts;
+        int sendLen = -1;
+        while (tryCounts >= 0)
+        {
+            sendLen = send(sock, (const char *)buff->buff, len, 0);
+            // LOG_D("ch[%2d] len %d sended %d", me->id, len, sendLen);
+            if (sendLen < 0)
+            {
+                if (errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN) // @Todo
+                {
+                printf("ch[%2d] socket send error %d, but keep it\r\n", me->id, errno);
+            }
+            else
+            {
+                printf("ch[%2d] socket send error %d, close it\r\n", me->id, errno);
+                SocketChannel_Close(me);
+                    return false;
+                }
+            }
+            usleep(me->msgSendInterval * 1000);
+            if (sendLen == len)
+            {
+                return true;
+            }
+            printf("ch[%2d] send error: %d(require) != %d(send)\r\n", me->id, len, sendLen);
+            tryCounts--;
+        }
+        return sendLen == len;
     }
     else
     {
@@ -1718,12 +1818,13 @@ void SocketChannel_dtor(Channel *const me)
 #define SOCKET_CHANNEL_DEFAULT_BUFF_SIZE 3072
 #define SOCKET_CHANNEL_DEFAULT_MSG_SEND_INTREVAL 100
 
-void SocketChannel_ctor(SocketChannel *me, Station *const station)
+void SocketChannel_ctor(SocketChannel *me, uint8_t id, Station *const station)
 {
     assert(me);
     // assert(station);
     static SocketChannelVtbl const vtbl = {
         {{&SocketChannel_Start,
+          &SocketChannel_Stop,
           &SocketChannel_Connect,
           &SocketChannel_Close,
           &SocketChannel_Keepalive,
@@ -1740,7 +1841,7 @@ void SocketChannel_ctor(SocketChannel *me, Station *const station)
          &SocketChannel_OnAsyncEvent},
         &SocketChannel_Ip};
     IOChannel *super = (IOChannel *)me;
-    IOChannel_ctor(super, station,
+    IOChannel_ctor(super, id, station,
                    station->config.buffSize == NULL
                        ? SOCKET_CHANNEL_DEFAULT_BUFF_SIZE
                        : *(station->config.buffSize),
@@ -1788,12 +1889,13 @@ void Ipv4Channel_dtor(Channel *me)
     SocketChannel_dtor(me);
 }
 
-void Ipv4Channel_ctor(Ipv4Channel *me, Station *const station)
+void Ipv4Channel_ctor(Ipv4Channel *me, uint8_t id, Station *const station)
 {
     assert(me);
     // assert(station);
     static SocketChannelVtbl const vtbl = {
         {{&SocketChannel_Start,
+          &SocketChannel_Stop,
           &SocketChannel_Connect,
           &SocketChannel_Close,
           &SocketChannel_Keepalive,
@@ -1810,7 +1912,7 @@ void Ipv4Channel_ctor(Ipv4Channel *me, Station *const station)
          &SocketChannel_OnAsyncEvent},
         &Ipv4Channel_Ip};
     SocketChannel *super = (SocketChannel *)me;
-    SocketChannel_ctor(super, station);
+    SocketChannel_ctor(super, id, station);
     Channel *ch = (Channel *)me;
     ch->vptr = (const ChannelVtbl *)&vtbl;
 }
@@ -1846,12 +1948,13 @@ void DomainChannel_dtor(Channel *me)
     SocketChannel_dtor(me);
 }
 
-void DomainChannel_ctor(DomainChannel *me, Station *const station)
+void DomainChannel_ctor(DomainChannel *me, uint8_t id, Station *const station)
 {
     assert(me);
     // assert(station);
     static SocketChannelVtbl const vtbl = {
         {{&SocketChannel_Start,
+          &SocketChannel_Stop,
           &SocketChannel_Connect,
           &SocketChannel_Close,
           &SocketChannel_Keepalive,
@@ -1868,7 +1971,7 @@ void DomainChannel_ctor(DomainChannel *me, Station *const station)
          &SocketChannel_OnAsyncEvent},
         &DomainChannel_Ip};
     SocketChannel *super = (SocketChannel *)me;
-    SocketChannel_ctor(super, station);
+    SocketChannel_ctor(super, id, station);
     Channel *ch = (Channel *)me;
     ch->vptr = (const ChannelVtbl *)&vtbl;
 }
@@ -1889,9 +1992,8 @@ Channel *Channel_Ipv4FromJson(cJSON *const channelInJson, Config *const config)
         id >= CHANNEL_ID_MASTER_01 && id <= CHANNEL_ID_SLAVE_04)
     {
         Ipv4Channel *ch = NewInstance(Ipv4Channel);
-        Ipv4Channel_ctor(ch, config->station); // 初始化 station 为 NULL
+        Ipv4Channel_ctor(ch, id, config->station); // 初始化 station 为 NULL
         Channel *super = (Channel *)ch;
-        super->id = id;
         super->type = CHANNEL_IPV4;
         super->keepaliveTimer = keepalive;
         ch->ipv4.addr.sin_family = AF_INET;
@@ -1946,9 +2048,8 @@ Channel *Channel_DomainFromJson(cJSON *const channelInJson, Config *const config
             return NULL;
         }
         DomainChannel *ch = NewInstance(DomainChannel);
-        DomainChannel_ctor(ch, config->station); // 初始化 station 为 NULL
+        DomainChannel_ctor(ch, id, config->station); // 初始化 station 为 NULL
         Channel *super = (Channel *)ch;
-        super->id = id;
         super->type = CHANNEL_DOMAIN;
         super->keepaliveTimer = keepalive;
         ch->domain.domainStr = domain;
@@ -1982,9 +2083,8 @@ Channel *Channel_ToiOTA(Config *const config)
         return NULL;
     }
     DomainChannel *ch = NewInstance(DomainChannel);
-    DomainChannel_ctor(ch, config->station); // 初始化 station 为 NULL
+    DomainChannel_ctor(ch, CHANNEL_ID_FIXED, config->station); // 初始化 station 为 NULL
     Channel *super = (Channel *)ch;
-    super->id = CHANNEL_ID_FIXED;
     super->type = CHANNEL_DOMAIN;
     super->keepaliveTimer = 60;
     ch->domain.domainStr = (char *)iOTA;
@@ -2112,24 +2212,38 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
     cJSON_GET_NUMBER(stationCategory, StationCategory, json, RIVER_STATION, 16);
     me->stationCategory = stationCategory;
     // filesDir
-    cJSON_COPY_VALUE(me->filesDir, filesDir, json, valuestring);
-    if (me->filesDir == NULL)
+    cJSON_GET_VALUE(filesDir, char *, json, valuestring, NULL);
+    if (filesDir != NULL)
     {
         size_t len = strlen(me->workDir) + 6;
         me->filesDir = (char *)malloc(len); // /pics\0
         memset(me->filesDir, '\0', len);
         snprintf(me->filesDir, len, "%s/pics", me->workDir);
     }
+    else
+    {
+        size_t len = strlen(filesDir);
+        me->filesDir = (char *)malloc(len);
+        memset(me->filesDir, '\0', len);
+        memcpy(me->filesDir, filesDir, len);
+    }
     mode_t mode = S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH;
     mkpath(me->filesDir, mode);
     // sentFilesDir
-    cJSON_COPY_VALUE(me->sentFilesDir, sentFilesDir, json, valuestring);
-    if (me->sentFilesDir == NULL)
+    cJSON_GET_VALUE(sentFilesDir, char *, json, valuestring, NULL);
+    if (me->sentFilesDir != NULL)
     {
         size_t len = strlen(me->workDir) + 11;
-        me->sentFilesDir = (char *)malloc(len); // /pics\0
+        me->sentFilesDir = (char *)malloc(len); // /pics_sent\0
         memset(me->sentFilesDir, '\0', len);
         snprintf(me->sentFilesDir, len, "%s/pics_sent", me->workDir);
+    }
+    else
+    {
+        size_t len = strlen(sentFilesDir);
+        me->sentFilesDir = (char *)malloc(len);
+        memset(me->sentFilesDir, '\0', len);
+        memcpy(me->sentFilesDir, sentFilesDir, len);
     }
     mkpath(me->sentFilesDir, mode);
     // socketDevice
@@ -2167,6 +2281,16 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
     // multi channel fast failed enable
     cJSON *jFastFailed = cJSON_GetObjectItem(json, "fastFailed");
     me->fastFailed = jFastFailed == NULL || cJSON_IsNull(jFastFailed) || cJSON_IsTrue(jFastFailed);
+
+    // send retry count
+    if (cJSON_HasObjectItem(json, "sendRetryCounts"))
+    {
+        cJSON_COPY_VALUE(me->sendRetryCounts, sendRetryCounts, json, valuedouble);
+        if (me->sendRetryCounts < CHANNEL_MIN_MSG_SEND_RETRY_COUNT || me->sendRetryCounts > CHANNEL_MAX_MSG_SEND_RETRY_COUNT)
+        {
+            me->sendRetryCounts = CHANNEL_DEFAULT_MSG_SEND_RETRY_COUNT;
+        }
+    }
 
     // channels
     cJSON *channels = cJSON_GetObjectItem(json, "channels");
@@ -2220,6 +2344,7 @@ void Config_dtor(Config *const me)
             DelInstance(ch);
         }
     }
+    vec_deinit(&me->channels);
     if (me->centerAddrs != NULL)
     {
         DelInstance(me->centerAddrs);
@@ -2232,7 +2357,6 @@ void Config_dtor(Config *const me)
     {
         DelInstance(me->password);
     }
-    ChannelPtrVector channels;
     if (me->workMode != NULL)
     {
         DelInstance(me->workMode);
@@ -2274,6 +2398,7 @@ void Config_ctor(Config *const me, Station *const station)
     me->stationAddr = NULL;
     me->workMode = NULL;
     me->station = station;
+    me->sendRetryCounts = CHANNEL_DEFAULT_MSG_SEND_RETRY_COUNT;
 }
 
 // Packet
@@ -2496,6 +2621,21 @@ bool Station_Start(Station *const me)
     assert(me);
     char const *defaultDir = SL651_DEFAULT_WORKDIR;
     return Station_StartBy(me, defaultDir);
+}
+
+bool Station_Stop(Station *const me)
+{
+    assert(me);
+    int64_t i = 0;
+    Channel *ch;
+    vec_foreach(&me->config.channels, ch, i)
+    {
+        if (ch != NULL)
+        {
+            ch->vptr->stop(ch);
+        }
+    }
+    return true;
 }
 
 bool Station_IsFileSentByAllChannel(Station *const me, tinydir_file *const file, Channel *const currentCh)

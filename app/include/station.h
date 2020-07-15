@@ -141,6 +141,7 @@ extern "C"
 
     typedef enum
     {
+        CHANNEL_STATUS_STOP,
         CHANNEL_STATUS_RUNNING,
         CHANNEL_STATUS_WAITTING_SCAN_FILESEND_ACK,
         CHANNEL_STATUS_WAITTING_AYNC_FILESEND_ACK
@@ -173,6 +174,7 @@ extern "C"
     typedef struct ChannelVtbl
     {
         void (*start)(Channel *const me);
+        void (*stop)(Channel *const me);
         bool (*open)(Channel *const me);
         void (*close)(Channel *const me);
         void (*keepalive)(Channel *const me);
@@ -257,6 +259,7 @@ extern "C"
         bool waitFileSendAck;
         bool fastFailed;
         bool scanFiles;
+        uint8_t sendRetryCounts;
         // reference
         Station *station;
     } Config;
@@ -271,6 +274,10 @@ extern "C"
 #define CHANNEL_MIN_MSG_SEND_INTERVAL 1
 #define CHANNEL_MAX_MSG_SEND_INTERVAL 5000
 #define CHANNEL_DEFAULT_MSG_SEND_INTERVAL 10
+
+#define CHANNEL_MIN_MSG_SEND_RETRY_COUNT 0
+#define CHANNEL_MAX_MSG_SEND_RETRY_COUNT 10
+#define CHANNEL_DEFAULT_MSG_SEND_RETRY_COUNT 2 // @Todo 默认修改为0，不重试
 
     typedef struct
     {
@@ -294,6 +301,7 @@ extern "C"
     };
     void Station_ctor(Station *const me);
     bool Station_Start(Station *const me);
+    bool Station_Stop(Station *const me);
     bool Station_StartBy(Station *const me, char const *dir);
     void Station_dtor(Station *const me);
     bool Station_IsFileSentByAllChannel(Station *const me, tinydir_file *const file, Channel *const currentCh);
