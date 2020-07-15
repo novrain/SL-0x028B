@@ -477,6 +477,10 @@ void Channel_dtor(Channel *const me)
         me->thread = NULL;
     }
     vec_deinit(&me->handlers);
+    if (me->buff != NULL)
+    {
+        DelInstance(me->buff);
+    }
 }
 
 // 工作方式 1/2 主动上报
@@ -1543,6 +1547,11 @@ void IOChannel_dtor(Channel *const me)
     IOChannel *ioCh = (IOChannel *)me;
     if (ioCh->reactor)
     {
+        if (ioCh->filesWatcher != NULL)
+        {
+            ev_timer_stop(ioCh->reactor, ioCh->filesWatcher);
+            DelInstance(ioCh->filesWatcher);
+        }
         if (ioCh->dataWatcher != NULL)
         {
             ev_io_stop(ioCh->reactor, ioCh->dataWatcher);
@@ -2397,6 +2406,10 @@ void Config_dtor(Config *const me)
     {
         DelInstance(me->socketDevice);
     }
+    if (me->buffSize != NULL)
+    {
+        DelInstance(me->buffSize);
+    }
 }
 
 void Config_ctor(Config *const me, Station *const station)
@@ -2411,6 +2424,7 @@ void Config_ctor(Config *const me, Station *const station)
     me->workMode = NULL;
     me->station = station;
     me->sendRetryCounts = CHANNEL_DEFAULT_MSG_SEND_RETRY_COUNT;
+    me->buffSize = NULL;
 }
 
 // Packet
