@@ -2410,6 +2410,10 @@ void Config_dtor(Config *const me)
     {
         DelInstance(me->buffSize);
     }
+    if (me->msgSendInterval != NULL)
+    {
+        DelInstance(me->msgSendInterval);
+    }
 }
 
 void Config_ctor(Config *const me, Station *const station)
@@ -2425,6 +2429,7 @@ void Config_ctor(Config *const me, Station *const station)
     me->station = station;
     me->sendRetryCounts = CHANNEL_DEFAULT_MSG_SEND_RETRY_COUNT;
     me->buffSize = NULL;
+    me->msgSendInterval = NULL;
 }
 
 // Packet
