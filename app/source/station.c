@@ -467,6 +467,7 @@ void Channel_dtor(Channel *const me)
     if (me->recordsFileInJSON != NULL)
     {
         cJSON_Delete(me->recordsFileInJSON);
+        me->recordsFileInJSON = NULL;
     }
     pthread_mutex_destroy(&me->cleanUpMutex);
     if (me->thread != NULL)
@@ -475,6 +476,7 @@ void Channel_dtor(Channel *const me)
         // DelInstance(me->thread);
         me->thread = NULL;
     }
+    vec_deinit(&me->handlers);
 }
 
 // 工作方式 1/2 主动上报
@@ -1180,6 +1182,7 @@ void Channel_ctor(Channel *me, uint8_t id, Station *const station, size_t buffSi
         &Channel_SendFilePkg,
         &Channel_dtor};
     me->id = id;
+    me->recordsFileInJSON = NULL;
     me->vptr = &vtbl;
     me->station = station;
     me->isConnected = false;
@@ -1542,13 +1545,18 @@ void IOChannel_dtor(Channel *const me)
     {
         if (ioCh->dataWatcher != NULL)
         {
-            // ev_io_stop(me->station->reactor, ioCh->dataWatcher);
             ev_io_stop(ioCh->reactor, ioCh->dataWatcher);
+            DelInstance(ioCh->dataWatcher);
         }
         if (ioCh->connectWatcher != NULL)
         {
-            // ev_timer_stop(me->station->reactor, ioCh->connectWatcher);
             ev_timer_stop(ioCh->reactor, ioCh->connectWatcher);
+            DelInstance(ioCh->connectWatcher);
+        }
+        if (ioCh->asyncWatcher != NULL)
+        {
+            ev_async_stop(ioCh->reactor, ioCh->asyncWatcher);
+            DelInstance(ioCh->asyncWatcher);
         }
         ev_loop_destroy(ioCh->reactor);
     }
