@@ -1664,7 +1664,11 @@ void SocketChannel_Close(Channel *const me)
         return;
     }
     IOChannel *ioCh = (IOChannel *)me;
+#ifdef __linux
+    close(ioCh->fd);
+#else
     closesocket(ioCh->fd);
+#endif
     me->isConnected = false;
 }
 
@@ -1737,12 +1741,12 @@ bool SocketChannel_Send(Channel *const me, ByteBuffer *const buff)
             {
                 if (errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN) // @Todo
                 {
-                printf("ch[%2d] socket send error %d, but keep it\r\n", me->id, errno);
-            }
-            else
-            {
-                printf("ch[%2d] socket send error %d, close it\r\n", me->id, errno);
-                SocketChannel_Close(me);
+                    printf("ch[%2d] socket send error %d, but keep it\r\n", me->id, errno);
+                }
+                else
+                {
+                    printf("ch[%2d] socket send error %d, close it\r\n", me->id, errno);
+                    SocketChannel_Close(me);
                     return false;
                 }
             }
@@ -2213,7 +2217,7 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
     me->stationCategory = stationCategory;
     // filesDir
     cJSON_GET_VALUE(filesDir, char *, json, valuestring, NULL);
-    if (filesDir != NULL)
+    if (filesDir == NULL)
     {
         size_t len = strlen(me->workDir) + 6;
         me->filesDir = (char *)malloc(len); // /pics\0
@@ -2231,7 +2235,7 @@ bool Config_InitFromJSON(Config *const me, cJSON *const json)
     mkpath(me->filesDir, mode);
     // sentFilesDir
     cJSON_GET_VALUE(sentFilesDir, char *, json, valuestring, NULL);
-    if (me->sentFilesDir != NULL)
+    if (sentFilesDir == NULL)
     {
         size_t len = strlen(me->workDir) + 11;
         me->sentFilesDir = (char *)malloc(len); // /pics_sent\0
